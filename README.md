@@ -1,5 +1,5 @@
 # ĐỒ ÁN 3: HỆ THỐNG SPEC2RTL & PROMPT2SILICON
-## Tự Động Hóa Thiết Kế và Kiểm Thử Vi Mạch AI Accelerator SoC Bằng Mô Hình Multi-Agent
+## Tự Động Hóa Thiết Kế và Kiểm Thử Vi Mạch AI Accelerator SoC & Digital Hardware Bằng Mô Hình Multi-Agent
 
 ---
 
@@ -11,100 +11,111 @@
 
 ---
 
-## 2. Kiến Trúc Hệ Thống Đồ Án
+## 2. Danh Sách Các Bài Toán Phần Cứng Được Hỗ Trợ (trong `specs/`)
+Hệ thống tự động hóa chuyển đổi từ ngôn ngữ tự nhiên sang mã RTL Verilog, Testbench, mô phỏng waveform và sơ đồ nguyên lý Quartus BDF cho 4 bài toán:
+
+| STT | Tên Spec | Mô Tả Hệ Thống Phần Cứng | Module Entity Đỉnh |
+| :---: | :--- | :--- | :--- |
+| **1** | `soc_ai_spec.md` | Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core) | `top_soc` |
+| **2** | `thang_may_spec.md` | Bộ điều khiển Thang máy 5 tầng (5-Floor Intelligent Elevator FSM) | `elevator_controller` |
+| **3** | `traffic_light_spec.md` | Bộ điều khiển Đèn giao thông ngã tư thông minh (Intersection FSM) | `traffic_light` |
+| **4** | `vendding_machine.md` | Máy bán nước tự động 15.000đ nhận mệnh giá 5k/10k và thối tiền | `vending_machine` |
+
+---
+
+## 3. Kiến Trúc Cấu Trúc Dự Án (Cross-Platform)
 
 ```
-D:\altera\13.0sp1\BTVN\Do_An_3\
+TKLLS/
 ├── agent/                    # Hệ thống điều phối Multi-Agent (Spec2RTL Core)
+│   ├── eda_finder.py         # Tự động dò tìm ModelSim / Quartus / Icarus Verilog trên mọi ổ đĩa (C:, D:, E:)
 │   ├── spec_analyzer.py      # Phân tích đặc tả tự nhiên thành danh sách module/port
-│   ├── simulator.py          # Bộ điều khiển biên dịch & mô phỏng tự động (ModelSim)
+│   ├── rtl_generator.py      # Tự động sinh mã nguồn Verilog chuẩn synthesizable
+│   ├── tb_generator.py       # Tự động sinh Testbench tự kiểm tra (Self-checking)
+│   ├── simulator.py          # Bộ điều khiển mô phỏng 3 tầng (ModelSim -> Icarus -> Python Engine)
+│   ├── bdf_generator.py      # Tự động trích xuất BSF Symbol và tạo sơ đồ Quartus BDF
 │   ├── reflection_loop.py    # Vòng lặp phản xạ chuẩn đoán và tự sửa lỗi (Self-Healing)
 │   └── run_spec2rtl.py       # Master script điều phối toàn bộ luồng
-├── specs/                    # Tài liệu đặc tả kỹ thuật phần cứng (Golden Spec)
-│   └── soc_ai_spec.md        # Đặc tả kiến trúc SoC CPU-RAM-DMA-AI MAC Core
-├── src/                      # Mã nguồn phần cứng Verilog synthesizable
-│   ├── mac_unit.v            # Khối nhân - tích lũy 8-bit (4x4 Mult + 8-bit Acc)
-│   ├── relu.v                # Hàm kích hoạt phi tuyến ReLU
-│   ├── vector_counter.v      # Bộ đếm chiều dài vector
-│   ├── ai_datapath.v         # Đường truyền dữ liệu AI Core
-│   ├── ai_fsm.v              # FSM điều khiển AI Core (T0..T6)
-│   ├── ai_core.v             # Module AI Accelerator hoàn chỉnh
-│   ├── ram_16x4.v            # Bộ nhớ SRAM 16x4 trên chip
-│   ├── dma_8237.v            # Bộ điều khiển DMA tương thích 8237
-│   ├── cpu_controller.v      # Bộ vi tuần tự CPU Micro-sequencer (S00..S10)
-│   └── top_soc.v             # Module đỉnh tích hợp toàn bộ SoC và Bus MUX
+├── specs/                    # Tài liệu đặc tả kỹ thuật phần cứng (Golden Specs)
+│   ├── soc_ai_spec.md
+│   ├── thang_may_spec.md
+│   ├── traffic_light_spec.md
+│   └── vendding_machine.md
+├── src/                      # Mã nguồn phần cứng Verilog synthesizable (SoC AI + Generated RTL)
 ├── sim/                      # Môi trường mô phỏng & kiểm thử tự động
-│   ├── tb_top_soc.v          # Self-checking testbench đo kiểm toán hạng W*X=12
-│   ├── dump.vcd              # Dạng sóng mô phỏng xuất chuẩn GTKWave/ModelSim
-│   └── work/                 # Thư viện mô phỏng ModelSim
-└── docs/                     # Tài liệu đồ án
-    └── README.md
+└── quartus/                  # Thư mục chứa project Quartus II (.qpf, .qsf), symbol (.bsf) và sơ đồ (.bdf)
 ```
 
 ---
 
-## 3. Kiến Trúc Phần Cứng SoC (Golden Reference Benchmark)
+## 4. Hướng Dẫn Dành Cho Máy Khác (Clone / Pull & Thực Thi)
 
-Hệ thống vi mạch SoC tích hợp 4 phân hệ chính:
-- **CPU Micro-sequencer (`cpu_controller.v`)**: FSM 11 trạng thái ($S00 \to S10$), nạp trọng số $W=3$ và đầu vào $X=4$ vào RAM, lập trình thanh ghi MAR và WCR của DMA, nhường bus và chuyển sang chế độ chờ ngắt `SYSTEM_INTR` để chốt kết quả và kích hoạt `SYS_COMPLETE = 1`.
-- **Bộ nhớ SRAM (`ram_16x4.v`)**: Lưu trữ ma trận trọng số và vector đầu vào.
-- **DMA Controller 8237 (`dma_8237.v`)**: Đọc tự động dữ liệu từ RAM đẩy sang AI Core thông qua giao thức bắt tay `DREQ`/`DACK`.
-- **AI Accelerator Core (`ai_core.v`)**: Khối tính toán tích chập/tích vô hướng vector $W \cdot X = 3 \times 4 = 12$ (`0x0C`), qua kích hoạt ReLU.
+### 4.1. Đối với máy đã clone dự án về trước đó:
+Mở terminal/PowerShell tại thư mục dự án đã clone (ví dụ: `d:\VRL\TKLLS`), chạy các lệnh sau để cập nhật phiên bản mới nhất:
 
----
+```bash
+# 1. Di chuyển vào thư mục dự án
+cd TKLLS
 
-## 4. Bảng So Sánh Đối Chứng Khoa Học
+# 2. Xóa bỏ hoặc lưu tạm các file xung đột cục bộ (nếu có)
+git stash
 
-| Tiêu Chí So Sánh | Phương Pháp Cũ (Manual BDF / Quartus II) | Phương Pháp Mới (Spec2RTL / Prompt2Silicon) |
-| :--- | :--- | :--- |
-| **Phương thức thiết kế** | Vẽ tay sơ đồ cổng rời rạc trên giao diện đồ họa. | **Đặc tả bằng ngôn ngữ tự nhiên $\to$ Sinh mã RTL tự động.** |
-| **Ngôn ngữ phần cứng** | BDF độc quyền (không thể tổng hợp ASIC). | **Verilog chuẩn quốc tế (IEEE 1364-2001), sẵn sàng GDSII.** |
-| **Quy mô & Mở rộng** | Rất khó mở rộng, dây nối chằng chịt, dễ lệch pixel. | **Dễ dàng mở rộng từ 1 neuron lên mạng nơ-ron nhiều lớp.** |
-| **Thời gian chu kỳ test** | Tốn hàng giờ thao tác kiểm tra thủ công. | **1.64 giây để biên dịch và mô phỏng tự động 100%.** |
-| **Kiểm soát phiên bản** | File binary/graphic không thể dùng Git hiệu quả. | **Quản lý phiên bản mã nguồn chuyên nghiệp bằng Git.** |
-
----
-
-## 5. Hướng Dẫn Thực Thi
-
-Mở terminal tại thư mục đồ án và chạy lệnh:
-```powershell
-python "D:\altera\13.0sp1\BTVN\Do_An_3\agent\run_spec2rtl.py"
+# 3. Kéo bản cập nhật mới nhất từ GitHub
+git pull origin main
 ```
 
-### Kết quả đầu ra mẫu (Terminal output):
+### 4.2. Đối với máy mới hoàn toàn:
+```bash
+git clone https://github.com/LamGianggg/TKLLS.git
+cd TKLLS
+```
+
+---
+
+## 5. Cách Chạy Chương Trình
+
+Hệ thống hỗ trợ chạy trên **mọi máy tính Windows (bất kể ổ C:, D:, hay E:)** và **tự động thích ứng**:
+- Nếu máy có **ModelSim**: Chạy mô phỏng batch EDA native (`vlog`, `vsim -c`) và xuất file sóng `.vcd`.
+- Nếu máy có **Icarus Verilog**: Chạy qua `iverilog` & `vvp`.
+- Nếu máy **chưa cài đặt công cụ EDA**: Tự động kích hoạt **Python Behavioral Verification Engine**, kiểm thử đầy đủ 100% logic mà không báo lỗi `FileNotFoundError`.
+
+### Cách 1: Chế độ Menu tương tác trực quan (Khuyên dùng)
+```bash
+python agent/run_spec2rtl.py
+```
+Hệ thống sẽ hiển thị menu:
 ```text
-================================================================================
-   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline
-   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)
-================================================================================
+[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:
+  [1] soc_ai_spec.md        -> Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core)
+  [2] thang_may_spec.md     -> Bộ điều khiển Thang máy 5 tầng (5-Floor Intelligent Elevator FSM)
+  [3] traffic_light_spec.md -> Bộ điều khiển Đèn giao thông ngã tư (Intersection Traffic Light FSM)
+  [4] vendding_machine.md   -> Máy bán nước tự động 15.000đ (Vending Machine FSM)
+  [A] Chạy TẤT CẢ (4 bài toán lần lượt)
 
-[Step 1] Ingesting and Parsing Specification...
- -> Found 10 interface ports defined.
- -> Golden Verification Target: 0x0C (12 decimal)
-
-[Step 2] Found 11 Verilog files to compile:
-    - ai_core.v
-    - ai_datapath.v
-    - ai_fsm.v
-    - cpu_controller.v
-    - dma_8237.v
-    - mac_unit.v
-    - ram_16x4.v
-    - relu.v
-    - top_soc.v
-    - vector_counter.v
-    - tb_top_soc.v
-
-[Step 3] Invoking EDA Simulation Engine (ModelSim-Altera Batch Flow)...
-
-============================================================================
-  [SUCCESS] TEST VERIFICATION PASSED 100%!
-  Dot Product: W (3) * X (4) = FINAL_RESULT: 0x0C (12 decimal)
-  Hardware Handshake: DREQ -> DACK -> AI_DONE -> SYSTEM_INTR -> SYS_COMPLETE
-============================================================================
-
->>> [SPEC2RTL STATUS: SUCCESS (100% PASS)] <<<
-Execution Time: 1.64 seconds
-Output files generated: D:\altera\13.0sp1\BTVN\Do_An_3\sim\dump.vcd
+👉 Vui lòng chọn bài toán muốn chạy [1-4 hoặc A, mặc định: A]:
 ```
+
+### Cách 2: Chạy TẤT CẢ các bài toán bằng 1 lệnh duy nhất
+```bash
+python agent/run_spec2rtl.py all
+```
+
+### Cách 3: Chạy trực tiếp một bài toán cụ thể theo số thứ tự hoặc tên file
+```bash
+# Chạy bài toán Thang máy 5 tầng:
+python agent/run_spec2rtl.py 2
+
+# Chạy bài toán Máy bán nước:
+python agent/run_spec2rtl.py 4
+
+# Hoặc truyền tên file spec:
+python agent/run_spec2rtl.py specs/traffic_light_spec.md
+```
+
+---
+
+## 6. Xem Kết Quả Trực Quan
+Sau khi chạy xong:
+1. **Sơ đồ nguyên lý khối (BDF)**: Mở Quartus II $\to$ `File` $\to$ `Open` $\to$ chọn file `.bdf` tương ứng trong thư mục `quartus/`.
+2. **RTL Schematic Netlist**: Mở project `.qpf` trong Quartus II $\to$ `Tools` $\to$ `Netlist Viewers` $\to$ `RTL Viewer`.
+3. **Dạng sóng mô phỏng**: Mở ModelSim $\to$ `File` $\to$ `Open` $\to$ chọn file `.vcd` trong thư mục `sim/`.

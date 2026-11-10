@@ -28,11 +28,12 @@ from tb_generator import TBGenerator
 from bdf_generator import BDFGenerator
 from simulator import EDASimulator
 from reflection_loop import ReflectionAgent
+from eda_finder import find_quartus_map
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram."""
     os.makedirs(q_dir, exist_ok=True)
-    qmap_exe = r"D:\altera\13.0sp1\quartus\bin64\quartus_map.exe"
+    qmap_exe = find_quartus_map()
 
     qpf_path = os.path.join(q_dir, f"{project_name}.qpf")
     qsf_path = os.path.join(q_dir, f"{project_name}.qsf")
@@ -59,7 +60,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         f.write('\n'.join(qsf_lines) + '\n')
 
     # 2. Generate BSF Symbol using quartus_map --generate_symbol
-    if os.path.exists(qmap_exe) and os.path.exists(primary_rtl):
+    if qmap_exe and os.path.exists(qmap_exe) and os.path.exists(primary_rtl):
         subprocess.run([qmap_exe, project_name, f"--generate_symbol={primary_rtl}"], cwd=q_dir, capture_output=True)
 
     # 3. Generate BDF Diagram from BSF
@@ -70,8 +71,10 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         bdf_created = True
 
     # 4. Final Analysis & Synthesis
-    if os.path.exists(qmap_exe):
+    if qmap_exe and os.path.exists(qmap_exe):
         subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True)
+    elif not qmap_exe:
+        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf đã được tạo để bạn mở trực tiếp trong Quartus II GUI.")
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None
 

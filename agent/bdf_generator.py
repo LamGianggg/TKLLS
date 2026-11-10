@@ -121,7 +121,9 @@ class BDFGenerator:
 
 if __name__ == "__main__":
     gen = BDFGenerator()
-    bsf = r"D:\altera\13.0sp1\BTVN\Do_An_3\quartus\vending_machine.bsf"
-    bdf = r"D:\altera\13.0sp1\BTVN\Do_An_3\quartus\vending_machine.bdf"
-    gen.generate_bdf_from_bsf(bsf, bdf)
-    print("BDF generated successfully at:", bdf)
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    bsf = os.path.join(base, "quartus", "vending_machine.bsf")
+    bdf = os.path.join(base, "quartus", "vending_machine.bdf")
+    if os.path.exists(bsf):
+        gen.generate_bdf_from_bsf(bsf, bdf)
+        print("BDF generated successfully at:", bdf)
