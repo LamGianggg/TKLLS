@@ -72,7 +72,7 @@ module tb_top_soc;
                 $display("----------------------------------------------------------------------------");
                 if (FINAL_RESULT === 8'h0C) begin
                     $display("\n============================================================================");
-                    $display("  [SUCCESS] TEST VERIFICATION PASSED 100%%!");
+                    $display("  [SUCCESS] TEST VERIFICATION PASSED 100 PERCENT!");
                     $display("  Dot Product: W (3) * X (4) = FINAL_RESULT: 0x%02X (%0d decimal)", FINAL_RESULT, FINAL_RESULT);
                     $display("  Hardware Handshake: DREQ -> DACK -> AI_DONE -> SYSTEM_INTR -> SYS_COMPLETE");
                     $display("============================================================================\n");

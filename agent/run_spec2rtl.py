@@ -29,6 +29,8 @@ from bdf_generator import BDFGenerator
 from simulator import EDASimulator
 from reflection_loop import ReflectionAgent
 from eda_finder import find_quartus_map
+from verilog_linter import VerilogLinter
+from synthesis_profiler import SynthesisProfiler
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram."""
@@ -110,8 +112,12 @@ def run_single_spec(spec_path, base_dir):
         top_entity = "top_soc"
         project_name = "Top_SoC"
         primary_rtl = os.path.join(src_dir, "top_soc.v")
-        verilog_files = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".v") and not any(k in f for k in ["traffic", "vending", "elevator"]) and f != "top_soc.v"]
-        verilog_files.insert(0, primary_rtl)
+        soc_core_files = [
+            "top_soc.v", "ai_core.v", "ai_datapath.v", "ai_fsm.v",
+            "cpu_controller.v", "dma_8237.v", "mac_unit.v", "ram_16x4.v",
+            "relu.v", "vector_counter.v"
+        ]
+        verilog_files = [os.path.join(src_dir, f) for f in soc_core_files if os.path.exists(os.path.join(src_dir, f))]
         rtl_files = [f for f in verilog_files]
         verilog_files.append(os.path.join(sim_dir, "tb_top_soc.v"))
 
@@ -189,13 +195,19 @@ def run_single_spec(spec_path, base_dir):
     for f in verilog_files:
         print(f"    * {os.path.basename(f)}")
 
-    # Step 3: Simulation & Verification
-    print(f"\n[Step 3] Invoking EDA Simulation Engine for Top: {top_name}...")
+    # Step 2.5: VerilogDB Static Pre-Synthesis Analysis & Linting
+    print(f"\n[Step 2.5] Executing VerilogDB Static Linting & Syntax Pre-Validation...")
+    for vf in verilog_files:
+        VerilogLinter.sanitize_file(vf)
+    print(f" -> [VerilogDB Linter]: All {len(verilog_files)} design files verified and sanitized.")
+
+    # Step 3: Simulation & Verification with VeriPrefer Closed-Loop Reflection
+    print(f"\n[Step 3] Invoking EDA Simulation with Closed-Loop Reflection (VeriPrefer Framework)...")
     sim = EDASimulator(sim_dir)
     reflector = ReflectionAgent(sim)
 
     start_t = time.time()
-    result = sim.run_flow(verilog_files, top_module=top_name)
+    result = reflector.execute_closed_loop_flow(verilog_files, top_module=top_name, max_retries=3)
     elapsed = time.time() - start_t
 
     print("\n" + "-" * 80)
@@ -212,6 +224,11 @@ def run_single_spec(spec_path, base_dir):
     if bdf_path:
         print(f" -> Schematic Diagram (.bdf): {bdf_path}")
 
+    # Step 4.5: VerilogDB Hardware Synthesis & Resource Utilization Profiling
+    print(f"\n[Step 4.5] Profiling Hardware Synthesis Resource Footprint (VerilogDB Standard)...")
+    metrics = SynthesisProfiler.profile_module(q_dir, project_name, primary_rtl)
+    print(SynthesisProfiler.format_profiler_card(metrics, top_entity))
+
     # Step 5: Verification Judgment
     if result["success"]:
         print(f"\n>>> [SPEC2RTL STATUS: SUCCESS (100% PASS)] <<<")
@@ -222,7 +239,7 @@ def run_single_spec(spec_path, base_dir):
             print(f" 1. BDF Schematic: Open Quartus II -> {bdf_path}")
         print(f" 2. RTL Viewer:    Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
         print(f" 3. Waveform:      Open ModelSim   -> {os.path.join(sim_dir, top_entity + '.vcd')}")
-        return True, elapsed, top_entity, bdf_path
+        return True, elapsed, top_entity, bdf_path, metrics
     else:
         print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")
         diagnosis = reflector.diagnose_error(result)
@@ -230,7 +247,7 @@ def run_single_spec(spec_path, base_dir):
         print(f"Category: {diagnosis['category']}")
         print(f"Root Cause: {diagnosis['root_cause']}")
         print(f"Suggested Fix: {diagnosis['suggested_fix']}")
-        return False, elapsed, top_entity, None
+        return False, elapsed, top_entity, None, metrics
 
 def get_spec_description(filename, specs_dir=None):
     """Returns friendly description for available specs."""
@@ -299,18 +316,21 @@ def main():
         summary_results = []
         for s in available_specs:
             spec_file_path = os.path.join(specs_dir, s)
-            success, elapsed, entity, bdf = run_single_spec(spec_file_path, base_dir)
-            summary_results.append((s, entity, success, elapsed, bdf))
+            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir)
+            summary_results.append((s, entity, success, elapsed, bdf, metrics))
 
-        print("\n" + "=" * 80)
-        print("          BẢNG TỔNG KẾT KẾT QUẢ KIỂM THỬ TỰ ĐỘNG TOÀN BỘ CÁC BÀI TOÁN")
-        print("=" * 80)
-        print(f"{'STT':<4} | {'Tên Spec':<24} | {'Module Entity':<22} | {'Trạng Thái':<12} | {'Thời Gian':<10}")
-        print("-" * 80)
-        for i, (spec_n, ent, succ, elap, bdf) in enumerate(summary_results):
+        print("\n" + "=" * 96)
+        print("    BẢNG TỔNG KẾT ĐO ĐẠC TÀI NGUYÊN & ĐỘ CHÍNH XÁC CHỨC NĂNG (VERIPREFER & VERILOGDB)")
+        print("    Chuẩn đo lường: CityU VeriPrefer (arXiv:2504.15804) & Univ. Florida VerilogDB (arXiv:2507.13369)")
+        print("=" * 96)
+        print(f"{'STT':<4} | {'Tên Spec':<22} | {'Entity':<20} | {'Logic (LEs)':<12} | {'Registers (FF)':<15} | {'Trạng Thái':<10}")
+        print("-" * 96)
+        for i, (spec_n, ent, succ, elap, bdf, m) in enumerate(summary_results):
             status_str = "100% PASS" if succ else "FAILED"
-            print(f"[{i+1}]  | {spec_n:<24} | {ent:<22} | {status_str:<12} | {elap:.2f}s")
-        print("=" * 80)
+            les_str = f"{m.get('logic_elements', '-')} LEs"
+            ff_str  = f"{m.get('total_registers', '-')} FFs"
+            print(f"[{i+1}]  | {spec_n:<22} | {ent:<20} | {les_str:<12} | {ff_str:<15} | {status_str:<10}")
+        print("=" * 96)
         print("\n[Tất cả các sơ đồ BDF và Project Quartus đều đã sẵn sàng trong thư mục quartus/!]")
         sys.exit(0)
 
@@ -341,7 +361,7 @@ def main():
         print(f"[ERROR] Specification file not found: {target_path}")
         sys.exit(1)
 
-    success, elapsed, entity, bdf = run_single_spec(target_path, base_dir)
+    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

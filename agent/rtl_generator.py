@@ -8,11 +8,20 @@ clean, synthesizable IEEE 1364-2001 Verilog for ANY custom or benchmark digital 
 import os
 import re
 from spec_analyzer import SpecAnalyzer, clean_identifier
+from verilog_linter import VerilogLinter
 
 class RTLGenerator:
     def __init__(self, src_dir):
         self.src_dir = src_dir
         os.makedirs(src_dir, exist_ok=True)
+
+    def _write_verilog(self, file_name, code):
+        """Sanitizes code using VerilogDB rules and writes to src directory."""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.src_dir, file_name)
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
 
     def generate_from_spec(self, spec_text, spec_path=None):
         """Unified entry point: dynamically synthesizes synthesizable Verilog for ANY specification."""
