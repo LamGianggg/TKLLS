@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ModelSim / EDA simulation artifacts
+*.vcd
+*.wlf
+transcript
+sim/work/
+
+# Quartus II compilation databases and temporary reports
+quartus/db/
+quartus/incremental_db/
+quartus/simulation/
+quartus/output_files/
+*.rpt
+*.summary
+*.done
+*.qws

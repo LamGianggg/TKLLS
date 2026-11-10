@@ -1,0 +1,1 @@
+Thiết kế máy bán nước tự động: - Lon nước giá 15.000đ. - Nhận tiền vào mệnh giá 5.000đ và 10.000đ. - Nhét đủ 15.000đ thì nhả nước. Nhét 20.000đ thì nhả nước và thối lại 5.000đ.
