@@ -11,19 +11,7 @@
 
 ---
 
-## 2. Danh Sách Các Bài Toán Phần Cứng Được Hỗ Trợ (trong `specs/`)
-Hệ thống tự động hóa chuyển đổi từ ngôn ngữ tự nhiên sang mã RTL Verilog, Testbench, mô phỏng waveform và sơ đồ nguyên lý Quartus BDF cho 4 bài toán:
-
-| STT | Tên Spec | Mô Tả Hệ Thống Phần Cứng | Module Entity Đỉnh |
-| :---: | :--- | :--- | :--- |
-| **1** | `soc_ai_spec.md` | Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core) | `top_soc` |
-| **2** | `thang_may_spec.md` | Bộ điều khiển Thang máy 5 tầng (5-Floor Intelligent Elevator FSM) | `elevator_controller` |
-| **3** | `traffic_light_spec.md` | Bộ điều khiển Đèn giao thông ngã tư thông minh (Intersection FSM) | `traffic_light` |
-| **4** | `vendding_machine.md` | Máy bán nước tự động 15.000đ nhận mệnh giá 5k/10k và thối tiền | `vending_machine` |
-
----
-
-## 3. Hướng Dẫn Thực Thi Đa Nền Tảng (Cross-Platform)
+## 2. Hướng Dẫn Thực Thi Đa Nền Tảng (Cross-Platform)
 
 ```bash
 # Cập nhật mã nguồn mới nhất:
@@ -31,7 +19,7 @@ cd TKLLS
 git pull origin main
 
 # Chạy hệ thống:
-python agent/run_spec2rtl.py        # Menu tương tác
-python agent/run_spec2rtl.py all    # Chạy tự động cả 4 bài toán
-python agent/run_spec2rtl.py 2      # Chạy bài toán số 2 (Thang máy)
+python agent/run_spec2rtl.py        # Menu tương tác tự động quét mọi spec
+python agent/run_spec2rtl.py all    # Chạy tự động toàn bộ bài toán
+python agent/run_spec2rtl.py 2      # Chạy bài toán số 2
 ```

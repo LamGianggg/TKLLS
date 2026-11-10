@@ -101,9 +101,21 @@ def run_single_spec(spec_path, base_dir):
     rtl_gen = RTLGenerator(src_dir)
     tb_gen  = TBGenerator(sim_dir)
 
-    spec_lower = (os.path.basename(spec_path) + " " + spec_text).lower()
+    analyzer = SpecAnalyzer(spec_path)
+    cat = analyzer.classify_system()
+    mod_name = analyzer.extract_module_name()
 
-    if "vend" in spec_lower or "bán nước" in spec_lower or "ban nuoc" in spec_lower:
+    if cat == "SOC_AI":
+        top_name = "tb_top_soc"
+        top_entity = "top_soc"
+        project_name = "Top_SoC"
+        primary_rtl = os.path.join(src_dir, "top_soc.v")
+        verilog_files = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".v") and not any(k in f for k in ["traffic", "vending", "elevator"]) and f != "top_soc.v"]
+        verilog_files.insert(0, primary_rtl)
+        rtl_files = [f for f in verilog_files]
+        verilog_files.append(os.path.join(sim_dir, "tb_top_soc.v"))
+
+    elif cat == "VENDING":
         top_name = "tb_vending_machine"
         top_entity = "vending_machine"
         project_name = "Vending_Machine"
@@ -119,7 +131,7 @@ def run_single_spec(spec_path, base_dir):
         rtl_files = [v_file]
         primary_rtl = v_file
 
-    elif "thang" in spec_lower or "elevator" in spec_lower:
+    elif cat == "ELEVATOR":
         top_name = "tb_elevator_controller"
         top_entity = "elevator_controller"
         project_name = "Elevator_Controller"
@@ -135,7 +147,7 @@ def run_single_spec(spec_path, base_dir):
         rtl_files = [v_file]
         primary_rtl = v_file
 
-    elif "traffic" in spec_lower or "giao thông" in spec_lower or "giao thong" in spec_lower:
+    elif cat == "TRAFFIC":
         top_name = "tb_traffic_light"
         top_entity = "traffic_light"
         project_name = "Traffic_Light"
@@ -152,13 +164,26 @@ def run_single_spec(spec_path, base_dir):
         primary_rtl = v_file
 
     else:
-        top_name = "tb_top_soc"
-        top_entity = "top_soc"
-        project_name = "Top_SoC"
-        primary_rtl = os.path.join(src_dir, "top_soc.v")
-        verilog_files = [os.path.join(src_dir, f) for f in os.listdir(src_dir) if f.endswith(".v") and not any(k in f for k in ["traffic", "vending", "elevator"])]
-        rtl_files = [f for f in verilog_files]
-        verilog_files.append(os.path.join(sim_dir, "tb_top_soc.v"))
+        # AUTONOMOUS GENERAL SPEC2RTL SYNTHESIS FOR ANY CUSTOM / RANDOM SPEC
+        top_entity = mod_name
+        top_name = f"tb_{top_entity}"
+        project_name = "".join(part.capitalize() for part in top_entity.split("_"))
+        v_file = os.path.join(src_dir, f"{top_entity}.v")
+        tb_file = os.path.join(sim_dir, f"{top_name}.v")
+
+        # Synthesize RTL
+        if not os.path.exists(v_file):
+            _, v_file = rtl_gen.generate_from_spec(spec_text, spec_path)
+            print(f" -> [Auto-Gen Dynamic RTL] Synthesized: src/{os.path.basename(v_file)}")
+
+        # Synthesize Testbench
+        if not os.path.exists(tb_file):
+            _, tb_file = tb_gen.generate_tb_from_spec(spec_text, v_file, spec_path)
+            print(f" -> [Auto-Gen Dynamic TB] Synthesized: sim/{os.path.basename(tb_file)}")
+
+        verilog_files = [v_file, tb_file]
+        rtl_files = [v_file]
+        primary_rtl = v_file
 
     print(f" -> Active design files ({len(verilog_files)}):")
     for f in verilog_files:
@@ -207,8 +232,14 @@ def run_single_spec(spec_path, base_dir):
         print(f"Suggested Fix: {diagnosis['suggested_fix']}")
         return False, elapsed, top_entity, None
 
-def get_spec_description(filename):
+def get_spec_description(filename, specs_dir=None):
     """Returns friendly description for available specs."""
+    full_path = os.path.join(specs_dir, filename) if specs_dir else filename
+    if os.path.exists(full_path):
+        try:
+            return SpecAnalyzer(full_path).get_friendly_description()
+        except Exception:
+            pass
     fn = filename.lower()
     if "soc" in fn:
         return "Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core)"
@@ -245,7 +276,7 @@ def main():
     if not user_input and not args.all:
         print("\n[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:")
         for idx, s in enumerate(available_specs):
-            desc = get_spec_description(s)
+            desc = get_spec_description(s, specs_dir)
             print(f"  [{idx+1}] {s:<22} -> {desc}")
         print(f"  [A] Chạy TẤT CẢ ({len(available_specs)} bài toán lần lượt)")
 
