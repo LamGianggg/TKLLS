@@ -80,8 +80,18 @@ class SpecAnalyzer:
 
         if any(k in text for k in ["alu", "toán học", "arithmetic", "cộng", "trừ", "nhân", "chia", "opcode"]):
             return "ALU"
+        if any(k in text for k in ["fifo", "queue", "hàng đợi", "hang doi"]):
+            return "FIFO"
+        if any(k in text for k in ["gray", "gray_counter", "mã gray", "ma gray"]):
+            return "GRAY_COUNTER"
         if any(k in text for k in ["counter", "bộ đếm", "bo dem", "đếm lên", "đếm xuống", "up_down"]):
             return "COUNTER"
+        if any(k in text for k in ["encoder", "priority", "ưu tiên", "u tien", "mã hóa", "ma hoa"]):
+            return "ENCODER"
+        if any(k in text for k in ["pulse", "edge", "cạnh xung", "canh xung", "phát hiện xung"]):
+            return "PULSE_DETECTOR"
+        if any(k in text for k in ["barrel", "dịch vòng", "dich vong", "rotat"]):
+            return "BARREL_SHIFTER"
         if any(k in text for k in ["pwm", "độ rộng xung", "duty cycle", "xung pwm"]):
             return "PWM"
         if any(k in text for k in ["shift", "thanh ghi dịch", "thanh ghi", "dịch trái", "dịch phải", "sipo", "piso"]):
@@ -101,14 +111,22 @@ class SpecAnalyzer:
         seen = set()
 
         # 1. Parse markdown tables
-        table_pattern = r"\|\s*`?([A-Za-z0-9_]+)`?\s*\|\s*([A-Za-z]+)\s*\|\s*(\d+)\s*\|\s*([^\|]+)\|"
+        table_pattern = r"\|\s*`?([A-Za-z0-9_]+)`?\s*\|\s*([A-Za-z\s]+)\s*\|\s*([^\|]+)\|\s*([^\|]+)\|"
         for match in re.finditer(table_pattern, self.content):
-            name, direction, width, desc = match.groups()
+            name, direction, width_str, desc = match.groups()
             name_clean = name.strip()
-            if name_clean.lower() not in ["port", "port name", "name", "tên chân"]:
-                w = int(width.strip()) if width.strip().isdigit() else 1
+            if name_clean.lower() not in ["port", "port name", "name", "tên chân", "tên cổng"]:
+                # Parse width flexibly: "16 bit", "16", "[15:0]", "8-bit", etc.
+                w = 1
+                m_bit = re.search(r"(\d+)\s*(?:bit|b)?", width_str.lower())
+                m_bus = re.search(r"\[(\d+):(\d+)\]", width_str)
+                if m_bus:
+                    w = abs(int(m_bus.group(1)) - int(m_bus.group(2))) + 1
+                elif m_bit:
+                    w = int(m_bit.group(1))
+
                 dir_c = direction.strip().lower()
-                dir_val = "output" if any(k in dir_c for k in ["out", "ra"]) else "input"
+                dir_val = "output" if any(k in dir_c for k in ["out", "ra", "output"]) else "input"
                 ports.append({
                     "name": name_clean,
                     "direction": dir_val,

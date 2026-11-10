@@ -451,11 +451,17 @@ endmodule
         ports = []
         if m_mod:
             port_block = m_mod.group(2)
+            # Strip comments first to prevent matching keywords inside comments
+            port_block = re.sub(r"//.*", "", port_block)
+            port_block = re.sub(r"/\*.*?\*/", "", port_block, flags=re.DOTALL)
+            verilog_reserved = {"input", "output", "inout", "wire", "reg", "for", "while", "case", "default", "assign", "begin", "end"}
             for line in port_block.split(","):
                 line = line.strip()
                 m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", line)
                 if m_p:
                     direction, msb, lsb, port_name = m_p.groups()
+                    if port_name.lower() in verilog_reserved:
+                        continue
                     w = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
                     ports.append({
                         "name": port_name,
@@ -471,6 +477,7 @@ endmodule
         decls = []
         inst_connections = []
         has_clk = False
+        clk_name = "clk"
         has_rst = False
         stimulus_lines = []
 
@@ -481,8 +488,11 @@ endmodule
 
             if p["direction"] == "input":
                 decls.append(f"    reg  {w_str:<8} {p_name};")
-                if p["is_clk"]: has_clk = True
-                if p["is_rst"]: has_rst = True
+                if p["is_clk"]:
+                    has_clk = True
+                    clk_name = p_name
+                if p["is_rst"]:
+                    has_rst = True
             else:
                 decls.append(f"    wire {w_str:<8} {p_name};")
 
@@ -491,14 +501,21 @@ endmodule
         for p in ports:
             if p["direction"] == "input":
                 if p["is_rst"]:
-                    stimulus_lines.append(f"        {p['name']} = 1'b1; // Assert reset")
+                    # Check active low
+                    if p["name"].endswith("_n") or p["name"] == "rst_n":
+                        stimulus_lines.append(f"        {p['name']} = 1'b0; // Assert active-low reset")
+                    else:
+                        stimulus_lines.append(f"        {p['name']} = 1'b1; // Assert active-high reset")
                 else:
                     stimulus_lines.append(f"        {p['name']} = 0;")
 
         stimulus_lines.append("\n        #25;")
         for p in ports:
             if p["direction"] == "input" and p["is_rst"]:
-                stimulus_lines.append(f"        {p['name']} = 1'b0; // Deassert reset")
+                if p["name"].endswith("_n") or p["name"] == "rst_n":
+                    stimulus_lines.append(f"        {p['name']} = 1'b1; // Deassert active-low reset")
+                else:
+                    stimulus_lines.append(f"        {p['name']} = 1'b0; // Deassert active-high reset")
 
         # Apply diverse stimulus scenarios with assertions
         stimulus_lines.append("\n        // Test Scenarios Execution with VeriPrefer Assertions")
@@ -516,7 +533,7 @@ endmodule
         decls_str = "\n".join(decls)
         connections_str = ",\n".join(inst_connections)
         stimulus_str = "\n".join(stimulus_lines)
-        clk_gen_str = "always #10 clk = ~clk;" if has_clk else ""
+        clk_gen_str = f"always #10 {clk_name} = ~{clk_name};" if has_clk else ""
 
         code = f"""//==============================================================================
 // Testbench: {tb_name}

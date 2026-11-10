@@ -268,6 +268,74 @@ def get_spec_description(filename, specs_dir=None):
         return "Máy bán nước tự động 15.000đ (Vending Machine FSM)"
     return "Custom Hardware Specification"
 
+def get_benchmark_suites(base_dir):
+    """Discovers and organizes available benchmark specs across the 3 datasets."""
+    bm_root = os.path.join(base_dir, "benchmarks")
+    suites = {
+        "verilog_eval": {"name": "VerilogEval (NVIDIA Research)", "specs": []},
+        "rtllm":        {"name": "RTLLM (HKUST Benchmark)", "specs": []},
+        "veriprefer":   {"name": "VeriPrefer (CityU HK - arXiv:2504.15804)", "specs": []}
+    }
+    if os.path.exists(bm_root):
+        for s_key in suites.keys():
+            s_dir = os.path.join(bm_root, s_key)
+            if os.path.exists(s_dir):
+                files = sorted([os.path.join(s_dir, f) for f in os.listdir(s_dir) if f.endswith(".md") or f.endswith(".txt")])
+                suites[s_key]["specs"] = files
+    return suites
+
+def run_benchmark_suite(target_suite, base_dir):
+    """Executes benchmarks across specified suites and outputs a grouped academic report."""
+    suites = get_benchmark_suites(base_dir)
+    to_run = []
+    if target_suite in ["all", "benchmark", "b"]:
+        for k, v in suites.items():
+            for sp in v["specs"]:
+                to_run.append((k, v["name"], sp))
+    elif target_suite in suites:
+        for sp in suites[target_suite]["specs"]:
+            to_run.append((target_suite, suites[target_suite]["name"], sp))
+    else:
+        print(f"[ERROR] Unknown benchmark suite: '{target_suite}'. Available: 'all', 'verilog_eval', 'rtllm', 'veriprefer'.")
+        return False
+
+    print("\n" + "=" * 110)
+    print(f"   STARTING MULTI-DATASET HARDWARE BENCHMARK EXECUTION ({len(to_run)} DESIGNS)")
+    print("   Datasets: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer")
+    print("=" * 110 + "\n")
+
+    results = []
+    total_passed = 0
+    for s_key, s_name, sp in to_run:
+        success, elapsed, entity, bdf, metrics = run_single_spec(sp, base_dir)
+        results.append((s_key, os.path.basename(sp), entity, success, elapsed, metrics))
+        if success:
+            total_passed += 1
+
+    # Print Grouped Summary Table
+    print("\n" + "=" * 115)
+    print("                  MULTI-DATASET ACADEMIC HARDWARE BENCHMARK & SYNTHESIS REPORT")
+    print("                  Datasets: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer")
+    print("=" * 115)
+    print(f"{'Dataset / Suite':<18} | {'Specification File':<26} | {'Top Entity':<22} | {'Logic (LEs)':<12} | {'Regs (FF)':<11} | {'Status':<10}")
+    print("-" * 115)
+
+    curr_suite = None
+    for s_key, fname, ent, succ, elap, m in results:
+        if s_key != curr_suite:
+            curr_suite = s_key
+            print(f"--- [SUITE: {suites[s_key]['name']}] ---")
+        status_str = "100% PASS" if succ else "FAILED"
+        les_str = f"{m.get('logic_elements', '-')} LEs"
+        ff_str  = f"{m.get('total_registers', '-')} FFs"
+        print(f"{s_key:<18} | {fname:<26} | {ent:<22} | {les_str:<12} | {ff_str:<11} | {status_str:<10}")
+
+    print("=" * 115)
+    pass_pct = (total_passed * 100.0) / len(to_run) if to_run else 0.0
+    print(f"BENCHMARK OUTCOME: {total_passed}/{len(to_run)} PASSED ({pass_pct:.1f}% SUCCESS RATE)")
+    print("=" * 115)
+    return total_passed == len(to_run)
+
 def main():
     base_dir  = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     specs_dir = os.path.join(base_dir, "specs")
@@ -275,18 +343,39 @@ def main():
     print("=" * 80)
     print("   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline")
     print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
+    print("   Benchmarking: VerilogEval (NVIDIA), RTLLM (HKUST), VeriPrefer (CityU HK)")
     print("=" * 80)
 
     available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".md") or f.endswith(".txt")])
+    bm_suites = get_benchmark_suites(base_dir)
 
-    # Parse arguments: support both positional ('python run_spec2rtl.py 2') and flag ('--spec 2', '--all')
+    # Parse arguments: support positional ('python run_spec2rtl.py benchmark', 'all', '1') and flags
     parser = argparse.ArgumentParser(description="Spec2RTL & Prompt2Silicon Autonomous Pipeline")
-    parser.add_argument("spec_pos", nargs="?", default=None, help="Name, number (1-4), or 'all' to run specs")
+    parser.add_argument("spec_pos", nargs="?", default=None, help="Spec name, number, 'all', or 'benchmark'")
     parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
-    parser.add_argument("--all", action="store_true", help="Run all available specifications sequentially")
+    parser.add_argument("--all", action="store_true", help="Run all available core specifications")
+    parser.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Run benchmark suite: 'all', 'verilog_eval', 'rtllm', 'veriprefer'")
     args = parser.parse_args()
 
     user_input = args.spec_flag or args.spec_pos
+
+    # Check for benchmark execution
+    if args.benchmark_suite:
+        success = run_benchmark_suite(args.benchmark_suite.lower(), base_dir)
+        sys.exit(0 if success else 1)
+
+    if user_input and user_input.lower() in ["benchmark", "benchmarks", "bm"]:
+        success = run_benchmark_suite("all", base_dir)
+        sys.exit(0 if success else 1)
+    elif user_input and user_input.lower() in ["b1", "verilog_eval"]:
+        success = run_benchmark_suite("verilog_eval", base_dir)
+        sys.exit(0 if success else 1)
+    elif user_input and user_input.lower() in ["b2", "rtllm"]:
+        success = run_benchmark_suite("rtllm", base_dir)
+        sys.exit(0 if success else 1)
+    elif user_input and user_input.lower() in ["b3", "veriprefer"]:
+        success = run_benchmark_suite("veriprefer", base_dir)
+        sys.exit(0 if success else 1)
 
     run_all_mode = args.all or (user_input and user_input.lower() in ["all", "a"])
 
@@ -295,16 +384,33 @@ def main():
         for idx, s in enumerate(available_specs):
             desc = get_spec_description(s, specs_dir)
             print(f"  [{idx+1}] {s:<22} -> {desc}")
-        print(f"  [A] Chạy TẤT CẢ ({len(available_specs)} bài toán lần lượt)")
+        print(f"  [A]  Chạy TẤT CẢ ({len(available_specs)} bài toán core lần lượt)")
+        print("\n[CÁC BỘ BENCHMARK HỌC THUẬT TIÊU CHUẨN (benchmarks/)]:")
+        print(f"  [B1] VerilogEval Suite  -> NVIDIA Research Benchmark ({len(bm_suites['verilog_eval']['specs'])} bài)")
+        print(f"  [B2] RTLLM Suite        -> HKUST System-level RTL Benchmark ({len(bm_suites['rtllm']['specs'])} bài)")
+        print(f"  [B3] VeriPrefer Suite   -> CityU HK Verification Feedback Benchmark ({len(bm_suites['veriprefer']['specs'])} bài)")
+        print(f"  [B]  Chạy TẤT CẢ 3 BỘ BENCHMARK HỌC THUẬT (Tổng cộng {sum(len(v['specs']) for v in bm_suites.values())} bài)")
 
         # Interactive selection
         try:
-            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)} hoặc A, mặc định: A]: ").strip()
+            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, A, B1, B2, B3, hoặc B, mặc định: A]: ").strip()
         except (EOFError, KeyboardInterrupt):
             choice = "A"
 
         if choice == "" or choice.lower() in ["a", "all"]:
             run_all_mode = True
+        elif choice.lower() in ["b", "benchmark", "benchmarks"]:
+            success = run_benchmark_suite("all", base_dir)
+            sys.exit(0 if success else 1)
+        elif choice.lower() in ["b1", "verilog_eval"]:
+            success = run_benchmark_suite("verilog_eval", base_dir)
+            sys.exit(0 if success else 1)
+        elif choice.lower() in ["b2", "rtllm"]:
+            success = run_benchmark_suite("rtllm", base_dir)
+            sys.exit(0 if success else 1)
+        elif choice.lower() in ["b3", "veriprefer"]:
+            success = run_benchmark_suite("veriprefer", base_dir)
+            sys.exit(0 if success else 1)
         elif choice.isdigit():
             user_input = choice
         else:
@@ -344,18 +450,23 @@ def main():
             print(f"[ERROR] Chỉ số không hợp lệ. Vui lòng chọn từ 1 đến {len(available_specs)}.")
             sys.exit(1)
 
-    matched = None
-    for s in available_specs:
-        if s.lower() == spec_target.lower() or spec_target.lower() in s.lower():
-            matched = s
-            break
-
-    if matched:
-        target_path = os.path.join(specs_dir, matched)
+    if os.path.isabs(spec_target) and os.path.exists(spec_target):
+        target_path = spec_target
+    elif os.path.exists(os.path.join(base_dir, spec_target)):
+        target_path = os.path.abspath(os.path.join(base_dir, spec_target))
     elif os.path.exists(spec_target):
         target_path = os.path.abspath(spec_target)
     else:
-        target_path = os.path.join(specs_dir, spec_target)
+        matched = None
+        for s in available_specs:
+            if s.lower() == spec_target.lower() or spec_target.lower() in s.lower():
+                matched = s
+                break
+
+        if matched:
+            target_path = os.path.join(specs_dir, matched)
+        else:
+            target_path = os.path.join(specs_dir, spec_target)
 
     if not os.path.exists(target_path):
         print(f"[ERROR] Specification file not found: {target_path}")
