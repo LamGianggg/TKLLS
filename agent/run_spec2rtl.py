@@ -33,25 +33,33 @@ from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
-    """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram."""
+    """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
+    Ensures BDF can be opened, edited, and synthesized without duplicate declaration errors."""
     os.makedirs(q_dir, exist_ok=True)
     qmap_exe = find_quartus_map()
+
+    # Schematic top entity:
+    # If the entity is already top_soc or starts with top_, keep it; otherwise prefix with top_
+    schematic_top = top_entity if top_entity.lower().startswith("top") else f"top_{top_entity}"
 
     qpf_path = os.path.join(q_dir, f"{project_name}.qpf")
     qsf_path = os.path.join(q_dir, f"{project_name}.qsf")
     bsf_path = os.path.join(q_dir, f"{top_entity}.bsf")
-    bdf_path = os.path.join(q_dir, f"{top_entity}.bdf")
+    bdf_path = os.path.join(q_dir, f"{schematic_top}.bdf")
 
-    # 1. Write Initial QPF & QSF
+    # 1. Write Initial QPF & QSF with relative search paths and BDF file registration
     with open(qpf_path, "w", encoding="utf-8") as f:
         f.write(f'PROJECT_REVISION = "{project_name}"\n')
 
     qsf_lines = [
         'set_global_assignment -name FAMILY "Cyclone II"',
         'set_global_assignment -name DEVICE EP2C35F672C6',
-        f'set_global_assignment -name TOP_LEVEL_ENTITY {top_entity}',
+        f'set_global_assignment -name TOP_LEVEL_ENTITY {schematic_top}',
         'set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"',
         'set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"',
+        'set_global_assignment -name SEARCH_PATH ../src',
+        'set_global_assignment -name SEARCH_PATH .',
+        f'set_global_assignment -name BDF_FILE {schematic_top}.bdf',
     ]
     for vf in all_rtl_files:
         if not os.path.basename(vf).startswith("tb_"):
@@ -61,14 +69,17 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
     with open(qsf_path, "w", encoding="utf-8") as f:
         f.write('\n'.join(qsf_lines) + '\n')
 
-    # 2. Generate BSF Symbol using quartus_map --generate_symbol
+    # 2. Generate BSF Symbol (via quartus_map or standalone generator fallback)
+    bdf_gen = BDFGenerator()
     if qmap_exe and os.path.exists(qmap_exe) and os.path.exists(primary_rtl):
         subprocess.run([qmap_exe, project_name, f"--generate_symbol={primary_rtl}"], cwd=q_dir, capture_output=True)
+
+    if not os.path.exists(bsf_path) and os.path.exists(primary_rtl):
+        bdf_gen.generate_bsf_from_rtl(primary_rtl, bsf_path)
 
     # 3. Generate BDF Diagram from BSF
     bdf_created = False
     if os.path.exists(bsf_path):
-        bdf_gen = BDFGenerator()
         bdf_gen.generate_bdf_from_bsf(bsf_path, bdf_path)
         bdf_created = True
 
@@ -76,7 +87,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
     if qmap_exe and os.path.exists(qmap_exe):
         subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True)
     elif not qmap_exe:
-        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf đã được tạo để bạn mở trực tiếp trong Quartus II GUI.")
+        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf và sơ đồ {schematic_top}.bdf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None
 
