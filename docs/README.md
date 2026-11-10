@@ -3,11 +3,16 @@
 
 ---
 
-## 1. Giới Thiệu & Bối Cảnh Nghiên Cứu
-Đồ án này nghiên cứu và hiện thực hóa phương pháp luận **AI-driven Electronic Design Automation (EDA)** theo trào lưu công nghệ vi mạch mới nhất (2025–2026), trực tiếp kế thừa và bám sát các công bố khoa học hàng đầu:
-1. **NVIDIA Research & Cadence (arXiv:2506.13905 / GTC 2025 Session S72294):** *"Spec2RTL-Agent: Automated Hardware Code Generation from Complex Specifications Using LLM Agent Systems"*.
-2. **ISCAS 2026 (arXiv:2601.13815v1) & RPTU Kaiserslautern:** *"From RTL to Prompt Coding: Empowering the Next Generation of Chip Designers through LLMs"*.
-3. **Mã nguồn mở Tiny Tapeout & OpenLane:** Chuẩn hóa quy trình từ Prompt $\to$ RTL $\to$ Simulation $\to$ ASIC GDSII.
+## 1. Bối Cảnh Nghiên Cứu & Các Công Bố Khoa Học Kế Thừa
+1. **NVIDIA Research & Cadence (arXiv:2506.13905 / GTC 2025 Session S72294):** 
+   *"Spec2RTL-Agent: Automated Hardware Code Generation from Complex Specifications Using LLM Agent Systems"*.
+2. **City University of Hong Kong & Partners (arXiv:2504.15804v1 / April 2025):**
+   *"Insights from Verification: Training a Verilog Generation LLM with Reinforcement Learning with Testbench Feedback (VeriPrefer)"*.
+3. **University of Florida (arXiv:2507.13369 / July 2025):**
+   *"VerilogDB: The Largest, Highest-Quality Dataset with a Preprocessing Framework for LLM-based RTL Generation"*.
+4. **ISCAS 2026 (arXiv:2601.13815v1) & RPTU Kaiserslautern:** 
+   *"From RTL to Prompt Coding: Empowering the Next Generation of Chip Designers through LLMs"*.
+5. **Mã nguồn mở Tiny Tapeout & OpenLane:** Chuẩn hóa quy trình từ Prompt $\to$ RTL $\to$ Simulation $\to$ ASIC GDSII.
 
 ---
 

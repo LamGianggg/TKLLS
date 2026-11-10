@@ -3,11 +3,26 @@
 
 ---
 
-## 1. Giới Thiệu & Bối Cảnh Nghiên Cứu
-Đồ án này nghiên cứu và hiện thực hóa phương pháp luận **AI-driven Electronic Design Automation (EDA)** theo trào lưu công nghệ vi mạch mới nhất (2025–2026), trực tiếp kế thừa và bám sát các công bố khoa học hàng đầu:
-1. **NVIDIA Research & Cadence (arXiv:2506.13905 / GTC 2025 Session S72294):** *"Spec2RTL-Agent: Automated Hardware Code Generation from Complex Specifications Using LLM Agent Systems"*.
-2. **ISCAS 2026 (arXiv:2601.13815v1) & RPTU Kaiserslautern:** *"From RTL to Prompt Coding: Empowering the Next Generation of Chip Designers through LLMs"*.
-3. **Mã nguồn mở Tiny Tapeout & OpenLane:** Chuẩn hóa quy trình từ Prompt $\to$ RTL $\to$ Simulation $\to$ ASIC GDSII.
+## 1. Giới Thiệu & Bối Cảnh Nghiên Cứu (Literature Review)
+Đồ án này nghiên cứu và hiện thực hóa phương pháp luận **AI-driven Electronic Design Automation (EDA)** theo trào lưu công nghệ vi mạch mới nhất (2025–2026), trực tiếp kế thừa và bám sát 4 công trình khoa học hàng đầu thế giới:
+
+1. **NVIDIA Research & Cadence (arXiv:2506.13905 / GTC 2025 Session S72294):** 
+   *"Spec2RTL-Agent: Automated Hardware Code Generation from Complex Specifications Using LLM Agent Systems"*.  
+   $\to$ Cung cấp kiến trúc Multi-Agent phối hợp: Phân tích đặc tả $\to$ Sinh RTL $\to$ Đánh giá & Phản xạ.
+
+2. **City University of Hong Kong & Research Partners (arXiv:2504.15804v1 / April 2025):**
+   *"Insights from Verification: Training a Verilog Generation LLM with Reinforcement Learning with Testbench Feedback (VeriPrefer)"*.  
+   $\to$ Chứng minh rằng việc chỉ dùng LLM sinh code thuần túy sẽ gặp lỗi ảo giác (hallucination); giải pháp then chốt là **tự động sinh Testbench** và **đưa phản hồi từ trình mô phỏng (EDA Simulator in the Loop)** để đảm bảo tính đúng đắn chức năng (Functional Correctness). Được hiện thực hóa trực tiếp tại `tb_generator.py`, `simulator.py` và `reflection_loop.py`.
+
+3. **University of Florida (arXiv:2507.13369 / July 2025):**
+   *"VerilogDB: The Largest, Highest-Quality Dataset with a Preprocessing Framework for LLM-based RTL Generation"*.  
+   $\to$ Chuẩn hóa khung tiền xử lý đặc tả phần cứng (Preprocessing Framework), trích xuất metadata (tên module, cổng, độ rộng bit) và kiểm định tính khả tổng hợp (Logic Synthesis Checks). Được hiện thực hóa trực tiếp tại `spec_analyzer.py` và `bdf_generator.py`.
+
+4. **ISCAS 2026 (arXiv:2601.13815v1) & RPTU Kaiserslautern:** 
+   *"From RTL to Prompt Coding: Empowering the Next Generation of Chip Designers through LLMs"*.  
+   $\to$ Định hình tương lai kỹ sư vi mạch: chuyển dịch từ viết RTL thủ công sang thiết kế bằng Prompt/Spec và tự động hóa toàn diện.
+
+5. **Mã nguồn mở Tiny Tapeout & OpenLane:** Chuẩn hóa quy trình từ Prompt $\to$ RTL $\to$ Simulation $\to$ ASIC GDSII.
 
 ---
 
@@ -32,12 +47,12 @@ Hệ thống được thiết kế theo kiến trúc **Mở và Tự Sinh (Fully
 TKLLS/
 ├── agent/                    # Hệ thống điều phối Multi-Agent (Spec2RTL Core)
 │   ├── eda_finder.py         # Tự động dò tìm ModelSim / Quartus / Icarus Verilog trên mọi ổ đĩa (C:, D:, E:)
-│   ├── spec_analyzer.py      # Phân tích đặc tả tự nhiên thành danh sách module/port/loại hệ thống
+│   ├── spec_analyzer.py      # Phân tích đặc tả tự nhiên theo chuẩn VerilogDB (arXiv:2507.13369)
 │   ├── rtl_generator.py      # Tự động sinh mã nguồn Verilog chuẩn synthesizable cho mọi bài toán
-│   ├── tb_generator.py       # Tự động sinh Testbench tự kiểm tra (Self-checking)
+│   ├── tb_generator.py       # Tự động sinh Testbench theo phương pháp VeriPrefer (arXiv:2504.15804)
 │   ├── simulator.py          # Bộ điều khiển mô phỏng 3 tầng (ModelSim -> Icarus -> Python Engine)
 │   ├── bdf_generator.py      # Tự động trích xuất BSF Symbol và tạo sơ đồ Quartus BDF
-│   ├── reflection_loop.py    # Vòng lặp phản xạ chuẩn đoán và tự sửa lỗi (Self-Healing)
+│   ├── reflection_loop.py    # Vòng lặp phản xạ chuẩn đoán lỗi từ Simulator Feedback (arXiv:2504.15804)
 │   └── run_spec2rtl.py       # Master script điều phối toàn bộ luồng
 ├── specs/                    # Thư mục chứa các file đặc tả kỹ thuật phần cứng
 │   ├── soc_ai_spec.md
