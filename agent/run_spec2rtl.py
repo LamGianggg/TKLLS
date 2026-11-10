@@ -75,74 +75,32 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None
 
-def main():
-    parser = argparse.ArgumentParser(description="Spec2RTL & Prompt2Silicon Autonomous Pipeline")
-    parser.add_argument("--spec", type=str, default=None, help="Name or index of the spec file in specs/")
-    args = parser.parse_args()
+def run_single_spec(spec_path, base_dir):
+    """Executes the full Spec2RTL pipeline for a single specification file."""
+    src_dir = os.path.join(base_dir, "src")
+    sim_dir = os.path.join(base_dir, "sim")
+    q_dir   = os.path.join(base_dir, "quartus")
 
-    base_dir  = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    specs_dir = os.path.join(base_dir, "specs")
-    src_dir   = os.path.join(base_dir, "src")
-    sim_dir   = os.path.join(base_dir, "sim")
-    q_dir     = os.path.join(base_dir, "quartus")
-
+    print("\n" + "=" * 80)
+    print(f"   [PROCESSING SPEC]: {os.path.basename(spec_path)}")
     print("=" * 80)
-    print("   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline")
-    print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
-    print("=" * 80)
-
-    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".md") or f.endswith(".txt")])
-
-    spec_target = args.spec
-    if spec_target and spec_target.isdigit():
-        idx = int(spec_target) - 1
-        if 0 <= idx < len(available_specs):
-            spec_target = available_specs[idx]
-
-    if not spec_target:
-        print("\n[Available Specifications in specs/]:")
-        for idx, s in enumerate(available_specs):
-            print(f"  [{idx+1}] {s}")
-        if "vendding_machine.md" in available_specs:
-            spec_target = "vendding_machine.md"
-        else:
-            spec_target = available_specs[0]
-        print(f"\n -> Default Selection: {spec_target} (Use --spec <name|number> to choose)")
-
-    if not os.path.isabs(spec_target):
-        # find matching spec
-        matched = None
-        for s in available_specs:
-            if s.lower() == spec_target.lower() or spec_target.lower() in s.lower():
-                matched = s
-                break
-        if matched:
-            spec_path = os.path.join(specs_dir, matched)
-        else:
-            spec_path = os.path.join(specs_dir, spec_target)
-    else:
-        spec_path = spec_target
-
-    if not os.path.exists(spec_path):
-        print(f"[ERROR] Specification file not found: {spec_path}")
-        sys.exit(1)
 
     # Step 1: Read Spec
-    print(f"\n[Step 1] Ingesting and Parsing Specification: {os.path.basename(spec_path)}...")
+    print(f"[Step 1] Ingesting and Parsing Specification...")
     with open(spec_path, "r", encoding="utf-8", errors="replace") as f:
         spec_text = f.read()
     print("-" * 80)
-    print(spec_text.strip()[:400] + ("..." if len(spec_text) > 400 else ""))
+    print(spec_text.strip()[:350] + ("..." if len(spec_text) > 350 else ""))
     print("-" * 80)
 
     # Step 2: Auto-generate RTL and TB if missing
-    print(f"\n[Step 2] Resolving and Generating Synthesizable Verilog & Testbench...")
+    print(f"[Step 2] Resolving and Generating Synthesizable Verilog & Testbench...")
     rtl_gen = RTLGenerator(src_dir)
     tb_gen  = TBGenerator(sim_dir)
 
     spec_lower = (os.path.basename(spec_path) + " " + spec_text).lower()
 
-    if "vend" in spec_lower or "bán nước" in spec_lower:
+    if "vend" in spec_lower or "bán nước" in spec_lower or "ban nuoc" in spec_lower:
         top_name = "tb_vending_machine"
         top_entity = "vending_machine"
         project_name = "Vending_Machine"
@@ -174,7 +132,7 @@ def main():
         rtl_files = [v_file]
         primary_rtl = v_file
 
-    elif "traffic" in spec_lower or "giao thông" in spec_lower:
+    elif "traffic" in spec_lower or "giao thông" in spec_lower or "giao thong" in spec_lower:
         top_name = "tb_traffic_light"
         top_entity = "traffic_light"
         project_name = "Traffic_Light"
@@ -226,7 +184,7 @@ def main():
     if bdf_path:
         print(f" -> Schematic Diagram (.bdf): {bdf_path}")
 
-    # Step 5: Verification Judgment & Reflection
+    # Step 5: Verification Judgment
     if result["success"]:
         print(f"\n>>> [SPEC2RTL STATUS: SUCCESS (100% PASS)] <<<")
         print(f"Execution Time: {elapsed:.2f} seconds")
@@ -236,7 +194,7 @@ def main():
             print(f" 1. BDF Schematic: Open Quartus II -> {bdf_path}")
         print(f" 2. RTL Viewer:    Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
         print(f" 3. Waveform:      Open ModelSim   -> {os.path.join(sim_dir, top_entity + '.vcd')}")
-        sys.exit(0)
+        return True, elapsed, top_entity, bdf_path
     else:
         print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")
         diagnosis = reflector.diagnose_error(result)
@@ -244,7 +202,113 @@ def main():
         print(f"Category: {diagnosis['category']}")
         print(f"Root Cause: {diagnosis['root_cause']}")
         print(f"Suggested Fix: {diagnosis['suggested_fix']}")
+        return False, elapsed, top_entity, None
+
+def get_spec_description(filename):
+    """Returns friendly description for available specs."""
+    fn = filename.lower()
+    if "soc" in fn:
+        return "Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core)"
+    elif "thang" in fn or "elevator" in fn:
+        return "Bộ điều khiển Thang máy 5 tầng (5-Floor Intelligent Elevator FSM)"
+    elif "traffic" in fn or "giao thong" in fn:
+        return "Bộ điều khiển Đèn giao thông ngã tư (Intersection Traffic Light FSM)"
+    elif "vend" in fn or "ban nuoc" in fn:
+        return "Máy bán nước tự động 15.000đ (Vending Machine FSM)"
+    return "Custom Hardware Specification"
+
+def main():
+    base_dir  = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    specs_dir = os.path.join(base_dir, "specs")
+
+    print("=" * 80)
+    print("   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline")
+    print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
+    print("=" * 80)
+
+    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".md") or f.endswith(".txt")])
+
+    # Parse arguments: support both positional ('python run_spec2rtl.py 2') and flag ('--spec 2', '--all')
+    parser = argparse.ArgumentParser(description="Spec2RTL & Prompt2Silicon Autonomous Pipeline")
+    parser.add_argument("spec_pos", nargs="?", default=None, help="Name, number (1-4), or 'all' to run specs")
+    parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
+    parser.add_argument("--all", action="store_true", help="Run all available specifications sequentially")
+    args = parser.parse_args()
+
+    user_input = args.spec_flag or args.spec_pos
+
+    run_all_mode = args.all or (user_input and user_input.lower() in ["all", "a"])
+
+    if not user_input and not args.all:
+        print("\n[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:")
+        for idx, s in enumerate(available_specs):
+            desc = get_spec_description(s)
+            print(f"  [{idx+1}] {s:<22} -> {desc}")
+        print(f"  [A] Chạy TẤT CẢ ({len(available_specs)} bài toán lần lượt)")
+
+        # Interactive selection
+        try:
+            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)} hoặc A, mặc định: A]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = "A"
+
+        if choice == "" or choice.lower() in ["a", "all"]:
+            run_all_mode = True
+        elif choice.isdigit():
+            user_input = choice
+        else:
+            user_input = choice
+
+    # Case 1: Run ALL specs
+    if run_all_mode:
+        print(f"\n>>> [CHẾ ĐỘ TỰ ĐỘNG]: TIẾN HÀNH CHẠY TẤT CẢ {len(available_specs)} BÀI TOÁN <<<\n")
+        summary_results = []
+        for s in available_specs:
+            spec_file_path = os.path.join(specs_dir, s)
+            success, elapsed, entity, bdf = run_single_spec(spec_file_path, base_dir)
+            summary_results.append((s, entity, success, elapsed, bdf))
+
+        print("\n" + "=" * 80)
+        print("          BẢNG TỔNG KẾT KẾT QUẢ KIỂM THỬ TỰ ĐỘNG TOÀN BỘ CÁC BÀI TOÁN")
+        print("=" * 80)
+        print(f"{'STT':<4} | {'Tên Spec':<24} | {'Module Entity':<22} | {'Trạng Thái':<12} | {'Thời Gian':<10}")
+        print("-" * 80)
+        for i, (spec_n, ent, succ, elap, bdf) in enumerate(summary_results):
+            status_str = "100% PASS" if succ else "FAILED"
+            print(f"[{i+1}]  | {spec_n:<24} | {ent:<22} | {status_str:<12} | {elap:.2f}s")
+        print("=" * 80)
+        print("\n[Tất cả các sơ đồ BDF và Project Quartus đều đã sẵn sàng trong thư mục quartus/!]")
+        sys.exit(0)
+
+    # Case 2: Run a SPECIFIC spec
+    spec_target = user_input
+    if spec_target.isdigit():
+        idx = int(spec_target) - 1
+        if 0 <= idx < len(available_specs):
+            spec_target = available_specs[idx]
+        else:
+            print(f"[ERROR] Chỉ số không hợp lệ. Vui lòng chọn từ 1 đến {len(available_specs)}.")
+            sys.exit(1)
+
+    matched = None
+    for s in available_specs:
+        if s.lower() == spec_target.lower() or spec_target.lower() in s.lower():
+            matched = s
+            break
+
+    if matched:
+        target_path = os.path.join(specs_dir, matched)
+    elif os.path.exists(spec_target):
+        target_path = os.path.abspath(spec_target)
+    else:
+        target_path = os.path.join(specs_dir, spec_target)
+
+    if not os.path.exists(target_path):
+        print(f"[ERROR] Specification file not found: {target_path}")
         sys.exit(1)
+
+    success, elapsed, entity, bdf = run_single_spec(target_path, base_dir)
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()
