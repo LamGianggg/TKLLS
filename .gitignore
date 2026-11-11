@@ -18,3 +18,7 @@ quartus/output_files/
 *.summary
 *.done
 *.qws
+
+# Raw cloned datasets for Knowledge Base
+knowledge_base/raw/
+

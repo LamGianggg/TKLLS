@@ -31,6 +31,7 @@ from reflection_loop import ReflectionAgent
 from eda_finder import find_quartus_map
 from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
+from knowledge_matcher import KnowledgeMatcher
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
@@ -109,8 +110,25 @@ def run_single_spec(spec_path, base_dir):
     print(spec_text.strip()[:350] + ("..." if len(spec_text) > 350 else ""))
     print("-" * 80)
 
+    # Step 1.5: Hardware Knowledge Base Query & Intent Matching (RAG Engine)
+    print(f"[Step 1.5] Hardware Knowledge Base Query & Intent Matching (RAG Engine)...")
+    kb_matcher = KnowledgeMatcher()
+    matched_entry, match_type, conf, exemplars = kb_matcher.search(spec_text, top_k=3)
+    if matched_entry:
+        print(f" -> Knowledge Base Status: [{match_type}] Match (Confidence: {conf*100:.1f}%)")
+        print(f" -> Source Benchmark    : {matched_entry.get('source', 'Hardware KB')}")
+        print(f" -> Matched Design ID   : {matched_entry.get('id')} ({matched_entry.get('name')})")
+        print(f" -> Circuit Category    : {matched_entry.get('category')}")
+        if exemplars:
+            ex_names = [e.get('name') for e in exemplars if e.get('name') != matched_entry.get('name')]
+            if ex_names:
+                print(f" -> In-Context Exemplars: {', '.join(ex_names[:3])}")
+    else:
+        print(f" -> Knowledge Base Status: [NOVEL SPECIFICATION] - Dynamic Synthesis Mode Active")
+    print("-" * 80)
+
     # Step 2: Auto-generate RTL and TB if missing
-    print(f"[Step 2] Resolving and Generating Synthesizable Verilog & Testbench...")
+    print(f"\n[Step 2] Resolving and Generating Synthesizable Verilog & Testbench...")
     rtl_gen = RTLGenerator(src_dir)
     tb_gen  = TBGenerator(sim_dir)
 
@@ -188,6 +206,16 @@ def run_single_spec(spec_path, base_dir):
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
 
+        # Knowledge Base Fast-Path: Deploy Golden Synthesizable Verilog
+        if match_type == "EXACT" and matched_entry and matched_entry.get("golden_rtl") and not os.path.exists(v_file):
+            print(f" -> [Knowledge Base Fast-Path]: Deploying Golden Synthesizable RTL from {matched_entry['source']}...")
+            with open(v_file, "w", encoding="utf-8") as f:
+                f.write(matched_entry["golden_rtl"] + "\n")
+            if matched_entry.get("golden_tb") and not os.path.exists(tb_file):
+                print(f" -> [Knowledge Base Fast-Path]: Deploying Golden Testbench from {matched_entry['source']}...")
+                with open(tb_file, "w", encoding="utf-8") as f:
+                    f.write(matched_entry["golden_tb"] + "\n")
+
         # Synthesize RTL
         if not os.path.exists(v_file):
             _, v_file = rtl_gen.generate_from_spec(spec_text, spec_path)
@@ -258,6 +286,17 @@ def run_single_spec(spec_path, base_dir):
         print(f"Category: {diagnosis['category']}")
         print(f"Root Cause: {diagnosis['root_cause']}")
         print(f"Suggested Fix: {diagnosis['suggested_fix']}")
+        # VeriPrefer Reflection Self-Healing Guidance
+        refl_guidance = kb_matcher.get_reflection_guidance(result.get("log", ""))
+        if refl_guidance:
+            print("\n" + "=" * 80)
+            print("   [VeriPrefer Reflection Guidance (arXiv:2504.15804)]")
+            print("=" * 80)
+            for r in refl_guidance:
+                print(f" * Error Pattern: {r['error_type']}")
+                print(f"   Diagnosis    : {r['diagnosis']}")
+                print(f"   Remedy       : {r['remedy']}")
+            print("=" * 80)
         return False, elapsed, top_entity, None, metrics
 
 def get_spec_description(filename, specs_dir=None):

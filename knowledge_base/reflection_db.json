@@ -1,0 +1,38 @@
+[
+  {
+    "error_type": "latch_inferred",
+    "pattern": "inferred latch|combinational loop",
+    "diagnosis": "Quartus inferring latches because not all branches of if-else or case assign values to signals in combinational always @(*).",
+    "remedy": "Assign default values at the top of always @(*) block or ensure all if/else and case statement branches have complete assignments."
+  },
+  {
+    "error_type": "blocking_in_sequential",
+    "pattern": "blocking assignment in sequential|mixed assignment",
+    "diagnosis": "Using '=' instead of '<=' in always @(posedge clk) causes race conditions and simulation-synthesis mismatches.",
+    "remedy": "Always use non-blocking assignments '<=' inside always @(posedge clk or negedge rst_n)."
+  },
+  {
+    "error_type": "port_direction_mismatch",
+    "pattern": "can't assign to input|cannot drive input",
+    "diagnosis": "Attempted to assign a value to an input port or output declared as wire inside always block.",
+    "remedy": "Input ports cannot be assigned. If output is assigned inside always block, declare it as reg or output reg."
+  },
+  {
+    "error_type": "duplicate_entity_declaration",
+    "pattern": "duplicate declarations of entity|already declared",
+    "diagnosis": "Schematic (.bdf) entity name conflicts with Verilog module (.v) inside the same project.",
+    "remedy": "Prefix top-level schematic with 'top_' and instantiate the core entity inside it."
+  },
+  {
+    "error_type": "bus_width_mismatch",
+    "pattern": "width mismatch|truncated|loss of precision",
+    "diagnosis": "Bit-width discrepancy between operand and destination register.",
+    "remedy": "Explicitly match operand bit-widths or use bit extension/truncation operators."
+  },
+  {
+    "error_type": "missing_reset_sensitivity",
+    "pattern": "asynchronous reset not in sensitivity list",
+    "diagnosis": "Asynchronous reset checked in if(!rst_n) but missing from always @(posedge clk or negedge rst_n).",
+    "remedy": "Include 'negedge rst_n' or 'posedge rst' in the always sensitivity list."
+  }
+]
