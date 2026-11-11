@@ -294,6 +294,97 @@ class DatasetIngestor:
         print(f" -> [CityU HK VeriPrefer]: Ingested {refl_count} reflection rules and preference patterns.")
         return refl_count
 
+    def ingest_abiralarch(self):
+        """Ingests AbiralArch CVDP Processor, Memory, and Expert Digital Design Problems."""
+        abiral_dir = os.path.join(RAW_DIR, "AbiralArch")
+        if not os.path.exists(abiral_dir):
+            return 0
+        count = 0
+        for jf in glob.glob(os.path.join(abiral_dir, "cvdp_*.json")):
+            try:
+                with open(jf, "r", encoding="utf-8", errors="replace") as f:
+                    data = json.load(f)
+                file_cat = "Processor / CPU" if "processor" in jf else ("Memory / FIFO" if "memory" in jf else "Expert Digital Logic")
+                for item in data:
+                    item_id = item.get("id", f"abiral_{count}")
+                    
+                    # Safe extraction of verilog_code (dict or str)
+                    vc = item.get("verilog_code", "")
+                    code = ""
+                    tb_code = ""
+                    if isinstance(vc, dict):
+                        rtl_files = [v for k, v in vc.items() if not k.startswith("verif") and "tb" not in k.lower()]
+                        tb_files = [v for k, v in vc.items() if k.startswith("verif") or "tb" in k.lower()]
+                        code = "\n\n".join(rtl_files[:3]) if rtl_files else ""
+                        tb_code = "\n\n".join(tb_files[:1]) if tb_files else ""
+                    elif isinstance(vc, str):
+                        code = vc
+
+                    # Safe extraction of expected_behavior (list or str)
+                    eb = item.get("expected_behavior", "")
+                    expected_str = " ".join(eb) if isinstance(eb, list) else str(eb)
+                    instr_str = str(item.get("instruction", ""))
+                    full_desc = (expected_str + "\n" + instr_str).strip()
+
+                    m_mod = re.search(r"module\s+([A-Za-z0-9_]+)", code)
+                    mod_name = m_mod.group(1) if m_mod else item_id
+                    ports = extract_verilog_ports(code) if code else []
+
+                    entry = {
+                        "id": f"abiral_{item_id}",
+                        "name": mod_name,
+                        "module_name": mod_name,
+                        "source": "AbiralArch CVDP Benchmark",
+                        "category": file_cat,
+                        "spec": full_desc[:500],
+                        "ports": ports,
+                        "golden_rtl": code[:3000],
+                        "golden_tb": tb_code[:3000],
+                        "keywords": build_keywords(mod_name, file_cat, full_desc)
+                    }
+                    self.db.append(entry)
+                    count += 1
+            except Exception as e:
+                print(f" [!] Error parsing {jf}: {e}")
+        print(f" -> [AbiralArch CVDP]: Ingested {count} verified processor, memory & expert IP blocks.")
+        return count
+
+    def ingest_verilog_instruct(self):
+        """Ingests curated industrial instruction-Verilog IP cores from davide221/verilog-instruct-60k."""
+        curated_path = os.path.join(RAW_DIR, "verilog_instruct_curated.json")
+        if not os.path.exists(curated_path):
+            return 0
+        count = 0
+        try:
+            with open(curated_path, "r", encoding="utf-8", errors="replace") as f:
+                data = json.load(f)
+            for item in data:
+                code = item.get("verilog_code", "")
+                m_mod = re.search(r"module\s+([A-Za-z0-9_]+)", code)
+                mod_name = m_mod.group(1) if m_mod else item.get("module_name", "mod")
+                desc = item.get("description") or item.get("instruction", "")
+                cat = determine_category(mod_name, desc)
+                ports = extract_verilog_ports(code) if code else []
+
+                entry = {
+                    "id": item.get("id", f"instruct60k_{mod_name}"),
+                    "name": mod_name,
+                    "module_name": mod_name,
+                    "source": "HuggingFace Verilog-Instruct-60k",
+                    "category": cat,
+                    "spec": desc,
+                    "ports": ports,
+                    "golden_rtl": code,
+                    "golden_tb": "",
+                    "keywords": build_keywords(mod_name, cat, desc)
+                }
+                self.db.append(entry)
+                count += 1
+        except Exception as e:
+            print(f" [!] Error parsing verilog_instruct_curated.json: {e}")
+        print(f" -> [Verilog-Instruct-60k]: Ingested {count} curated industrial IP blocks.")
+        return count
+
     def ingest_local_designs(self):
         """Ingests local verified golden designs from specs/ and src/ (e.g. Vending Machine, AI SoC)."""
         count = 0
@@ -355,13 +446,16 @@ class DatasetIngestor:
     def execute_pipeline(self):
         print("=" * 80)
         print("   INGESTING MULTI-BENCHMARK HARDWARE KNOWLEDGE BASE")
-        print("   Sources: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer, Local IP")
+        print("   Sources: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer,")
+        print("            AbiralArch CVDP, HuggingFace Verilog-Instruct-60k, Local IP")
         print("=" * 80)
         
         c1 = self.ingest_verilog_eval()
         c2 = self.ingest_rtllm()
         c3 = self.ingest_veriprefer()
-        c4 = self.ingest_local_designs()
+        c4 = self.ingest_abiralarch()
+        c5 = self.ingest_verilog_instruct()
+        c6 = self.ingest_local_designs()
 
         total = len(self.db)
         print("-" * 80)
