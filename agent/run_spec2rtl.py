@@ -28,13 +28,12 @@ from tb_generator import TBGenerator
 from bdf_generator import BDFGenerator
 from simulator import EDASimulator
 from reflection_loop import ReflectionAgent
-from eda_finder import find_quartus_map
+from eda_finder import find_quartus_map, find_modelsim
 from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
 from knowledge_matcher import KnowledgeMatcher
 from vwf_generator import VWFGenerator
 from waveform_visualizer import WaveformVisualizer
-from eda_finder import find_modelsim
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
@@ -149,6 +148,13 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
     cat = analyzer.classify_system()
     mod_name = analyzer.extract_module_name()
 
+    # Known system dispatch table (ponytail: eliminates 50 lines of duplicate boilerplate)
+    KNOWN_SYSTEMS = {
+        "VENDING":  ("vending_machine", "Vending_Machine", rtl_gen.generate_vending_machine, tb_gen.generate_vending_tb),
+        "ELEVATOR": ("elevator_controller", "Elevator_Controller", rtl_gen.generate_elevator_controller, tb_gen.generate_elevator_tb),
+        "TRAFFIC":  ("traffic_light", "Traffic_Light", rtl_gen.generate_traffic_light, tb_gen.generate_traffic_tb),
+    }
+
     if cat == "SOC_AI":
         top_name = "tb_top_soc"
         top_entity = "top_soc"
@@ -163,53 +169,18 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
         rtl_files = [f for f in verilog_files]
         verilog_files.append(os.path.join(sim_dir, "tb_top_soc.v"))
 
-    elif cat == "VENDING":
-        top_name = "tb_vending_machine"
-        top_entity = "vending_machine"
-        project_name = "Vending_Machine"
-        v_file = os.path.join(src_dir, "vending_machine.v")
-        tb_file = os.path.join(sim_dir, "tb_vending_machine.v")
+    elif cat in KNOWN_SYSTEMS:
+        top_entity, project_name, gen_rtl, gen_tb = KNOWN_SYSTEMS[cat]
+        top_name = f"tb_{top_entity}"
+        v_file = os.path.join(src_dir, f"{top_entity}.v")
+        tb_file = os.path.join(sim_dir, f"{top_name}.v")
         if not os.path.exists(v_file):
-            rtl_gen.generate_vending_machine(spec_text)
-            print(" -> [Auto-Gen] Synthesized: src/vending_machine.v")
+            gen_rtl(spec_text)
+            print(f" -> [Auto-Gen] Synthesized: src/{top_entity}.v")
         if not os.path.exists(tb_file):
-            tb_gen.generate_vending_tb()
-            print(" -> [Auto-Gen] Synthesized: sim/tb_vending_machine.v")
-        verilog_files = [v_file, tb_file]
-        rtl_files = [v_file]
-        primary_rtl = v_file
-
-    elif cat == "ELEVATOR":
-        top_name = "tb_elevator_controller"
-        top_entity = "elevator_controller"
-        project_name = "Elevator_Controller"
-        v_file = os.path.join(src_dir, "elevator_controller.v")
-        tb_file = os.path.join(sim_dir, "tb_elevator_controller.v")
-        if not os.path.exists(v_file):
-            rtl_gen.generate_elevator_controller(spec_text)
-            print(" -> [Auto-Gen] Synthesized: src/elevator_controller.v")
-        if not os.path.exists(tb_file):
-            tb_gen.generate_elevator_tb()
-            print(" -> [Auto-Gen] Synthesized: sim/tb_elevator_controller.v")
-        verilog_files = [v_file, tb_file]
-        rtl_files = [v_file]
-        primary_rtl = v_file
-
-    elif cat == "TRAFFIC":
-        top_name = "tb_traffic_light"
-        top_entity = "traffic_light"
-        project_name = "Traffic_Light"
-        v_file = os.path.join(src_dir, "traffic_light.v")
-        tb_file = os.path.join(sim_dir, "tb_traffic_light.v")
-        if not os.path.exists(v_file):
-            rtl_gen.generate_traffic_light(spec_text)
-            print(" -> [Auto-Gen] Synthesized: src/traffic_light.v")
-        if not os.path.exists(tb_file):
-            tb_gen.generate_traffic_tb()
-            print(" -> [Auto-Gen] Synthesized: sim/tb_traffic_light.v")
-        verilog_files = [v_file, tb_file]
-        rtl_files = [v_file]
-        primary_rtl = v_file
+            gen_tb()
+            print(f" -> [Auto-Gen] Synthesized: sim/{top_name}.v")
+        verilog_files, rtl_files, primary_rtl = [v_file, tb_file], [v_file], v_file
 
     else:
         # AUTONOMOUS GENERAL SPEC2RTL SYNTHESIS FOR ANY CUSTOM / RANDOM SPEC
@@ -339,23 +310,12 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
         return False, elapsed, top_entity, None, metrics
 
 def get_spec_description(filename, specs_dir=None):
-    """Returns friendly description for available specs."""
+    """Returns friendly description for available specs (delegates to SpecAnalyzer)."""
     full_path = os.path.join(specs_dir, filename) if specs_dir else filename
-    if os.path.exists(full_path):
-        try:
-            return SpecAnalyzer(full_path).get_friendly_description()
-        except Exception:
-            pass
-    fn = filename.lower()
-    if "soc" in fn:
-        return "Autonomous SoC AI Accelerator (CPU + RAM + DMA + AI MAC Core)"
-    elif "thang" in fn or "elevator" in fn:
-        return "Bộ điều khiển Thang máy 5 tầng (5-Floor Intelligent Elevator FSM)"
-    elif "traffic" in fn or "giao thong" in fn:
-        return "Bộ điều khiển Đèn giao thông ngã tư (Intersection Traffic Light FSM)"
-    elif "vend" in fn or "ban nuoc" in fn:
-        return "Máy bán nước tự động 15.000đ (Vending Machine FSM)"
-    return "Custom Hardware Specification"
+    try:
+        return SpecAnalyzer(full_path).get_friendly_description()
+    except Exception:
+        return "Custom Hardware Specification"
 
 def get_benchmark_suites(base_dir):
     """Discovers and organizes available benchmark specs across the 3 datasets."""
@@ -449,23 +409,18 @@ def main():
 
     user_input = args.spec_flag or args.spec_pos
 
-    # Check for benchmark execution
-    if args.benchmark_suite:
-        success = run_benchmark_suite(args.benchmark_suite.lower(), base_dir)
-        sys.exit(0 if success else 1)
+    SUITE_MAP = {
+        "benchmark": "all", "benchmarks": "all", "bm": "all", "b": "all",
+        "b1": "verilog_eval", "verilog_eval": "verilog_eval",
+        "b2": "rtllm", "rtllm": "rtllm",
+        "b3": "veriprefer", "veriprefer": "veriprefer",
+    }
 
-    if user_input and user_input.lower() in ["benchmark", "benchmarks", "bm"]:
-        success = run_benchmark_suite("all", base_dir)
-        sys.exit(0 if success else 1)
-    elif user_input and user_input.lower() in ["b1", "verilog_eval"]:
-        success = run_benchmark_suite("verilog_eval", base_dir)
-        sys.exit(0 if success else 1)
-    elif user_input and user_input.lower() in ["b2", "rtllm"]:
-        success = run_benchmark_suite("rtllm", base_dir)
-        sys.exit(0 if success else 1)
-    elif user_input and user_input.lower() in ["b3", "veriprefer"]:
-        success = run_benchmark_suite("veriprefer", base_dir)
-        sys.exit(0 if success else 1)
+    # Check for benchmark execution (CLI flags or arguments)
+    target_bm = args.benchmark_suite or (user_input if user_input and user_input.lower() in SUITE_MAP else None)
+    if target_bm:
+        suite_id = SUITE_MAP.get(target_bm.lower(), target_bm.lower())
+        sys.exit(0 if run_benchmark_suite(suite_id, base_dir) else 1)
 
     run_all_mode = args.all or (user_input and user_input.lower() in ["all", "a"])
 
@@ -489,20 +444,8 @@ def main():
 
         if choice == "" or choice.lower() in ["a", "all"]:
             run_all_mode = True
-        elif choice.lower() in ["b", "benchmark", "benchmarks"]:
-            success = run_benchmark_suite("all", base_dir)
-            sys.exit(0 if success else 1)
-        elif choice.lower() in ["b1", "verilog_eval"]:
-            success = run_benchmark_suite("verilog_eval", base_dir)
-            sys.exit(0 if success else 1)
-        elif choice.lower() in ["b2", "rtllm"]:
-            success = run_benchmark_suite("rtllm", base_dir)
-            sys.exit(0 if success else 1)
-        elif choice.lower() in ["b3", "veriprefer"]:
-            success = run_benchmark_suite("veriprefer", base_dir)
-            sys.exit(0 if success else 1)
-        elif choice.isdigit():
-            user_input = choice
+        elif choice.lower() in SUITE_MAP:
+            sys.exit(0 if run_benchmark_suite(SUITE_MAP[choice.lower()], base_dir) else 1)
         else:
             user_input = choice
 

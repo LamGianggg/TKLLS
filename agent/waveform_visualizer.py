@@ -63,47 +63,27 @@ class WaveformVisualizer:
             idx += 1
 
         # Parse value changes over time
+        # shortcut: parses bit changes and binary buses; analog real values skipped
         current_time_ns = 0.0
-        time_points = []
         signal_traces = {sym: [] for sym in var_map}
-
-        # Track bus bits if split
-        buses = {}
-        for sym, v in var_map.items():
-            m_bus = re.match(r"([A-Za-z0-9_]+)\[(\d+)\]", v["name"])
-            if m_bus:
-                b_name = m_bus.group(1)
-                b_idx = int(m_bus.group(2))
-                if b_name not in buses:
-                    buses[b_name] = {}
-                buses[b_name][b_idx] = sym
 
         while idx < len(lines):
             line = lines[idx].strip()
             if line.startswith("#"):
-                t_val = float(line[1:]) * timescale_multiplier
-                current_time_ns = round(t_val, 2)
-            elif line.startswith("b") or line.startswith("B"):
-                # Binary bus value
+                current_time_ns = round(float(line[1:]) * timescale_multiplier, 2)
+            elif line.startswith(("b", "B")):
                 parts = line.split()
-                if len(parts) >= 2:
-                    val = parts[0][1:]
-                    sym = parts[1]
-                    if sym in signal_traces:
-                        signal_traces[sym].append((current_time_ns, val))
-            elif line.startswith("r") or line.startswith("R"):
-                pass
-            elif len(line) >= 2:
+                if len(parts) >= 2 and parts[1] in signal_traces:
+                    signal_traces[parts[1]].append((current_time_ns, parts[0][1:]))
+            elif len(line) >= 2 and not line.startswith(("r", "R", "$")):
                 # Single bit change: e.g. "1!" or "0#"
-                val = line[0]
                 sym = line[1:].strip()
                 if sym in signal_traces:
-                    signal_traces[sym].append((current_time_ns, val))
+                    signal_traces[sym].append((current_time_ns, line[0]))
             idx += 1
 
         return {
             "var_map": var_map,
-            "buses": buses,
             "signal_traces": signal_traces,
             "max_time": current_time_ns if current_time_ns > 0 else 500.0
         }
@@ -149,30 +129,19 @@ class WaveformVisualizer:
         rows_svg = []
         for i, sig in enumerate(signals_to_plot):
             y_base = i * row_h + 30
-            y_high = y_base + 6
-            y_low = y_base + 30
-            y_mid = y_base + 18
+            y_high, y_low = y_base + 6, y_base + 30
 
             # Build digital step polyline
             path_points = []
-            cur_val = "0"
-            tr_list = sig["transitions"]
-            if not tr_list:
-                tr_list = [(0.0, "0"), (max_t, "0")]
-
-            last_x = 0.0
+            tr_list = sig["transitions"] or [(0.0, "0"), (max_t, "0")]
             last_y = y_low
 
             for t_ns, val in tr_list:
                 x = t_ns * scale_x
-                # horizontal segment
-                path_points.append(f"{x:.1f},{last_y:.1f}")
-                # vertical transition
                 target_y = y_high if val in ["1", "h", "H"] else y_low
+                path_points.append(f"{x:.1f},{last_y:.1f}")
                 path_points.append(f"{x:.1f},{target_y:.1f}")
                 last_y = target_y
-                last_x = x
-            # Extend to end
             path_points.append(f"{max_t * scale_x:.1f},{last_y:.1f}")
 
             stroke_color = "#00e676" if "clk" in sig["name"].lower() else ("#ffab00" if "coin" in sig["name"].lower() or "in" in sig["name"].lower() else "#00b0ff")
