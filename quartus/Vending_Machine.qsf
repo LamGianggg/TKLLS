@@ -7,3 +7,4 @@ set_global_assignment -name SEARCH_PATH ../src
 set_global_assignment -name SEARCH_PATH .
 set_global_assignment -name BDF_FILE top_vending_machine.bdf
 set_global_assignment -name VERILOG_FILE ../src/vending_machine.v
+set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf

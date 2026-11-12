@@ -32,6 +32,9 @@ from eda_finder import find_quartus_map
 from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
 from knowledge_matcher import KnowledgeMatcher
+from vwf_generator import VWFGenerator
+from waveform_visualizer import WaveformVisualizer
+from eda_finder import find_modelsim
 
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
@@ -84,15 +87,25 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         bdf_gen.generate_bdf_from_bsf(bsf_path, bdf_path)
         bdf_created = True
 
+    # 3.5. Generate Quartus II Vector Waveform File (.vwf)
+    vwf_path = os.path.join(q_dir, "Waveform.vwf")
+    vwf_gen = VWFGenerator()
+    if os.path.exists(primary_rtl):
+        vwf_gen.generate_vwf_from_rtl(primary_rtl, vwf_path)
+        if not any("VECTOR_WAVEFORM_FILE" in l for l in qsf_lines):
+            qsf_lines.append('set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf')
+            with open(qsf_path, "w", encoding="utf-8") as f:
+                f.write('\n'.join(qsf_lines) + '\n')
+
     # 4. Final Analysis & Synthesis
     if qmap_exe and os.path.exists(qmap_exe):
         subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True)
     elif not qmap_exe:
-        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf và sơ đồ {schematic_top}.bdf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")
+        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf, sơ đồ {schematic_top}.bdf và sóng Waveform.vwf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")
 
-    return qpf_path, bsf_path, bdf_path if bdf_created else None
+    return qpf_path, bsf_path, bdf_path if bdf_created else None, vwf_path
 
-def run_single_spec(spec_path, base_dir):
+def run_single_spec(spec_path, base_dir, open_gui=False):
     """Executes the full Spec2RTL pipeline for a single specification file."""
     src_dir = os.path.join(base_dir, "src")
     sim_dir = os.path.join(base_dir, "sim")
@@ -255,13 +268,35 @@ def run_single_spec(spec_path, base_dir):
     print(result.get("log", "").strip())
     print("-" * 80)
 
-    # Step 4: Auto-generate BSF, BDF, and Quartus Project
-    print(f"\n[Step 4] Auto-generating Schematic BSF, BDF & Quartus Project...")
-    qpf_path, bsf_path, bdf_path = setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, rtl_files)
+    # Step 4: Auto-generate BSF, BDF, VWF, and Quartus Project
+    print(f"\n[Step 4] Auto-generating Schematic BSF, BDF, Waveform VWF & Quartus Project...")
+    qpf_path, bsf_path, bdf_path, vwf_path = setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, rtl_files)
     print(f" -> Quartus Project created: {qpf_path}")
     print(f" -> Symbol File (.bsf):      {bsf_path}")
     if bdf_path:
         print(f" -> Schematic Diagram (.bdf): {bdf_path}")
+    if vwf_path and os.path.exists(vwf_path):
+        print(f" -> Quartus Waveform (.vwf):  {vwf_path}")
+
+    # Generate interactive HTML Waveform and 1-Click Launchers
+    vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
+    html_path = os.path.join(sim_dir, "waveform.html")
+    bat_sim = os.path.join(sim_dir, "view_waveform.bat")
+    bat_root = os.path.join(base_dir, "view_waveform.bat")
+
+    modelsim_info = find_modelsim()
+    m_bin = modelsim_info.get("bin_dir") if modelsim_info else ""
+
+    vis = WaveformVisualizer()
+    if os.path.exists(vcd_path):
+        vis.generate_html_viewer(vcd_path, html_path, f"{top_entity.replace('_', ' ').title()} Simulation Waveform")
+    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim)
+    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root)
+
+    if open_gui and m_bin:
+        print(f"\n[ModelSim GUI]: Đang khởi động cửa sổ sóng đồ họa trên màn hình...")
+        vsim_exe = os.path.join(m_bin, "vsim.exe")
+        subprocess.Popen([vsim_exe, "-novopt", f"work.{top_name}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=sim_dir)
 
     # Step 4.5: VerilogDB Hardware Synthesis & Resource Utilization Profiling
     print(f"\n[Step 4.5] Profiling Hardware Synthesis Resource Footprint (VerilogDB Standard)...")
@@ -275,9 +310,13 @@ def run_single_spec(spec_path, base_dir):
         print(f"Simulation waveform dumped in: {sim_dir}")
         print("\n[Available Visual Inspection Formats]:")
         if bdf_path:
-            print(f" 1. BDF Schematic: Open Quartus II -> {bdf_path}")
-        print(f" 2. RTL Viewer:    Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
-        print(f" 3. Waveform:      Open ModelSim   -> {os.path.join(sim_dir, top_entity + '.vcd')}")
+            print(f" 1. BDF Schematic : Open Quartus II -> {bdf_path}")
+        if vwf_path and os.path.exists(vwf_path):
+            print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_path} (Sóng xung nhịp trong Quartus Waveform Editor)")
+        print(f" 3. 1-Click GUI   : Nhấp đúp chuột vào 'view_waveform.bat' (Mở trực tiếp cửa sổ sóng trong ModelSim)")
+        print(f" 4. Web Waveform  : Nhấp đúp chuột vào '{html_path}' (Xem dạng sóng đồ họa tương tác trên trình duyệt)")
+        print(f" 5. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
+        print(f" 6. Raw VCD Data  : {vcd_path}")
         return True, elapsed, top_entity, bdf_path, metrics
     else:
         print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")
@@ -404,6 +443,7 @@ def main():
     parser.add_argument("spec_pos", nargs="?", default=None, help="Spec name, number, 'all', or 'benchmark'")
     parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
     parser.add_argument("--all", action="store_true", help="Run all available core specifications")
+    parser.add_argument("--gui", action="store_true", help="Automatically launch ModelSim Graphical Waveform Viewer on completion")
     parser.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Run benchmark suite: 'all', 'verilog_eval', 'rtllm', 'veriprefer'")
     args = parser.parse_args()
 
@@ -472,7 +512,7 @@ def main():
         summary_results = []
         for s in available_specs:
             spec_file_path = os.path.join(specs_dir, s)
-            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir)
+            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui)
             summary_results.append((s, entity, success, elapsed, bdf, metrics))
 
         print("\n" + "=" * 96)
@@ -522,7 +562,7 @@ def main():
         print(f"[ERROR] Specification file not found: {target_path}")
         sys.exit(1)
 
-    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir)
+    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

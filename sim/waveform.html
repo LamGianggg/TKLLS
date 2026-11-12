@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vending Machine Simulation Waveform</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0f1216;
+            color: #eceff1;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Consolas", monospace;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #263238;
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00e5ff;
+        }
+        .badges {
+            display: flex;
+            gap: 10px;
+        }
+        .badge {
+            background: #1e293b;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid #334155;
+        }
+        .badge-success {
+            color: #00e676;
+            border-color: #00e676;
+        }
+        .container {
+            display: flex;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: #15181c;
+        }
+        .signal-labels {
+            width: 220px;
+            background: #111417;
+            border-right: 2px solid #263238;
+            flex-shrink: 0;
+            padding-top: 30px;
+        }
+        .label-row {
+            height: 42px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            font-weight: 600;
+            font-size: 13px;
+            border-bottom: 1px solid #1f2730;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .waveform-scroll {
+            overflow-x: auto;
+            flex-grow: 1;
+            background: #15181c;
+            position: relative;
+        }
+        .tooltip {
+            position: fixed;
+            background: #1e293b;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            border: 1px solid #00e5ff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">⚡ Vending Machine Simulation Waveform</div>
+        <div class="badges">
+            <div class="badge badge-success">● ModelSim 10.1d Verified</div>
+            <div class="badge">Duration: 560.0 ns</div>
+            <div class="badge">Radix: Binary / Hex</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="signal-labels">
+            <div class="label-row" title="clk">clk</div><div class="label-row" title="clr">clr</div><div class="label-row" title="coin_5k">coin_5k</div><div class="label-row" title="coin_10k">coin_10k</div><div class="label-row" title="dispense">dispense</div><div class="label-row" title="change_5k">change_5k</div><div class="label-row" title="balance[4]">balance[4]</div><div class="label-row" title="state_out[2]">state_out[2]</div><div class="label-row" title="S_0K">S_0K</div><div class="label-row" title="S_5K">S_5K</div><div class="label-row" title="S_10K">S_10K</div><div class="label-row" title="S_DISPENSE">S_DISPENSE</div><div class="label-row" title="S_CHANGE">S_CHANGE</div><div class="label-row" title="balance[4:0]">balance[4:0]</div><div class="label-row" title="state[2:0]">state[2:0]</div><div class="label-row" title="next_state[2:0]">next_state[2:0]</div>
+        </div>
+        <div class="waveform-scroll">
+            <svg width="1108" height="707" xmlns="http://www.w3.org/2000/svg">
+                <!-- Time Grid -->
+                
+                <line x1="0.0" y1="0" x2="0.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="2.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">0ns</text>
+            
+                <line x1="36.0" y1="0" x2="36.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="38.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">20ns</text>
+            
+                <line x1="72.0" y1="0" x2="72.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="74.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">40ns</text>
+            
+                <line x1="108.0" y1="0" x2="108.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="110.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">60ns</text>
+            
+                <line x1="144.0" y1="0" x2="144.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="146.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">80ns</text>
+            
+                <line x1="180.0" y1="0" x2="180.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="182.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">100ns</text>
+            
+                <line x1="216.0" y1="0" x2="216.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="218.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">120ns</text>
+            
+                <line x1="252.0" y1="0" x2="252.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="254.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">140ns</text>
+            
+                <line x1="288.0" y1="0" x2="288.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="290.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">160ns</text>
+            
+                <line x1="324.0" y1="0" x2="324.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="326.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">180ns</text>
+            
+                <line x1="360.0" y1="0" x2="360.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="362.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">200ns</text>
+            
+                <line x1="396.0" y1="0" x2="396.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="398.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">220ns</text>
+            
+                <line x1="432.0" y1="0" x2="432.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="434.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">240ns</text>
+            
+                <line x1="468.0" y1="0" x2="468.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="470.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">260ns</text>
+            
+                <line x1="504.0" y1="0" x2="504.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="506.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">280ns</text>
+            
+                <line x1="540.0" y1="0" x2="540.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="542.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">300ns</text>
+            
+                <line x1="576.0" y1="0" x2="576.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="578.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">320ns</text>
+            
+                <line x1="612.0" y1="0" x2="612.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="614.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">340ns</text>
+            
+                <line x1="648.0" y1="0" x2="648.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="650.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">360ns</text>
+            
+                <line x1="684.0" y1="0" x2="684.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="686.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">380ns</text>
+            
+                <line x1="720.0" y1="0" x2="720.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="722.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">400ns</text>
+            
+                <line x1="756.0" y1="0" x2="756.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="758.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">420ns</text>
+            
+                <line x1="792.0" y1="0" x2="792.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="794.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">440ns</text>
+            
+                <line x1="828.0" y1="0" x2="828.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="830.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">460ns</text>
+            
+                <line x1="864.0" y1="0" x2="864.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="866.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">480ns</text>
+            
+                <line x1="900.0" y1="0" x2="900.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="902.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">500ns</text>
+            
+                <line x1="936.0" y1="0" x2="936.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="938.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">520ns</text>
+            
+                <line x1="972.0" y1="0" x2="972.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="974.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">540ns</text>
+            
+                <line x1="1008.0" y1="0" x2="1008.0" y2="702" stroke="#2c3440" stroke-width="1" />
+                <text x="1010.0" y="18" fill="#788b9c" font-size="11" font-family="monospace">560ns</text>
+            
+                <!-- Waveform Rows -->
+                
+            <!-- Signal: clk -->
+            <g class="signal-row" data-name="clk">
+                <rect x="0" y="30" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="60" x2="1108" y2="60" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,60.0 0.0,60.0 18.0,60.0 18.0,36.0 36.0,36.0 36.0,60.0 54.0,60.0 54.0,36.0 72.0,36.0 72.0,60.0 90.0,60.0 90.0,36.0 108.0,36.0 108.0,60.0 126.0,60.0 126.0,36.0 144.0,36.0 144.0,60.0 162.0,60.0 162.0,36.0 180.0,36.0 180.0,60.0 198.0,60.0 198.0,36.0 216.0,36.0 216.0,60.0 234.0,60.0 234.0,36.0 252.0,36.0 252.0,60.0 270.0,60.0 270.0,36.0 288.0,36.0 288.0,60.0 306.0,60.0 306.0,36.0 324.0,36.0 324.0,60.0 342.0,60.0 342.0,36.0 360.0,36.0 360.0,60.0 378.0,60.0 378.0,36.0 396.0,36.0 396.0,60.0 414.0,60.0 414.0,36.0 432.0,36.0 432.0,60.0 450.0,60.0 450.0,36.0 468.0,36.0 468.0,60.0 486.0,60.0 486.0,36.0 504.0,36.0 504.0,60.0 522.0,60.0 522.0,36.0 540.0,36.0 540.0,60.0 558.0,60.0 558.0,36.0 576.0,36.0 576.0,60.0 594.0,60.0 594.0,36.0 612.0,36.0 612.0,60.0 630.0,60.0 630.0,36.0 648.0,36.0 648.0,60.0 666.0,60.0 666.0,36.0 684.0,36.0 684.0,60.0 702.0,60.0 702.0,36.0 720.0,36.0 720.0,60.0 738.0,60.0 738.0,36.0 756.0,36.0 756.0,60.0 774.0,60.0 774.0,36.0 792.0,36.0 792.0,60.0 810.0,60.0 810.0,36.0 828.0,36.0 828.0,60.0 846.0,60.0 846.0,36.0 864.0,36.0 864.0,60.0 882.0,60.0 882.0,36.0 900.0,36.0 900.0,60.0 918.0,60.0 918.0,36.0 936.0,36.0 936.0,60.0 954.0,60.0 954.0,36.0 972.0,36.0 972.0,60.0 990.0,60.0 990.0,36.0 1008.0,36.0 1008.0,60.0 1008.0,60.0" fill="none" stroke="#00e676" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: clr -->
+            <g class="signal-row" data-name="clr">
+                <rect x="0" y="72" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="102" x2="1108" y2="102" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,102.0 0.0,78.0 45.0,78.0 45.0,102.0 882.0,102.0 882.0,78.0 918.0,78.0 918.0,102.0 1008.0,102.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: coin_5k -->
+            <g class="signal-row" data-name="coin_5k">
+                <rect x="0" y="114" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="144" x2="1108" y2="144" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,144.0 0.0,144.0 90.0,144.0 90.0,120.0 126.0,120.0 126.0,144.0 522.0,144.0 522.0,120.0 558.0,120.0 558.0,144.0 594.0,144.0 594.0,120.0 630.0,120.0 630.0,144.0 666.0,144.0 666.0,120.0 702.0,120.0 702.0,144.0 810.0,144.0 810.0,120.0 846.0,120.0 846.0,144.0 1008.0,144.0" fill="none" stroke="#ffab00" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: coin_10k -->
+            <g class="signal-row" data-name="coin_10k">
+                <rect x="0" y="156" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="186" x2="1108" y2="186" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,186.0 0.0,186.0 162.0,186.0 162.0,162.0 198.0,162.0 198.0,186.0 306.0,186.0 306.0,162.0 342.0,162.0 342.0,186.0 378.0,186.0 378.0,162.0 414.0,162.0 414.0,186.0 1008.0,186.0" fill="none" stroke="#ffab00" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: dispense -->
+            <g class="signal-row" data-name="dispense">
+                <rect x="0" y="198" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="228" x2="1108" y2="228" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,228.0 0.0,228.0 198.0,228.0 198.0,204.0 234.0,204.0 234.0,228.0 414.0,228.0 414.0,204.0 450.0,204.0 450.0,228.0 702.0,228.0 702.0,204.0 738.0,204.0 738.0,228.0 1008.0,228.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: change_5k -->
+            <g class="signal-row" data-name="change_5k">
+                <rect x="0" y="240" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="270" x2="1108" y2="270" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,270.0 0.0,270.0 414.0,270.0 414.0,246.0 450.0,246.0 450.0,270.0 1008.0,270.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: balance[4] -->
+            <g class="signal-row" data-name="balance[4]">
+                <rect x="0" y="282" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="312" x2="1108" y2="312" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,312.0 0.0,312.0 414.0,312.0 414.0,288.0 450.0,288.0 450.0,312.0 1008.0,312.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: state_out[2] -->
+            <g class="signal-row" data-name="state_out[2]">
+                <rect x="0" y="324" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="354" x2="1108" y2="354" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,354.0 0.0,354.0 414.0,354.0 414.0,330.0 450.0,330.0 450.0,354.0 1008.0,354.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: S_0K -->
+            <g class="signal-row" data-name="S_0K">
+                <rect x="0" y="366" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="396" x2="1108" y2="396" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,396.0 0.0,396.0 1008.0,396.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: S_5K -->
+            <g class="signal-row" data-name="S_5K">
+                <rect x="0" y="408" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="438" x2="1108" y2="438" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,438.0 0.0,414.0 1008.0,414.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: S_10K -->
+            <g class="signal-row" data-name="S_10K">
+                <rect x="0" y="450" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="480" x2="1108" y2="480" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,480.0 0.0,480.0 1008.0,480.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: S_DISPENSE -->
+            <g class="signal-row" data-name="S_DISPENSE">
+                <rect x="0" y="492" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="522" x2="1108" y2="522" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,522.0 0.0,522.0 1008.0,522.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: S_CHANGE -->
+            <g class="signal-row" data-name="S_CHANGE">
+                <rect x="0" y="534" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="564" x2="1108" y2="564" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,564.0 0.0,564.0 1008.0,564.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: balance[4:0] -->
+            <g class="signal-row" data-name="balance[4:0]">
+                <rect x="0" y="576" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="606" x2="1108" y2="606" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,606.0 0.0,606.0 126.0,606.0 126.0,606.0 198.0,606.0 198.0,606.0 234.0,606.0 234.0,606.0 342.0,606.0 342.0,606.0 414.0,606.0 414.0,606.0 450.0,606.0 450.0,606.0 558.0,606.0 558.0,606.0 630.0,606.0 630.0,606.0 702.0,606.0 702.0,606.0 738.0,606.0 738.0,606.0 846.0,606.0 846.0,606.0 882.0,606.0 882.0,606.0 1008.0,606.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: state[2:0] -->
+            <g class="signal-row" data-name="state[2:0]">
+                <rect x="0" y="618" width="1108" height="42" fill="#1a1e24" />
+                <line x1="0" y1="648" x2="1108" y2="648" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,648.0 0.0,648.0 126.0,648.0 126.0,624.0 198.0,624.0 198.0,648.0 234.0,648.0 234.0,648.0 342.0,648.0 342.0,648.0 414.0,648.0 414.0,648.0 450.0,648.0 450.0,648.0 558.0,648.0 558.0,624.0 630.0,624.0 630.0,648.0 702.0,648.0 702.0,648.0 738.0,648.0 738.0,648.0 846.0,648.0 846.0,624.0 882.0,624.0 882.0,648.0 1008.0,648.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            <!-- Signal: next_state[2:0] -->
+            <g class="signal-row" data-name="next_state[2:0]">
+                <rect x="0" y="660" width="1108" height="42" fill="#15181c" />
+                <line x1="0" y1="690" x2="1108" y2="690" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="0.0,690.0 0.0,690.0 90.0,690.0 90.0,666.0 126.0,666.0 126.0,690.0 126.0,690.0 126.0,666.0 162.0,666.0 162.0,690.0 198.0,690.0 198.0,666.0 198.0,666.0 198.0,690.0 198.0,690.0 198.0,690.0 306.0,690.0 306.0,690.0 342.0,690.0 342.0,690.0 342.0,690.0 342.0,690.0 378.0,690.0 378.0,690.0 414.0,690.0 414.0,690.0 414.0,690.0 414.0,690.0 414.0,690.0 414.0,690.0 522.0,690.0 522.0,666.0 558.0,666.0 558.0,690.0 558.0,690.0 558.0,666.0 594.0,666.0 594.0,690.0 630.0,690.0 630.0,666.0 630.0,666.0 630.0,690.0 666.0,690.0 666.0,690.0 702.0,690.0 702.0,690.0 702.0,690.0 702.0,690.0 702.0,690.0 702.0,690.0 810.0,690.0 810.0,666.0 846.0,666.0 846.0,690.0 846.0,690.0 846.0,666.0 882.0,666.0 882.0,690.0 1008.0,690.0" fill="none" stroke="#00b0ff" stroke-width="2" />
+            </g>
+            
+            </svg>
+        </div>
+    </div>
+    <p style="color: #64748b; font-size: 12px; margin-top: 15px;">
+        * Trục ngang thể hiện thời gian mô phỏng (nanoseconds). Bạn có thể cuộn ngang để xem toàn bộ quá trình giao dịch, cấp tiền, nhả nước và thối tiền.
+    </p>
+</body>
+</html>
