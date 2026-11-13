@@ -176,8 +176,11 @@ Bảng tổng hợp thực nghiệm đo lường trên 11 thiết kế thuộc c
 
 ---
 
-## 7. Xem Kết Quả Trực Quan
-Sau khi chạy xong:
-1. **Sơ đồ nguyên lý khối (BDF)**: Mở Quartus II $\to$ `File` $\to$ `Open` $\to$ chọn file `.bdf` tương ứng trong thư mục `quartus/`.
-2. **RTL Schematic Netlist**: Mở project `.qpf` trong Quartus II $\to$ `Tools` $\to$ `Netlist Viewers` $\to$ `RTL Viewer`.
-3. **Dạng sóng mô phỏng**: Mở ModelSim $\to$ `File` $\to$ `Open` $\to$ chọn file `.vcd` trong thư mục `sim/`.
+## 7. Xem Kết Quả Trực Quan (4 Định Dạng Đa Nền Tảng)
+Sau khi chạy pipeline xong, hệ thống tự động xuất ra 4 định dạng trực quan cho kỹ sư / giảng viên nghiệm thu:
+1. **1-Click ModelSim GUI (`view_waveform.bat`)**: Nhấp đúp chuột vào file `view_waveform.bat` ở thư mục gốc hoặc thêm cờ `--gui` (`python agent/run_spec2rtl.py --gui`) để ModelSim tự động bung cửa sổ sóng đồ họa Waveform với đầy đủ tín hiệu và tự động căn chỉnh thời gian (`wave zoom full`).
+2. **Interactive Web Waveform (`sim/waveform.html`)**: Nhấp đúp chuột để mở trực tiếp trên trình duyệt (Chrome, Edge, Firefox). Giao diện tối Dark-mode hiển thị biểu đồ thời gian SVG mượt mà, độc lập không phụ thuộc vào việc máy có cài ModelSim hay không.
+3. **Quartus II Waveform Editor (`quartus/Waveform.vwf`)**: Mở trực tiếp trong Quartus II để kiểm tra dạng sóng vector theo chuẩn công nghiệp của Altera.
+4. **Sơ đồ nguyên lý khối BDF & RTL Viewer**:
+   - Sơ đồ BDF: Mở Quartus II $\to$ `File` $\to$ `Open` $\to$ chọn file `.bdf` tương ứng trong `quartus/`.
+   - RTL Netlist: Mở project `.qpf` trong Quartus II $\to$ `Tools` $\to$ `Netlist Viewers` $\to$ `RTL Viewer`.
