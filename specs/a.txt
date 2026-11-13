@@ -1,1 +1,1 @@
-Thiết kế mạch đếm 1 bit
+Thiết kế mạch nhân 8 bit

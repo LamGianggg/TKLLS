@@ -10,20 +10,25 @@ import re
 import unicodedata
 import json
 
-def clean_identifier(text):
-    """Converts arbitrary text (including Vietnamese with diacritics) into a valid Verilog identifier."""
+def remove_vietnamese_accents(text):
+    """Converts Vietnamese characters to ASCII lowercase for robust semantic matching."""
     text = text.replace('đ', 'd').replace('Đ', 'D')
     text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
-    text = re.sub(r'[^a-zA-Z0-9_]+', '_', text).strip('_').lower()
+    return text.lower()
+
+def clean_identifier(text):
+    """Converts arbitrary text (including Vietnamese with diacritics) into a valid Verilog identifier."""
+    clean = remove_vietnamese_accents(text)
+    clean = re.sub(r'[^a-zA-Z0-9_]+', '_', clean).strip('_')
     # Strip common noise prefixes
-    for prefix in ["thiet_ke_", "xay_dung_", "mo_ta_", "mach_", "he_thong_"]:
-        if text.startswith(prefix) and len(text) > len(prefix):
-            text = text[len(prefix):]
-    if not text:
-        text = "custom_module"
-    if text[0].isdigit():
-        text = "mod_" + text
-    return text
+    for prefix in ["thiet_ke_", "xay_dung_", "mo_ta_", "mach_", "he_thong_", "bo_"]:
+        if clean.startswith(prefix) and len(clean) > len(prefix):
+            clean = clean[len(prefix):]
+    if not clean:
+        clean = "custom_module"
+    if clean[0].isdigit():
+        clean = "mod_" + clean
+    return clean
 
 class SpecAnalyzer:
     def __init__(self, spec_path):
@@ -41,14 +46,14 @@ class SpecAnalyzer:
         if m and m.group(1).lower() not in ["name", "entity", "top"]:
             return m.group(1).lower()
 
-        # 2. Look for English name in parentheses in header, e.g. "# Thiết kế bộ đếm 4 bit (Counter_4bit)"
-        m_paren = re.search(r"#\s*.*?\(([A-Za-z0-9_\s\-]+)\)", self.content)
+        # 2. Look for name in parentheses: e.g. "Mạch nhân 4 bit (multiplier_4bit)" or "(counter_4bit)"
+        m_paren = re.search(r"\(([A-Za-z0-9_]{2,})\)", self.content)
         if m_paren:
             candidate = clean_identifier(m_paren.group(1))
             if candidate and len(candidate) > 2:
                 return candidate
 
-        # 3. Look for primary Markdown H1 / H2 header
+        # 3. Look for primary Markdown H1 / H2 header: e.g. "# Thiết kế bộ đếm 4 bit"
         m_h1 = re.search(r"^#+\s+(.+)$", self.content, re.MULTILINE)
         if m_h1:
             header_text = m_h1.group(1).split("–")[0].split("-")[0].strip()
@@ -56,10 +61,16 @@ class SpecAnalyzer:
             if candidate and len(candidate) > 2 and candidate != "custom_module":
                 return candidate
 
-        # 4. Fallback to file name stem
+        # 4. If filename is generic (a, test, temp, spec, demo), deduce from first prompt sentence
         if os.path.exists(self.spec_path):
             stem = os.path.splitext(os.path.basename(self.spec_path))[0]
             clean_stem = clean_identifier(stem)
+            if clean_stem in ["a", "test", "temp", "spec", "demo", "input"]:
+                non_empty = [l.strip() for l in self.content.splitlines() if l.strip()]
+                if non_empty:
+                    candidate = clean_identifier(non_empty[0].split(".")[0].split(":")[0])
+                    if candidate and len(candidate) > 2 and candidate != "custom_module":
+                        return candidate
             if clean_stem:
                 return clean_stem
 
@@ -67,40 +78,55 @@ class SpecAnalyzer:
 
     def classify_system(self):
         """Classifies the specification into a known or generic hardware architecture."""
-        text = (os.path.basename(self.spec_path) + " " + self.content).lower()
+        raw_text = (os.path.basename(self.spec_path) + " " + self.content)
+        text = remove_vietnamese_accents(raw_text)
 
-        if "soc" in text or "dma" in text and "relu" in text or "mac_unit" in text:
+        if "soc" in text or ("dma" in text and "relu" in text) or "mac_unit" in text:
             return "SOC_AI"
-        if "vend" in text or "bán nước" in text or "ban nuoc" in text:
+        if "vend" in text or "ban nuoc" in text:
             return "VENDING"
         if "thang" in text or "elevator" in text:
             return "ELEVATOR"
-        if "traffic" in text or "giao thông" in text or "giao thong" in text:
+        if "traffic" in text or "giao thong" in text:
             return "TRAFFIC"
 
-        if any(k in text for k in ["alu", "toán học", "arithmetic", "cộng", "trừ", "nhân", "chia", "opcode"]):
-            return "ALU"
-        if any(k in text for k in ["fifo", "queue", "hàng đợi", "hang doi"]):
-            return "FIFO"
-        if any(k in text for k in ["gray", "gray_counter", "mã gray", "ma gray"]):
-            return "GRAY_COUNTER"
-        if any(k in text for k in ["counter", "bộ đếm", "bo dem", "đếm lên", "đếm xuống", "up_down"]):
+        # Multiplier
+        if any(k in text for k in ["multiplier", "nhan 4 bit", "nhan 8 bit", "nhan 16 bit", "mach nhan", "bo nhan", "multi_"]):
+            return "MULTIPLIER"
+        # Adder
+        if any(k in text for k in ["adder", "cong 4 bit", "cong 8 bit", "cong 16 bit", "mach cong", "bo cong", "full adder", "half adder"]):
+            return "ADDER"
+        # Subtractor
+        if any(k in text for k in ["subtractor", "tru 4 bit", "tru 8 bit", "mach tru", "bo tru"]):
+            return "SUBTRACTOR"
+        # Comparator
+        if any(k in text for k in ["comparator", "so sanh", "bo so sanh", "mach so sanh"]):
+            return "COMPARATOR"
+        # Counter
+        if any(k in text for k in ["counter", "dem len", "dem xuong", "up down", "up_down", "mach dem", "bo dem", "dem 1 bit", "dem 4 bit", "dem 8 bit", "dem nhi phan"]):
             return "COUNTER"
-        if any(k in text for k in ["encoder", "priority", "ưu tiên", "u tien", "mã hóa", "ma hoa"]):
+        # ALU
+        if any(k in text for k in ["alu", "toan hoc", "arithmetic", "opcode"]):
+            return "ALU"
+        if any(k in text for k in ["fifo", "queue", "hang doi"]):
+            return "FIFO"
+        if any(k in text for k in ["gray", "gray_counter", "ma gray"]):
+            return "GRAY_COUNTER"
+        if any(k in text for k in ["encoder", "priority", "u tien", "ma hoa"]):
             return "ENCODER"
-        if any(k in text for k in ["pulse", "edge", "cạnh xung", "canh xung", "phát hiện xung"]):
+        if any(k in text for k in ["pulse", "edge", "canh xung", "phat hien xung"]):
             return "PULSE_DETECTOR"
-        if any(k in text for k in ["barrel", "dịch vòng", "dich vong", "rotat"]):
+        if any(k in text for k in ["barrel", "dich vong", "rotat"]):
             return "BARREL_SHIFTER"
-        if any(k in text for k in ["pwm", "độ rộng xung", "duty cycle", "xung pwm"]):
+        if any(k in text for k in ["pwm", "do rong xung", "duty cycle", "xung pwm"]):
             return "PWM"
-        if any(k in text for k in ["shift", "thanh ghi dịch", "thanh ghi", "dịch trái", "dịch phải", "sipo", "piso"]):
+        if any(k in text for k in ["shift", "thanh ghi dich", "thanh ghi", "dich trai", "dich phai", "sipo", "piso"]):
             return "SHIFT_REG"
-        if any(k in text for k in ["chuỗi", "sequence", "phát hiện", "detector", "1011", "1101"]):
+        if any(k in text for k in ["chuoi", "sequence", "phat hien", "detector", "1011", "1101"]):
             return "SEQUENCE_DETECTOR"
-        if any(k in text for k in ["khóa", "khoa so", "password", "mật khẩu", "lock", "an ninh"]):
+        if any(k in text for k in ["khoa", "khoa so", "password", "mat khau", "lock", "an ninh"]):
             return "DIGITAL_LOCK"
-        if any(k in text for k in ["fsm", "trạng thái", "state machine", "chuyển trạng thái"]):
+        if any(k in text for k in ["fsm", "trang thai", "state machine", "chuyen trang thai"]):
             return "CUSTOM_FSM"
 
         return "CUSTOM_LOGIC"
