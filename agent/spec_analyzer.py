@@ -99,19 +99,20 @@ class SpecAnalyzer:
         # Subtractor
         if any(k in text for k in ["subtractor", "tru 4 bit", "tru 8 bit", "mach tru", "bo tru"]):
             return "SUBTRACTOR"
+        # ALU (must be evaluated BEFORE COMPARATOR because ALU specs include comparisons like a == b)
+        if any(k in text for k in ["alu", "toan hoc", "arithmetic", "opcode"]):
+            return "ALU"
         # Comparator
         if any(k in text for k in ["comparator", "so sanh", "bo so sanh", "mach so sanh"]):
             return "COMPARATOR"
+        # Gray Counter (must be evaluated BEFORE generic COUNTER)
+        if any(k in text for k in ["gray", "gray_counter", "ma gray"]):
+            return "GRAY_COUNTER"
         # Counter
         if any(k in text for k in ["counter", "dem len", "dem xuong", "up down", "up_down", "mach dem", "bo dem", "dem 1 bit", "dem 4 bit", "dem 8 bit", "dem nhi phan"]):
             return "COUNTER"
-        # ALU
-        if any(k in text for k in ["alu", "toan hoc", "arithmetic", "opcode"]):
-            return "ALU"
         if any(k in text for k in ["fifo", "queue", "hang doi"]):
             return "FIFO"
-        if any(k in text for k in ["gray", "gray_counter", "ma gray"]):
-            return "GRAY_COUNTER"
         if any(k in text for k in ["encoder", "priority", "u tien", "ma hoa"]):
             return "ENCODER"
         if any(k in text for k in ["pulse", "edge", "canh xung", "phat hien xung"]):

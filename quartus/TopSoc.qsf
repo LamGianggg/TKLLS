@@ -1,0 +1,19 @@
+set_global_assignment -name FAMILY "Cyclone II"
+set_global_assignment -name DEVICE EP2C35F672C6
+set_global_assignment -name TOP_LEVEL_ENTITY sch_top_soc
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
+set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"
+set_global_assignment -name SEARCH_PATH ../src
+set_global_assignment -name SEARCH_PATH .
+set_global_assignment -name BDF_FILE sch_top_soc.bdf
+set_global_assignment -name VERILOG_FILE ../src/top_soc.v
+set_global_assignment -name VERILOG_FILE ../src/ai_core.v
+set_global_assignment -name VERILOG_FILE ../src/ai_datapath.v
+set_global_assignment -name VERILOG_FILE ../src/ai_fsm.v
+set_global_assignment -name VERILOG_FILE ../src/cpu_controller.v
+set_global_assignment -name VERILOG_FILE ../src/dma_8237.v
+set_global_assignment -name VERILOG_FILE ../src/mac_unit.v
+set_global_assignment -name VERILOG_FILE ../src/ram_16x4.v
+set_global_assignment -name VERILOG_FILE ../src/relu.v
+set_global_assignment -name VERILOG_FILE ../src/vector_counter.v
+set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf

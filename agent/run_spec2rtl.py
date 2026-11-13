@@ -43,8 +43,14 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
     qmap_exe = find_quartus_map()
 
     # Schematic top entity:
-    # If the entity is already top_soc or starts with top_, keep it; otherwise prefix with top_
-    schematic_top = top_entity if top_entity.lower().startswith("top") else f"top_{top_entity}"
+    # Always isolate schematic top entity with sch_ prefix to prevent Quartus Error 12049 duplicate entity collision
+    schematic_top = f"sch_{top_entity}"
+
+    # Remove any colliding old bdf files if they match top_entity
+    old_colliding_bdf = os.path.join(q_dir, f"{top_entity}.bdf")
+    if os.path.exists(old_colliding_bdf):
+        try: os.remove(old_colliding_bdf)
+        except Exception: pass
 
     qpf_path = os.path.join(q_dir, f"{project_name}.qpf")
     qsf_path = os.path.join(q_dir, f"{project_name}.qsf")
@@ -195,22 +201,10 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
         # Stale Check: If spec file was edited or newer than existing RTL, clean old files to force re-synthesis
         if os.path.exists(v_file) and os.path.getmtime(spec_path) >= os.path.getmtime(v_file):
             print(f" -> [Spec Updated]: Detected new prompt in {os.path.basename(spec_path)}. Re-synthesizing fresh RTL...")
-            for stale_f in [v_file, tb_file, os.path.join(q_dir, f"{top_entity}.bsf"), os.path.join(q_dir, f"{top_entity}.bdf"), os.path.join(q_dir, f"top_{top_entity}.bdf")]:
+            for stale_f in [v_file, tb_file, os.path.join(q_dir, f"{top_entity}.bsf"), os.path.join(q_dir, f"{top_entity}.bdf"), os.path.join(q_dir, f"top_{top_entity}.bdf"), os.path.join(q_dir, f"sch_{top_entity}.bdf")]:
                 if os.path.exists(stale_f):
                     try: os.remove(stale_f)
                     except Exception: pass
-
-        # Knowledge Base Fast-Path: Deploy Golden Synthesizable Verilog
-        # Only deploy verbatim if running an academic benchmark suite or exact module name match
-        is_benchmark = "benchmarks" in spec_path.replace("\\", "/") or (matched_entry and matched_entry.get("name", "").lower() == mod_name.lower())
-        if is_benchmark and match_type == "EXACT" and matched_entry and matched_entry.get("golden_rtl") and not os.path.exists(v_file):
-            print(f" -> [Knowledge Base Fast-Path]: Deploying Golden Synthesizable RTL from {matched_entry['source']}...")
-            with open(v_file, "w", encoding="utf-8") as f:
-                f.write(matched_entry["golden_rtl"] + "\n")
-            if matched_entry.get("golden_tb") and not os.path.exists(tb_file):
-                print(f" -> [Knowledge Base Fast-Path]: Deploying Golden Testbench from {matched_entry['source']}...")
-                with open(tb_file, "w", encoding="utf-8") as f:
-                    f.write(matched_entry["golden_tb"] + "\n")
 
         # Synthesize RTL
         if not os.path.exists(v_file):

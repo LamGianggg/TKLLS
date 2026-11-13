@@ -67,6 +67,28 @@ class ReflectionAgent:
         repaired = False
         action_log = []
 
+        # Repair 0: Module / Design Unit instantiation mismatch (vsim-3033)
+        m_inst = re.search(r"Instantiation of '([A-Za-z0-9_]+)' failed", log)
+        if m_inst:
+            missing_mod = m_inst.group(1)
+            dir_name = os.path.dirname(file_path)
+            src_dir = os.path.join(os.path.dirname(dir_name), "src") if "sim" in dir_name else dir_name
+            actual_mod = None
+            if os.path.exists(src_dir):
+                for fname in os.listdir(src_dir):
+                    if fname.endswith(".v") and not fname.startswith("tb_"):
+                        with open(os.path.join(src_dir, fname), "r", encoding="utf-8", errors="replace") as rf:
+                            m_decl = re.search(r"module\s+([A-Za-z0-9_]+)", rf.read())
+                            if m_decl and not m_decl.group(1).startswith("tb_"):
+                                actual_mod = m_decl.group(1)
+                                break
+            if actual_mod and actual_mod != missing_mod:
+                for idx, l in enumerate(lines):
+                    if re.search(r"\b" + re.escape(missing_mod) + r"\b", l):
+                        lines[idx] = re.sub(r"\b" + re.escape(missing_mod) + r"\b", actual_mod, lines[idx])
+                        repaired = True
+                action_log.append(f"Re-aligned instantiated design unit '{missing_mod}' to declared module '{actual_mod}'")
+
         # Repair 1: Invalid format specifier '%!' in $display
         if "Invalid format specifier" in log or "%!" in log:
             for idx, l in enumerate(lines):

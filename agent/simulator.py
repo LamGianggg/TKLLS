@@ -8,6 +8,7 @@ Supports:
 """
 
 import os
+import re
 import subprocess
 import shutil
 from eda_finder import find_modelsim, find_iverilog
@@ -25,77 +26,14 @@ class EDASimulator:
             self.iverilog = find_iverilog()
 
     def run_builtin_python_verifier(self, top_module):
-        """Zero-dependency simulation fallback when machine lacks ModelSim/Icarus."""
-        log_lines = []
-        log_lines.append("[THÔNG BÁO HỆ THỐNG]: Máy tính chưa cài đặt sẵn ModelSim hoặc Icarus Verilog.")
-        log_lines.append("[CHẾ ĐỘ MÔ PHỎNG DỰ PHÒNG]: Đang thực thi kiểm tra chức năng logic bằng Python Behavioral Engine...")
-        log_lines.append("-" * 75)
-
-        success = True
-        top_lower = top_module.lower()
-
-        if "vend" in top_lower:
-            log_lines.append(">>> [TEST CASE 1]: Khách nạp 5.000đ + 10.000đ = 15.000đ")
-            log_lines.append("    -> [PASS] Nhả nước thành công! (dispense=1, change=0)")
-            log_lines.append(">>> [TEST CASE 2]: Khách nạp 10.000đ + 10.000đ = 20.000đ")
-            log_lines.append("    -> [PASS] Nhả nước VÀ Thối lại 5.000đ thành công! (dispense=1, change=1)")
-            log_lines.append(">>> [TEST CASE 3]: Khách nạp 3 đồng 5.000đ (5k + 5k + 5k = 15k)")
-            log_lines.append("    -> [PASS] Nhả nước thành công! (dispense=1, change=0)")
-            log_lines.append(">>> [TEST CASE 4]: Nạp tiền rồi bấm nút Hủy (Reset)")
-            log_lines.append("    -> [PASS] Hủy giao dịch thành công, số dư trở về 0đ!")
-            log_lines.append("=" * 75)
-            log_lines.append("  [SUCCESS] TẤT CẢ 4 KỊCH BẢN MÁY BÁN NƯỚC ĐÃ ĐƯỢC XÁC THỰC 100% PASS!")
-            log_lines.append("=" * 75)
-
-        elif "elevator" in top_lower or "thang" in top_lower:
-            log_lines.append(">>> [TEST CASE 1]: Gọi thang máy từ Tầng 1 lên Tầng 4...")
-            log_lines.append("    -> [PASS] Thang máy di chuyển lên và Mở cửa đúng tại Tầng 4 thành công!")
-            log_lines.append(">>> [TEST CASE 2]: Gọi thang máy từ Tầng 4 xuống Tầng 2...")
-            log_lines.append("    -> [PASS] Thang máy di chuyển xuống và Mở cửa đúng tại Tầng 2 thành công!")
-            log_lines.append("=" * 75)
-            log_lines.append("  [SUCCESS] TOÀN BỘ KỊCH BẢN ĐIỀU KHIỂN THANG MÁY 5 TẦNG ĐẠT 100% PASS!")
-            log_lines.append("=" * 75)
-
-        elif "traffic" in top_lower:
-            log_lines.append(">>> [TEST CASE 1]: Không có xe đường phụ -> Đường chính tiếp tục Xanh.")
-            log_lines.append(">>> [TEST CASE 2]: Cảm biến phát hiện có xe (car_sensor = 1)")
-            log_lines.append("    -> [PASS] Chu kỳ FSM chuẩn: Xanh/Đỏ -> Vàng/Đỏ -> Đỏ/Xanh -> Đỏ/Vàng thành công!")
-            log_lines.append(">>> [TEST CASE 3]: Ngắt khẩn cấp / Reset bất đồng bộ")
-            log_lines.append("    -> [PASS] Reset tức thời về trạng thái an toàn S0 thành công!")
-            log_lines.append("=" * 75)
-            log_lines.append("  [SUCCESS] TOÀN BỘ CHU KỲ ĐÈN GIAO THÔNG ĐÃ ĐƯỢC XÁC THỰC 100% PASS!")
-            log_lines.append("=" * 75)
-
-        elif "soc" in top_lower or "top_soc" in top_lower:
-            log_lines.append(">>> [TEST CASE SoC AI]: Nhân ma trận W (3) * X (4)")
-            log_lines.append("    -> [PASS] Tích vô hướng phần cứng MAC: 3 * 4 = 12 (0x0C)")
-            log_lines.append("    -> [PASS] Hàm kích hoạt phi tuyến ReLU: max(0, 12) = 12 (0x0C)")
-            log_lines.append("    -> [PASS] Bắt tay phần cứng DMA: DREQ -> DACK -> TC -> SYSTEM_INTR thành công!")
-            log_lines.append("=" * 75)
-            log_lines.append("  [SUCCESS] XÁC THỰC MÔ PHỎNG SO-C AI ACCELERATOR ĐẠT 100% PASS!")
-            log_lines.append("=" * 75)
-
-        else:
-            mod_title = top_module.replace("tb_", "").replace("_", " ").title()
-            log_lines.append(f">>> [TEST CASE 1]: Khởi tạo và kích hoạt Reset hệ thống cho '{mod_title}'...")
-            log_lines.append("    -> [PASS] Reset đồng bộ thành công, các thanh ghi nội về trạng thái ban đầu!")
-            log_lines.append(f">>> [TEST CASE 2]: Áp dụng chuỗi kích thích ngõ vào (Stimulus Vectors)...")
-            log_lines.append("    -> [PASS] Kết quả chuyển đổi logic và đáp ứng ngõ ra hoàn toàn chính xác!")
-            log_lines.append(f">>> [TEST CASE 3]: Kiểm tra độ ổn định chu kỳ xung nhịp và chuyển tiếp trạng thái...")
-            log_lines.append("    -> [PASS] Đáp ứng thời gian xác lập (setup/hold) hợp lệ, không có xung đột bus!")
-            log_lines.append("=" * 75)
-            log_lines.append(f"  [SUCCESS] XÁC THỰC MÔ PHỎNG MODULE '{top_module}' ĐẠT 100% PASS!")
-            log_lines.append("=" * 75)
-
-        log_lines.append("\n(Ghi chú: Toàn bộ mã nguồn Verilog RTL tại src/*.v và Testbench tại sim/*.v đã sẵn sàng.")
-        log_lines.append(" Nếu muốn xuất file sóng .vcd và mở bằng ModelSim, hãy cài đặt ModelSim-Altera 13.0sp1).")
-
+        """Zero-dependency simulation fallback: informs user that real EDA simulation requires ModelSim or Icarus."""
+        err_msg = "ModelSim or Icarus Verilog is required for genuine hardware simulation."
         return {
             "stage": "simulate",
-            "success": True,
-            "passed": True,
-            "errors": [],
-            "log": "\n".join(log_lines)
+            "success": False,
+            "passed": False,
+            "errors": [err_msg],
+            "log": f"[SIMULATOR NOTICE]: Neither ModelSim nor Icarus Verilog found. {err_msg}"
         }
 
     def run_iverilog_flow(self, verilog_files, top_module):
@@ -116,13 +54,17 @@ class EDASimulator:
         s_cmd = [self.iverilog["vvp"], out_vvp]
         s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
         stdout = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
-        passed = "[SUCCESS]" in stdout or s_res.returncode == 0
+        has_errors = any(kw in stdout for kw in ["ERROR", "Error", "FAIL", "Fatal", "assert failed"])
+        has_success = any(marker in stdout for marker in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED"])
+        has_clean_finish = s_res.returncode == 0 and ("$finish" in stdout or has_success) and not has_errors
+        passed = (has_success or has_clean_finish) and not has_errors
+        errors = [l.strip() for l in stdout.splitlines() if any(kw in l for kw in ["ERROR", "Error", "FAIL", "Fatal"])]
 
         return {
             "stage": "simulate",
             "success": passed,
             "passed": passed,
-            "errors": [],
+            "errors": errors,
             "log": stdout
         }
 
@@ -155,13 +97,23 @@ class EDASimulator:
         s_cmd = [vsim, "-c", "-do", "run -all; quit", f"work.{top_module}"]
         s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
         s_out = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
-        passed = "[SUCCESS]" in s_out
+
+        has_errors = any(kw in s_out for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]"])
+        m_failed = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", s_out)
+        if m_failed:
+            has_errors = True
+
+        has_success = any(tok in s_out for tok in ["[SUCCESS]", "PASSED", "Passed", "passed", "TEST PASSED", "All tests passed"])
+        has_clean_finish = ("$finish" in s_out or "Simulation complete" in s_out or s_res.returncode == 0) and not has_errors and ("$finish" in s_out or has_success)
+
+        passed = (has_success or has_clean_finish) and not has_errors
+        errors = [l.strip() for l in s_out.splitlines() if any(kw in l for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]"])]
 
         return {
             "stage": "simulate",
             "success": passed,
             "passed": passed,
-            "errors": [],
+            "errors": errors,
             "log": s_out
         }
 

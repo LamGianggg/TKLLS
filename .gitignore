@@ -22,3 +22,9 @@ quartus/output_files/
 # Raw cloned datasets for Knowledge Base
 knowledge_base/raw/
 
+# Teamwork internal scratch
+.agents/
+sim/audit_reports.py
+sim/test_reflection*.py
+
+

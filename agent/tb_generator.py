@@ -29,6 +29,14 @@ class TBGenerator:
             return f"tb_{mod_name}", self.generate_traffic_tb(mod_name)
         elif cat == "SOC_AI":
             return "tb_top_soc", os.path.join(self.sim_dir, "tb_top_soc.v")
+        elif cat == "ALU":
+            return f"tb_{mod_name}", self.generate_alu_tb(mod_name)
+        elif cat == "GRAY_COUNTER":
+            return f"tb_{mod_name}", self.generate_gray_counter_tb(mod_name)
+        elif cat == "DIGITAL_LOCK":
+            return f"tb_{mod_name}", self.generate_digital_lock_tb(mod_name)
+        elif cat == "SEQUENCE_DETECTOR":
+            return f"tb_{mod_name}", self.generate_sequence_detector_tb(mod_name)
         else:
             return f"tb_{mod_name}", self.generate_generic_tb(rtl_path, mod_name)
 
@@ -439,6 +447,520 @@ endmodule
             f.write(code)
         return out_path
 
+    def generate_alu_tb(self, module_name="alu_4bit"):
+        """Generates self-checking testbench for 4-bit ALU with full opcode coverage and mathematical oracle."""
+        tb_name = f"tb_{module_name}"
+        code = f"""//==============================================================================
+// Testbench: {tb_name}
+// Description: Autonomous Self-Checking Testbench for {module_name} (ALU)
+// Based on VeriPrefer (arXiv:2504.15804) & RTLLM Benchmark Standard
+//==============================================================================
+`timescale 1ns / 1ps
+
+module {tb_name};
+
+    reg        clk;
+    reg        rst;
+    reg  [3:0] a;
+    reg  [3:0] b;
+    reg  [2:0] opcode;
+    wire [3:0] alu_out;
+    wire       zero;
+    wire       carry;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+
+    {module_name} dut (
+        .clk(clk),
+        .rst(rst),
+        .a(a),
+        .b(b),
+        .opcode(opcode),
+        .alu_out(alu_out),
+        .zero(zero),
+        .carry(carry)
+    );
+
+    always #10 clk = ~clk;
+
+    task check_alu;
+        input [3:0] in_a;
+        input [3:0] in_b;
+        input [2:0] op;
+        input [3:0] exp_out;
+        input       exp_zero;
+        input       exp_carry;
+        begin
+            @(posedge clk);
+            a      <= in_a;
+            b      <= in_b;
+            opcode <= op;
+            @(posedge clk);
+            #1;
+            total_tests = total_tests + 1;
+            if (alu_out === exp_out && zero === exp_zero && carry === exp_carry) begin
+                passed_tests = passed_tests + 1;
+                $display("  [PASS] Op %3b (a=%0d, b=%0d) => out=%0d, zero=%b, carry=%b",
+                         op, in_a, in_b, alu_out, zero, carry);
+            end else begin
+                failed_tests = failed_tests + 1;
+                $display("  [ERROR] Op %3b (a=%0d, b=%0d) => EXPECT out=%0d z=%b c=%b, GOT out=%0d z=%b c=%b",
+                         op, in_a, in_b, exp_out, exp_zero, exp_carry, alu_out, zero, carry);
+            end
+        end
+    endtask
+
+    initial begin
+        $dumpfile("{module_name}.vcd");
+        $dumpvars(0, {tb_name});
+
+        clk = 0;
+        rst = 1;
+        a   = 0;
+        b   = 0;
+        opcode = 0;
+
+        #25;
+        rst = 0;
+
+        $display("============================================================================");
+        $display("   AUTONOMOUS ORACLE VERIFICATION FOR MODULE: {module_name}");
+        $display("============================================================================");
+
+        // Opcode 000: ADD
+        check_alu(4'd5,  4'd3,  3'b000, 4'd8,  1'b0, 1'b0);
+        check_alu(4'd12, 4'd6,  3'b000, 4'd2,  1'b0, 1'b1);
+        check_alu(4'd0,  4'd0,  3'b000, 4'd0,  1'b1, 1'b0);
+
+        // Opcode 001: SUB
+        check_alu(4'd9,  4'd4,  3'b001, 4'd5,  1'b0, 1'b0);
+        check_alu(4'd7,  4'd7,  3'b001, 4'd0,  1'b1, 1'b0);
+        check_alu(4'd3,  4'd5,  3'b001, 4'd14, 1'b0, 1'b1);
+
+        // Opcode 010: AND
+        check_alu(4'b1100, 4'b1010, 3'b010, 4'b1000, 1'b0, 1'b0);
+
+        // Opcode 011: OR
+        check_alu(4'b1100, 4'b1010, 3'b011, 4'b1110, 1'b0, 1'b0);
+
+        // Opcode 100: XOR
+        check_alu(4'b1100, 4'b1010, 3'b100, 4'b0110, 1'b0, 1'b0);
+
+        // Opcode 101: NOT
+        check_alu(4'b1010, 4'b0000, 3'b101, 4'b0101, 1'b0, 1'b0);
+
+        // Opcode 110: SHL
+        check_alu(4'b0101, 4'b0000, 3'b110, 4'b1010, 1'b0, 1'b0);
+        check_alu(4'b1001, 4'b0000, 3'b110, 4'b0010, 1'b0, 1'b1);
+
+        // Opcode 111: COMP
+        check_alu(4'd7, 4'd7, 3'b111, 4'd1, 1'b0, 1'b0);
+        check_alu(4'd3, 4'd8, 3'b111, 4'd0, 1'b1, 1'b1);
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
+
+    def generate_gray_counter_tb(self, module_name="gray_counter_4bit"):
+        """Generates self-checking testbench for Gray Code Counter with property-based single-bit flip invariant."""
+        tb_name = f"tb_{module_name}"
+        code = f"""//==============================================================================
+// Testbench: {tb_name}
+// Description: Autonomous Property-Checking Testbench for {module_name}
+// Based on VerilogEval Benchmark Standard & Single-Bit Invariant Property
+//==============================================================================
+`timescale 1ns / 1ps
+
+module {tb_name};
+
+    reg        clk;
+    reg        rst;
+    reg        enable;
+    reg        up_down;
+    wire [3:0] gray_out;
+    wire [3:0] count;
+    wire       tc;
+
+    reg  [3:0] prev_gray;
+    reg  [3:0] diff;
+    integer    bit_flips;
+    integer    step;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+
+    {module_name} dut (
+        .clk(clk),
+        .rst(rst),
+        .enable(enable),
+        .gray_out(gray_out),
+        .up_down(up_down),
+        .count(count),
+        .tc(tc)
+    );
+
+    always #10 clk = ~clk;
+
+    initial begin
+        $dumpfile("{module_name}.vcd");
+        $dumpvars(0, {tb_name});
+
+        clk     = 0;
+        rst     = 1;
+        enable  = 0;
+        up_down = 1;
+
+        #25;
+        rst    = 0;
+        enable = 1;
+
+        $display("============================================================================");
+        $display("   AUTONOMOUS PROPERTY VERIFICATION FOR MODULE: {module_name}");
+        $display("============================================================================");
+
+        @(posedge clk);
+        #1;
+        prev_gray = gray_out;
+
+        for (step = 1; step < 16; step = step + 1) begin
+            @(posedge clk);
+            #1;
+            total_tests = total_tests + 1;
+            diff = gray_out ^ prev_gray;
+            bit_flips = diff[0] + diff[1] + diff[2] + diff[3];
+            if (bit_flips == 1) begin
+                passed_tests = passed_tests + 1;
+                $display("  [PASS] Step %2d: %b -> %b (Bit flips = 1)", step, prev_gray, gray_out);
+            end else begin
+                failed_tests = failed_tests + 1;
+                $display("  [ERROR] Step %2d: %b -> %b (VIOLATION: Bit flips = %0d != 1)", step, prev_gray, gray_out, bit_flips);
+            end
+            prev_gray = gray_out;
+        end
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
+
+    def generate_digital_lock_tb(self, module_name="digital_lock_fsm"):
+        """Generates self-checking testbench for Digital Lock FSM with security lockout oracle."""
+        tb_name = f"tb_{module_name}"
+        code = f"""//==============================================================================
+// Testbench: {tb_name}
+// Description: Autonomous Self-Checking Testbench for {module_name} (Digital Lock)
+// Based on VeriPrefer Benchmark Standard & Security Lockout Oracle
+//==============================================================================
+`timescale 1ns / 1ps
+
+module {tb_name};
+
+    reg        clk;
+    reg        rst;
+    reg  [3:0] key_code;
+    reg        enter_btn;
+    wire       unlocked;
+    wire       alarm;
+    wire [1:0] attempts_left;
+    wire [2:0] state_out;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+
+    {module_name} dut (
+        .clk(clk),
+        .rst(rst),
+        .key_code(key_code),
+        .enter_btn(enter_btn),
+        .unlocked(unlocked),
+        .alarm(alarm),
+        .attempts_left(attempts_left),
+        .state_out(state_out)
+    );
+
+    always #10 clk = ~clk;
+
+    task press_key;
+        input [3:0] k;
+        begin
+            @(posedge clk);
+            key_code  <= k;
+            enter_btn <= 1'b1;
+            @(posedge clk);
+            enter_btn <= 1'b0;
+            #1;
+        end
+    endtask
+
+    initial begin
+        $dumpfile("{module_name}.vcd");
+        $dumpvars(0, {tb_name});
+
+        clk       = 0;
+        rst       = 1;
+        key_code  = 0;
+        enter_btn = 0;
+
+        #25;
+        rst = 0;
+
+        $display("============================================================================");
+        $display("   AUTONOMOUS SECURITY VERIFICATION FOR MODULE: {module_name}");
+        $display("============================================================================");
+
+        // Kich ban 1: Nhap dung mat khau 1 - 2 - 3 -> Mo khoa (unlocked=1)
+        $display("\\n>>> [KICH BAN 1]: Nhap dung mat khau 1 - 2 - 3...");
+        press_key(4'd1);
+        press_key(4'd2);
+        press_key(4'd3);
+        total_tests = total_tests + 1;
+        if (unlocked === 1'b1 && alarm === 1'b0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Mo khoa thanh cong: unlocked=1, alarm=0");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Mo khoa that bai: unlocked=%b, alarm=%b", unlocked, alarm);
+        end
+
+        // Kich ban 2: Reset va thu sai 3 lan -> Khoa he thong (alarm=1)
+        $display("\\n>>> [KICH BAN 2]: Thu nhap sai de kiem tra co che bao mat lockout...");
+        rst = 1; #20; rst = 0; #20;
+        
+        // Sai lan 1
+        press_key(4'd9);
+        total_tests = total_tests + 1;
+        if (attempts_left === 2'd2 && alarm === 1'b0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Sai lan 1: attempts_left=2, alarm=0");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Sai lan 1 loi: attempts_left=%0d, alarm=%b", attempts_left, alarm);
+        end
+
+        // Sai lan 2
+        press_key(4'd9);
+        total_tests = total_tests + 1;
+        if (attempts_left === 2'd1 && alarm === 1'b0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Sai lan 2: attempts_left=1, alarm=0");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Sai lan 2 loi: attempts_left=%0d, alarm=%b", attempts_left, alarm);
+        end
+
+        // Sai lan 3 -> Phai kich hoat alarm va attempts_left=0
+        press_key(4'd9);
+        total_tests = total_tests + 1;
+        if (attempts_left === 2'd0 && alarm === 1'b1) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Sai lan 3: attempts_left=0, alarm=1 (LOCKOUT ACTIVATED)");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Sai lan 3 loi: attempts_left=%0d, alarm=%b", attempts_left, alarm);
+        end
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
+
+    def generate_sequence_detector_tb(self, module_name="sequence_detector_1011"):
+        """Generates self-checking testbench for Sequence Detector FSM verifying non-overlapping detection."""
+        tb_name = f"tb_{module_name}"
+        code = f"""//==============================================================================
+// Testbench: {tb_name}
+// Description: Autonomous Self-Checking Testbench for {module_name}
+// Based on VeriPrefer Benchmark Standard & Non-Overlapping Verification Oracle
+//==============================================================================
+`timescale 1ns / 1ps
+
+module {tb_name};
+
+    reg        clk;
+    reg        rst;
+    reg        din;
+    wire       detected;
+    wire [2:0] state_out;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+    integer det_count = 0;
+
+    {module_name} dut (
+        .clk(clk),
+        .rst(rst),
+        .din(din),
+        .detected(detected),
+        .state_out(state_out)
+    );
+
+    always #10 clk = ~clk;
+
+    task send_bit;
+        input b;
+        begin
+            @(posedge clk);
+            din <= b;
+            #1;
+            if (detected) det_count = det_count + 1;
+        end
+    endtask
+
+    initial begin
+        $dumpfile("{module_name}.vcd");
+        $dumpvars(0, {tb_name});
+
+        clk = 0;
+        rst = 1;
+        din = 0;
+
+        #25;
+        rst = 0;
+
+        $display("============================================================================");
+        $display("   AUTONOMOUS SEQUENCE DETECTOR VERIFICATION: {module_name}");
+        $display("============================================================================");
+
+        // Scenario 1: Send exact pattern 1 - 0 - 1 - 1
+        $display("\\n>>> [KICH BAN 1]: Truyen mau chuan 1 - 0 - 1 - 1...");
+        send_bit(1);
+        send_bit(0);
+        send_bit(1);
+        send_bit(1);
+        @(posedge clk);
+        #1;
+        total_tests = total_tests + 1;
+        if (detected === 1'b1) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Phat hien thanh cong chuoi 1011!");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Khong phat hien chuoi 1011: detected=%b", detected);
+        end
+
+        // Scenario 2: Test Non-Overlapping stream: 1 - 0 - 1 - 1 - 0 - 1 - 1
+        $display("\\n>>> [KICH BAN 2]: Kiem tra dac tinh Non-Overlapping voi stream 1011011...");
+        rst = 1; #20; rst = 0; #20;
+        det_count = 0;
+        send_bit(1);
+        send_bit(0);
+        send_bit(1);
+        send_bit(1);
+        @(posedge clk);
+        #1;
+        if (detected) det_count = det_count + 1;
+
+        send_bit(0);
+        send_bit(1);
+        send_bit(1);
+        @(posedge clk);
+        #1;
+        if (detected) det_count = det_count + 1;
+
+        total_tests = total_tests + 1;
+        if (det_count === 1) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Xac nhan Non-Overlapping chuan: dung 1 lan phat hien!");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Vi pham Non-Overlapping: phat hien %0d lan!", det_count);
+        end
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
+
     def generate_generic_tb(self, rtl_path, module_name):
         """Autonomously extracts ports and synthesizes a VeriPrefer-compliant self-checking testbench."""
         tb_name = f"tb_{module_name}"
@@ -520,13 +1042,26 @@ endmodule
         # Apply diverse stimulus scenarios with assertions
         stimulus_lines.append("\n        // Test Scenarios Execution with VeriPrefer Assertions")
         test_inputs = [p for p in ports if p["direction"] == "input" and not p["is_clk"] and not p["is_rst"]]
+        output_ports = [p for p in ports if p["direction"] == "output"]
         for step in range(1, 5):
-            stimulus_lines.append(f"        #20; // Scenario {step}")
-            stimulus_lines.append("        total_tests = total_tests + 1;")
+            stimulus_lines.append(f"        // Scenario {step}")
             for idx, inp in enumerate(test_inputs):
                 val = (step * (idx + 1) * 3) % (1 << min(inp["width"], 8))
                 stimulus_lines.append(f"        {inp['name']} = {inp['width']}'d{val};")
-            stimulus_lines.append("        passed_tests = passed_tests + 1;")
+            stimulus_lines.append("        #20;")
+            stimulus_lines.append("        total_tests = total_tests + 1;")
+            if output_ports:
+                # Genuine verification assertion: check outputs are deterministic and non-floating
+                check_conds = " && ".join([f"(^{p['name']} !== 1'bx)" for p in output_ports])
+                stimulus_lines.append(f"        if ({check_conds}) begin")
+                stimulus_lines.append("            passed_tests = passed_tests + 1;")
+                stimulus_lines.append(f"            $display(\"  [PASS] Scenario {step}: Outputs valid and deterministic\");")
+                stimulus_lines.append("        end else begin")
+                stimulus_lines.append("            failed_tests = failed_tests + 1;")
+                stimulus_lines.append(f"            $display(\"  [ERROR] Scenario {step}: Output contains undefined or floating (X/Z) bits!\");")
+                stimulus_lines.append("        end")
+            else:
+                stimulus_lines.append("        passed_tests = passed_tests + 1;")
 
         stimulus_lines.append("        #40;")
 
@@ -574,7 +1109,11 @@ module {tb_name};
         $display("  Failed Assertions    : %0d", failed_tests);
         $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
         $display("============================================================================");
-        $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
         $display("============================================================================");
         $finish;
     end
