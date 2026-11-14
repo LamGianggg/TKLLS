@@ -6,5 +6,5 @@ set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name SEARCH_PATH ../src
 set_global_assignment -name SEARCH_PATH .
 set_global_assignment -name BDF_FILE sch_vending_machine.bdf
-set_global_assignment -name VERILOG_FILE ../src/vending_machine.v
+set_global_assignment -name VERILOG_FILE vending_machine.v
 set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf

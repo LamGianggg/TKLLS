@@ -698,8 +698,27 @@ class AppRequestHandler(SimpleHTTPRequestHandler):
 
             quartus_exe = r"D:\altera\13.0sp1\quartus\bin64\quartus.exe"
             try:
+                cmd_args = [quartus_exe]
+                # If opening a BDF, find matching QPF project to preserve full hierarchy and design files
+                if abs_bdf.lower().endswith(".bdf"):
+                    bdf_dir = os.path.dirname(abs_bdf)
+                    bdf_base = os.path.splitext(os.path.basename(abs_bdf))[0]
+                    raw_entity = bdf_base[4:] if bdf_base.startswith("sch_") else (bdf_base[4:] if bdf_base.startswith("top_") else bdf_base)
+                    clean_ent = raw_entity.lower().replace("_", "")
+                    matched_qpf = None
+                    if os.path.isdir(bdf_dir):
+                        for qpf_name in os.listdir(bdf_dir):
+                            if qpf_name.lower().endswith(".qpf"):
+                                clean_qpf = os.path.splitext(qpf_name)[0].lower().replace("_", "")
+                                if clean_qpf == clean_ent:
+                                    matched_qpf = os.path.join(bdf_dir, qpf_name)
+                                    break
+                    if matched_qpf and os.path.exists(matched_qpf):
+                        cmd_args.append(matched_qpf)
+                cmd_args.append(abs_bdf)
+
                 if os.path.exists(quartus_exe):
-                    subprocess.Popen([quartus_exe, abs_bdf], close_fds=True)
+                    subprocess.Popen(cmd_args, close_fds=True)
                 else:
                     os.startfile(abs_bdf)
                 return self.send_json(200, {"status": "launched", "target": bdf_rel})
