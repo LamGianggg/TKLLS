@@ -117,6 +117,9 @@ class SpecAnalyzer:
         # Gray Counter (must be evaluated BEFORE generic COUNTER)
         if any(k in text for k in ["gray", "gray_counter", "ma gray"]):
             return "GRAY_COUNTER"
+        # Stopwatch / 7-Segment Counter (must be evaluated BEFORE generic COUNTER)
+        if any(k in text for k in ["stopwatch", "dong ho", "7 doan", "7-segment", "seg", "led 7"]):
+            return "STOPWATCH"
         # Counter
         if any(k in text for k in ["counter", "dem len", "dem xuong", "up down", "up_down", "mach dem", "bo dem", "dem 1 bit", "dem 4 bit", "dem 8 bit", "dem nhi phan"]):
             return "COUNTER"
@@ -152,7 +155,6 @@ class SpecAnalyzer:
             name, direction, width_str, desc = match.groups()
             name_clean = name.strip()
             if name_clean.lower() not in ["port", "port name", "name", "tên chân", "tên cổng"]:
-                # Parse width flexibly: "16 bit", "16", "[15:0]", "8-bit", etc.
                 w = 1
                 m_bit = re.search(r"(\d+)\s*(?:bit|b)?", width_str.lower())
                 m_bus = re.search(r"\[(\d+):(\d+)\]", width_str)
@@ -173,24 +175,58 @@ class SpecAnalyzer:
                 })
                 seen.add(name_clean.lower())
 
-        # 2. Parse bullet points: e.g. "- clk: xung clock", "- input [3:0] a: toán hạng", etc.
-        bullet_pattern = r"[-*]\s*(?:input|output|ngõ vào|ngõ ra|đầu vào|đầu ra)?\s*(?:(?:wire|reg)\s+)?(?:\[(\d+):(\d+)\])?\s*`?([A-Za-z0-9_]+)`?\s*[:\-]?\s*(.*)"
-        for match in re.finditer(bullet_pattern, self.content, re.IGNORECASE):
-            msb, lsb, name, desc = match.groups()
-            name_clean = name.strip()
-            if name_clean.lower() not in seen and len(name_clean) > 0 and name_clean.lower() not in ["input", "output", "đầu vào", "đầu ra", "mô tả"]:
-                w = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
-                line_lower = match.group(0).lower()
-                dir_val = "output" if any(k in line_lower for k in ["output", "ngõ ra", "đầu ra", "out"]) else "input"
-                ports.append({
-                    "name": name_clean,
-                    "direction": dir_val,
-                    "width": w,
-                    "is_clk": any(k in name_clean.lower() for k in ["clk", "clock"]),
-                    "is_rst": any(k in name_clean.lower() for k in ["rst", "clr", "reset", "clear"]),
-                    "desc": desc.strip() if desc else ""
-                })
-                seen.add(name_clean.lower())
+        # 2. Section-aware Markdown bullet points parser
+        EXCLUDED_PORT_NAMES = {
+            "port", "port_name", "name", "ten_chan", "ten_cong", "mo_ta", "input", "output",
+            "dau_vao", "dau_ra", "tin_hieu", "khi", "neu", "gia_tri", "truong_hop", "so", "chu_so"
+        }
+        current_section = None
+        for raw_line in self.content.splitlines():
+            line = raw_line.strip()
+            line_low = line.lower()
+
+            # Track section headers (e.g. ## 1. Đầu vào (Inputs): / ## 2. Đầu ra (Outputs):)
+            if line.startswith("#"):
+                if any(k in line_low for k in ["dau vao", "dau_vao", "inputs", "input", "ngõ vào", "ngo vao"]):
+                    current_section = "input"
+                elif any(k in line_low for k in ["dau ra", "dau_ra", "outputs", "output", "ngõ ra", "ngo ra"]):
+                    current_section = "output"
+                else:
+                    current_section = "other"
+                continue
+
+            # Parse bullet line only in input or output sections (or if line explicitly says input/output)
+            if line.startswith(("-", "*")):
+                m_bullet = re.search(
+                    r"^[-*]\s*(?:(input|output|ngõ vào|ngõ ra|đầu vào|đầu ra)\s+)?(?:(?:wire|reg)\s+)?(?:\[(\d+):(\d+)\])?\s*`?([A-Za-z0-9_]+)`?\s*[:\-]\s*(.*)$",
+                    line, re.IGNORECASE
+                )
+                if m_bullet:
+                    explicit_dir, msb, lsb, p_name, p_desc = m_bullet.groups()
+                    clean_name = p_name.strip()
+                    if clean_name.lower() in EXCLUDED_PORT_NAMES or clean_name.isdigit() or len(clean_name) < 2:
+                        continue
+                    if clean_name.lower() in seen:
+                        continue
+
+                    # Determine direction based on section context
+                    if explicit_dir:
+                        dir_val = "output" if any(k in explicit_dir.lower() for k in ["out", "ra"]) else "input"
+                    elif current_section in ["input", "output"]:
+                        dir_val = current_section
+                    else:
+                        dir_val = "output" if any(k in line_low for k in ["output", "ngõ ra", "đầu ra", "out"]) else "input"
+
+                    w = (abs(int(msb) - int(lsb)) + 1) if (msb and lsb) else 1
+                    ports.append({
+                        "name": clean_name,
+                        "direction": dir_val,
+                        "width": w,
+                        "is_clk": any(k in clean_name.lower() for k in ["clk", "clock"]),
+                        "is_rst": any(k in clean_name.lower() for k in ["rst", "clr", "reset", "clear"]),
+                        "desc": p_desc.strip() if p_desc else ""
+                    })
+                    seen.add(clean_name.lower())
 
         return ports
 
