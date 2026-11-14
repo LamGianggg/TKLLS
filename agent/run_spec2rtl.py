@@ -464,13 +464,22 @@ def main():
         "b3": "veriprefer", "veriprefer": "veriprefer",
     }
 
+    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
+    has_spec_b = any(s.lower() in ["b", "b.txt", "b.md"] for s in available_specs)
+
     # Check for benchmark execution (CLI flags or arguments)
-    target_bm = args.benchmark_suite or (user_input if user_input and user_input.lower() in SUITE_MAP else None)
+    target_bm = args.benchmark_suite
+    if not target_bm and user_input:
+        u_low = user_input.lower()
+        if u_low in SUITE_MAP:
+            if u_low in ["b", "bm"] and has_spec_b:
+                target_bm = None
+            else:
+                target_bm = user_input
+
     if target_bm:
         suite_id = SUITE_MAP.get(target_bm.lower(), target_bm.lower())
         sys.exit(0 if run_benchmark_suite(suite_id, base_dir) else 1)
-
-    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
     if user_input and user_input.lower() == "all":
         run_all_mode = True
     elif user_input and user_input.lower() == "a" and not has_spec_a:
