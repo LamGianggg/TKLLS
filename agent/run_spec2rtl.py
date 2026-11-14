@@ -113,7 +113,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None, vwf_path
 
-def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False):
+def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open_web=False):
     """Executes the full Spec2RTL pipeline for a single specification file."""
     src_dir = os.path.join(base_dir, "src")
     sim_dir = os.path.join(base_dir, "sim")
@@ -305,6 +305,11 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False):
         vsim_exe = os.path.join(m_bin, "vsim.exe")
         subprocess.Popen([vsim_exe, "-novopt", f"work.{top_name}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=sim_dir)
 
+    if open_web and os.path.exists(html_path):
+        import webbrowser
+        print(f"\n[Web Waveform Viewer]: Đang tự động mở biểu đồ sóng trên trình duyệt...")
+        webbrowser.open(os.path.abspath(html_path))
+
     # Step 4.5: VerilogDB Hardware Synthesis & Resource Utilization Profiling
     print(f"\n[Step 4.5] Profiling Hardware Synthesis Resource Footprint (VerilogDB Standard)...")
     metrics = SynthesisProfiler.profile_module(q_dir, project_name, primary_rtl)
@@ -440,6 +445,7 @@ def main():
     parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
     parser.add_argument("--all", action="store_true", help="Run all available core specifications")
     parser.add_argument("--gui", action="store_true", help="Automatically launch ModelSim Graphical Waveform Viewer on completion")
+    parser.add_argument("--web", action="store_true", help="Automatically open interactive HTML waveform in browser on completion")
     parser.add_argument("--harness", action="store_true", help="Execute simulation using the standardized Option A Verilog Hardware Test Harness")
     parser.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Run benchmark suite: 'all', 'verilog_eval', 'rtllm', 'veriprefer'")
     args = parser.parse_args()
@@ -500,7 +506,7 @@ def main():
         summary_results = []
         for s in available_specs:
             spec_file_path = os.path.join(specs_dir, s)
-            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui, use_harness=args.harness)
+            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui, use_harness=args.harness, open_web=args.web)
             summary_results.append((s, entity, success, elapsed, bdf, metrics))
 
         print("\n" + "=" * 96)
@@ -550,7 +556,7 @@ def main():
         print(f"[ERROR] Specification file not found: {target_path}")
         sys.exit(1)
 
-    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui, use_harness=args.harness)
+    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui, use_harness=args.harness, open_web=args.web)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

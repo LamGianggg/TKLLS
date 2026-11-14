@@ -94,9 +94,9 @@ class EDASimulator:
                 "log": stdout
             }
 
-        # 2. Simulate
+        # 2. Simulate (logs all signals recursively into vsim.wlf waveform database)
         vsim = self.modelsim["vsim"]
-        s_cmd = [vsim, "-c", "-do", "run -all; quit", f"work.{top_module}"]
+        s_cmd = [vsim, "-c", "-do", "log -r /*; run -all; quit", f"work.{top_module}"]
         s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
         s_out = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
 
