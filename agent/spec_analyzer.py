@@ -53,8 +53,8 @@ class SpecAnalyzer:
         m_h1 = re.search(r"^#+\s+(.+)$", self.content, re.MULTILINE)
         if m_h1:
             h1_line = m_h1.group(1).strip()
-            # Check for parenthesized identifier in H1 line first
-            m_h1_paren = re.search(r"\(([A-Za-z0-9_]{2,})\)", h1_line)
+            # Check for parenthesized identifier in H1 line first (allow spaces, e.g. (Stepper Motor))
+            m_h1_paren = re.search(r"\(([A-Za-z0-9_\s]{2,})\)", h1_line)
             if m_h1_paren:
                 candidate = clean_identifier(m_h1_paren.group(1))
                 if candidate and len(candidate) > 2 and candidate not in EXCLUDED_NAMES:
@@ -99,14 +99,28 @@ class SpecAnalyzer:
         if "traffic" in text or "giao thong" in text:
             return "TRAFFIC"
 
+        # Specific peripherals & protocols (evaluated before simple arithmetic / counters)
+        if any(k in text for k in ["uart", "uart_tx", "truyen noi tiep", "serial tx", "tx_data", "tx_serial"]):
+            return "UART_TX"
+        if any(k in text for k in ["dong co buoc", "stepper", "step motor", "motor buoc", "phase_out"]):
+            return "STEPPER_MOTOR"
+        if any(k in text for k in ["may giat", "washing", "washing_machine", "giat tu dong"]):
+            return "WASHING_MACHINE"
+        if any(k in text for k in ["bao chay", "bao trom", "smart home", "nha thong minh", "smoke_gas", "motion_pir"]):
+            return "SMART_ALARM"
+        if any(k in text for k in ["pwm", "do rong xung", "duty cycle", "xung pwm"]):
+            return "PWM"
+        if any(k in text for k in ["fifo", "queue", "hang doi", "buffer"]):
+            return "FIFO"
+
         # Multiplier
         if any(k in text for k in ["multiplier", "nhan 4 bit", "nhan 8 bit", "nhan 16 bit", "mach nhan", "bo nhan", "multi_"]):
             return "MULTIPLIER"
         # Adder
         if any(k in text for k in ["adder", "cong 4 bit", "cong 8 bit", "cong 16 bit", "mach cong", "bo cong", "full adder", "half adder"]):
             return "ADDER"
-        # Subtractor
-        if any(k in text for k in ["subtractor", "tru 4 bit", "tru 8 bit", "mach tru", "bo tru"]):
+        # Subtractor (use word boundaries to avoid matching 'bo truyen')
+        if re.search(r"\b(?:subtractor|tru\s+\d+\s*bit|mach\s+tru|bo\s+tru|phep\s+tru)\b", text):
             return "SUBTRACTOR"
         # ALU (must be evaluated BEFORE COMPARATOR because ALU specs include comparisons like a == b)
         if any(k in text for k in ["alu", "toan hoc", "arithmetic", "opcode"]):
@@ -120,19 +134,9 @@ class SpecAnalyzer:
         # Stopwatch / 7-Segment Counter (must be evaluated BEFORE generic COUNTER)
         if any(k in text for k in ["stopwatch", "dong ho", "7 doan", "7-segment", "seg", "led 7"]):
             return "STOPWATCH"
-        # Counter
-        if any(k in text for k in ["counter", "dem len", "dem xuong", "up down", "up_down", "mach dem", "bo dem", "dem 1 bit", "dem 4 bit", "dem 8 bit", "dem nhi phan"]):
+        # Counter (exclude FIFO buffers)
+        if any(k in text for k in ["counter", "dem len", "dem xuong", "up down", "up_down", "dem 1 bit", "dem 4 bit", "dem 8 bit", "dem nhi phan"]) or (re.search(r"\b(?:bo\s+dem|mach\s+dem)\b", text) and not any(f in text for f in ["fifo", "buffer", "hang doi", "queue"])):
             return "COUNTER"
-        if any(k in text for k in ["fifo", "queue", "hang doi"]):
-            return "FIFO"
-        if any(k in text for k in ["encoder", "priority", "u tien", "ma hoa"]):
-            return "ENCODER"
-        if any(k in text for k in ["pulse", "edge", "canh xung", "phat hien xung"]):
-            return "PULSE_DETECTOR"
-        if any(k in text for k in ["barrel", "dich vong", "rotat"]):
-            return "BARREL_SHIFTER"
-        if any(k in text for k in ["pwm", "do rong xung", "duty cycle", "xung pwm"]):
-            return "PWM"
         if any(k in text for k in ["shift", "thanh ghi dich", "thanh ghi", "dich trai", "dich phai", "sipo", "piso"]):
             return "SHIFT_REG"
         if any(k in text for k in ["chuoi", "sequence", "phat hien", "detector", "1011", "1101"]):
