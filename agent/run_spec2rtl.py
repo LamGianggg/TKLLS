@@ -28,6 +28,7 @@ from rtl_generator import RTLGenerator
 from tb_generator import TBGenerator
 from harness_generator import HarnessGenerator
 from bdf_generator import BDFGenerator
+from port_auditor import PortAuditor
 from simulator import EDASimulator
 from reflection_loop import ReflectionAgent
 from eda_finder import find_quartus_map, find_modelsim
@@ -285,6 +286,11 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         print(f" -> Schematic Diagram (.bdf): {bdf_path}")
     if vwf_path and os.path.exists(vwf_path):
         print(f" -> Quartus Waveform (.vwf):  {vwf_path}")
+
+    # Step 4.2: RTL & Schematic Port Integrity Audit (Zero-Defect Invariant)
+    print(f"\n[Step 4.2] Executing EDA Schematic & Port Integrity Audit...")
+    spec_ports = analyzer.extract_ports()
+    PortAuditor.audit(spec_ports, primary_rtl, bsf_path, bdf_path)
 
     # Generate interactive HTML Waveform and 1-Click Launchers
     vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")

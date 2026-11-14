@@ -31,21 +31,38 @@ class BDFGenerator:
 
         inputs = []
         outputs = []
+        curr_dir = "input"
+        curr_msb, curr_lsb = None, None
+        verilog_reserved = {"input", "output", "inout", "wire", "reg", "logic", "module", "endmodule"}
+
         for line in port_block.split(","):
             line = line.strip()
-            m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", line)
-            if m_p:
-                direction, msb, lsb, p_name = m_p.groups()
-                w = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
+            if not line:
+                continue
+            m_dir = re.search(r"\b(input|output)\b", line)
+            if m_dir:
+                curr_dir = m_dir.group(1)
+                m_w = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", line)
+                if m_w:
+                    curr_msb, curr_lsb = m_w.group(1), m_w.group(2)
+                else:
+                    curr_msb, curr_lsb = None, None
+
+            m_name = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", line)
+            if m_name:
+                p_name = m_name.group(1)
+                if p_name.lower() in verilog_reserved:
+                    continue
+                w = (int(curr_msb) - int(curr_lsb) + 1) if (curr_msb and curr_lsb) else 1
                 p_info = {
                     "name": p_name,
-                    "direction": direction,
+                    "direction": curr_dir,
                     "width": w,
-                    "msb": msb,
-                    "lsb": lsb,
+                    "msb": curr_msb,
+                    "lsb": curr_lsb,
                     "is_bus": w > 1
                 }
-                if direction == "input":
+                if curr_dir == "input":
                     inputs.append(p_info)
                 else:
                     outputs.append(p_info)

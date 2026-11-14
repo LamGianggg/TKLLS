@@ -149,19 +149,26 @@ class SpecAnalyzer:
         return "CUSTOM_LOGIC"
 
     def extract_ports(self):
-        """Extracts input and output ports from tables, bullet points, or Verilog syntax."""
+        """Extracts input and output ports from tables, bullet points, numbered lists, or prose."""
         ports = []
         seen = set()
 
+        EXCLUDED_PORT_NAMES = {
+            "port", "port_name", "name", "ten_chan", "ten_cong", "mo_ta", "input", "output",
+            "dau_vao", "dau_ra", "tin_hieu", "khi", "neu", "gia_tri", "truong_hop", "so", "chu_so",
+            "buoc", "chu_ky", "chu_ky_sau", "thoi_gian", "muc", "che_do", "note", "luu_y", "chu_y",
+            "wire", "reg", "logic", "ra", "vao"
+        }
+
         # 1. Parse markdown tables
-        table_pattern = r"\|\s*`?([A-Za-z0-9_]+)`?\s*\|\s*([A-Za-z\s]+)\s*\|\s*([^\|]+)\|\s*([^\|]+)\|"
+        table_pattern = r"\|\s*`?\*?\*?([A-Za-z0-9_]+)\*?\*?`?\s*\|\s*([A-Za-z\s]+)\s*\|\s*([^\|]+)\|\s*([^\|]+)\|"
         for match in re.finditer(table_pattern, self.content):
             name, direction, width_str, desc = match.groups()
             name_clean = name.strip()
-            if name_clean.lower() not in ["port", "port name", "name", "tên chân", "tên cổng"]:
+            if name_clean.lower() not in EXCLUDED_PORT_NAMES and not name_clean.isdigit():
                 w = 1
+                m_bus = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", width_str)
                 m_bit = re.search(r"(\d+)\s*(?:bit|b)?", width_str.lower())
-                m_bus = re.search(r"\[(\d+):(\d+)\]", width_str)
                 if m_bus:
                     w = abs(int(m_bus.group(1)) - int(m_bus.group(2))) + 1
                 elif m_bit:
@@ -179,58 +186,134 @@ class SpecAnalyzer:
                 })
                 seen.add(name_clean.lower())
 
-        # 2. Section-aware Markdown bullet points parser
-        EXCLUDED_PORT_NAMES = {
-            "port", "port_name", "name", "ten_chan", "ten_cong", "mo_ta", "input", "output",
-            "dau_vao", "dau_ra", "tin_hieu", "khi", "neu", "gia_tri", "truong_hop", "so", "chu_so"
-        }
+        # 2. Section-aware Markdown bullet & numbered points parser
         current_section = None
         for raw_line in self.content.splitlines():
             line = raw_line.strip()
-            line_low = line.lower()
+            # Clean markdown bold/code markers while preserving underscores _
+            line_clean = re.sub(r"\*{1,2}|`", "", line).strip()
+            line_no_accent = remove_vietnamese_accents(line_clean.lower())
 
-            # Track section headers (e.g. ## 1. Đầu vào (Inputs): / ## 2. Đầu ra (Outputs):)
-            if line.startswith("#"):
-                if any(k in line_low for k in ["dau vao", "dau_vao", "inputs", "input", "ngõ vào", "ngo vao"]):
+            # Section header check (e.g. ## 1. Đầu vào (Inputs): / 2. Đầu ra: / Ngõ vào:)
+            m_sec = re.search(r"\b(dau vao|inputs?|ngo vao|dau ra|outputs?|ngo ra|hoat dong|chuc nang|nguyen ly|logic)\b", line_no_accent)
+            is_section_header = False
+            if m_sec:
+                # Disambiguate section headers from port bullets mentioning "tín hiệu ra/vào"
+                is_bullet = bool(re.match(r"^[-*+•]\s*(?:\[|\w+\s*[:\-])", line_clean))
+                if not is_bullet:
+                    if ":" in line_clean:
+                        before_col = line_no_accent.split(":")[0]
+                        if m_sec.group(1) in before_col:
+                            is_section_header = True
+                    else:
+                        is_section_header = True
+
+            if is_section_header:
+                if any(k in line_no_accent for k in ["dau vao", "dau_vao", "inputs", "input", "ngo vao", "tin hieu vao"]):
                     current_section = "input"
-                elif any(k in line_low for k in ["dau ra", "dau_ra", "outputs", "output", "ngõ ra", "ngo ra"]):
+                elif any(k in line_no_accent for k in ["dau ra", "dau_ra", "outputs", "output", "ngo ra", "tin hieu ra"]):
                     current_section = "output"
                 else:
                     current_section = "other"
                 continue
 
-            # Parse bullet line only in input or output sections (or if line explicitly says input/output)
-            if line.startswith(("-", "*")):
-                m_bullet = re.search(
-                    r"^[-*]\s*(?:(input|output|ngõ vào|ngõ ra|đầu vào|đầu ra)\s+)?(?:(?:wire|reg)\s+)?(?:\[(\d+):(\d+)\])?\s*`?([A-Za-z0-9_]+)`?\s*[:\-]\s*(.*)$",
-                    line, re.IGNORECASE
+            # Ignore lines in 'other' (logic descriptions) unless explicit input/output keyword is present
+            if current_section == "other" and not any(k in line_no_accent for k in ["input", "output", "dau vao", "dau ra", "ngo vao", "ngo ra"]):
+                continue
+
+            # Detect item targets: bullets (-, *, +, •), numbered (1., 2.), or bare 'name: desc' in I/O sections
+            m_item = re.match(r"^(?:[-*+•]|\d+[\.\)])\s*(.*)$", line_clean)
+            target = m_item.group(1).strip() if m_item else (line_clean if current_section in ["input", "output"] and ":" in line_clean else None)
+            if not target:
+                continue
+
+            target_no_accent = remove_vietnamese_accents(target.lower())
+            explicit_dir = None
+            m_dir = re.search(r"\b(input|output|ngo vao|ngo ra|dau vao|dau ra)\b", target_no_accent)
+            if m_dir:
+                explicit_dir = "output" if any(k in m_dir.group(1) for k in ["out", "ra"]) else "input"
+
+            # Syntax variations for port names and bit widths
+            m1 = re.search(r"(?:(?:wire|reg)\s+)?\[\s*(\d+)\s*:\s*(\d+)\s*\]\s*([A-Za-z0-9_]+)\s*[:\-\s](.*)", target)
+            m2 = re.search(r"([A-Za-z0-9_]+)\s*\[\s*(\d+)\s*:\s*(\d+)\s*\]\s*[:\-\s](.*)", target)
+            m3 = re.search(r"([A-Za-z0-9_]+)\s*\(\s*(\d+)\s*(?:bit|b)?\s*\)\s*[:\-\s](.*)", target)
+            m4 = re.search(r"([A-Za-z0-9_]+)\s*[:\-]\s*(.*)", target)
+
+            p_name, w, p_desc = None, 1, ""
+            if m1:
+                msb, lsb, p_name, p_desc = m1.groups()
+                w = abs(int(msb) - int(lsb)) + 1
+            elif m2:
+                p_name, msb, lsb, p_desc = m2.groups()
+                w = abs(int(msb) - int(lsb)) + 1
+            elif m3:
+                p_name, bit_w, p_desc = m3.groups()
+                w = int(bit_w)
+            elif m4:
+                p_name, p_desc = m4.groups()
+                m_wdesc = re.search(r"\b(\d+)\s*(?:bit|b)\b", p_desc.lower())
+                if m_wdesc:
+                    w = int(m_wdesc.group(1))
+
+            if p_name:
+                clean_name = p_name.strip()
+                if clean_name.lower() in EXCLUDED_PORT_NAMES or clean_name.isdigit() or len(clean_name) < 1:
+                    continue
+                if clean_name.lower() in seen:
+                    continue
+
+                dir_val = explicit_dir if explicit_dir else (
+                    current_section if current_section in ["input", "output"] else (
+                        "output" if any(k in target_no_accent for k in ["out", "ra"]) else "input"
+                    )
                 )
-                if m_bullet:
-                    explicit_dir, msb, lsb, p_name, p_desc = m_bullet.groups()
-                    clean_name = p_name.strip()
-                    if clean_name.lower() in EXCLUDED_PORT_NAMES or clean_name.isdigit() or len(clean_name) < 2:
-                        continue
-                    if clean_name.lower() in seen:
-                        continue
 
-                    # Determine direction based on section context
-                    if explicit_dir:
-                        dir_val = "output" if any(k in explicit_dir.lower() for k in ["out", "ra"]) else "input"
-                    elif current_section in ["input", "output"]:
-                        dir_val = current_section
-                    else:
-                        dir_val = "output" if any(k in line_low for k in ["output", "ngõ ra", "đầu ra", "out"]) else "input"
+                ports.append({
+                    "name": clean_name,
+                    "direction": dir_val,
+                    "width": w,
+                    "is_clk": any(k in clean_name.lower() for k in ["clk", "clock"]),
+                    "is_rst": any(k in clean_name.lower() for k in ["rst", "clr", "reset", "clear"]),
+                    "desc": p_desc.strip() if p_desc else ""
+                })
+                seen.add(clean_name.lower())
 
-                    w = (abs(int(msb) - int(lsb)) + 1) if (msb and lsb) else 1
-                    ports.append({
-                        "name": clean_name,
-                        "direction": dir_val,
-                        "width": w,
-                        "is_clk": any(k in clean_name.lower() for k in ["clk", "clock"]),
-                        "is_rst": any(k in clean_name.lower() for k in ["rst", "clr", "reset", "clear"]),
-                        "desc": p_desc.strip() if p_desc else ""
-                    })
-                    seen.add(clean_name.lower())
+        # 3. Fallback Prose Parser (if no table or bullet ports were detected)
+        if not ports:
+            content_no_accent = remove_vietnamese_accents(self.content.lower())
+            m_in = re.search(r"(?:dau vao|ngo vao|inputs?)\s*(?:la|gom|:|cac tin hieu)?\s*([^.]+?)(?:dau ra|ngo ra|outputs?|$)", content_no_accent)
+            m_out = re.search(r"(?:dau ra|ngo ra|outputs?)\s*(?:la|gom|:|cac tin hieu)?\s*([^.]+?)(?:dau vao|ngo vao|inputs?|$)", content_no_accent)
+
+            def extract_from_clause(clause, direction):
+                clause_ports = []
+                tokens = re.split(r"[,;]|\s+\bva\b\s+|\s+\band\b\s+", clause)
+                for tok in tokens:
+                    tok = tok.strip()
+                    if not tok: continue
+                    m_w = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", tok)
+                    m_b = re.search(r"(\d+)\s*(?:bit|b)", tok)
+                    w = 1
+                    if m_w: w = abs(int(m_w.group(1)) - int(m_w.group(2))) + 1
+                    elif m_b: w = int(m_b.group(1))
+                    names = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", tok)
+                    for n in names:
+                        if n.lower() not in EXCLUDED_PORT_NAMES and n.lower() not in ["bit", "b", "la", "gom", "cac", "tin", "hieu", "so", "va", "and", "with", "cho"]:
+                            if n.lower() not in seen:
+                                clause_ports.append({
+                                    "name": n,
+                                    "direction": direction,
+                                    "width": w,
+                                    "is_clk": any(k in n.lower() for k in ["clk", "clock"]),
+                                    "is_rst": any(k in n.lower() for k in ["rst", "clr", "reset", "clear"]),
+                                    "desc": "Extracted from prose"
+                                })
+                                seen.add(n.lower())
+                return clause_ports
+
+            if m_in:
+                ports.extend(extract_from_clause(m_in.group(1), "input"))
+            if m_out:
+                ports.extend(extract_from_clause(m_out.group(1), "output"))
 
         return ports
 

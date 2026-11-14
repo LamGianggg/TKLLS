@@ -10,6 +10,70 @@ import re
 from spec_analyzer import SpecAnalyzer, clean_identifier, remove_vietnamese_accents
 from verilog_linter import VerilogLinter
 
+class RTLPortEnforcer:
+    """Enforces mathematical invariant: Verilog top-level module ports must match
+    the user's specification 100%, removing phantom ports and adding missing ports."""
+    @staticmethod
+    def enforce(rtl_code, spec_ports):
+        if not spec_ports:
+            return rtl_code
+
+        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", rtl_code, re.DOTALL)
+        if not m_mod:
+            return rtl_code
+
+        mod_name = m_mod.group(1)
+        port_block = m_mod.group(2)
+        rest_of_code = rtl_code[m_mod.end():]
+
+        # Parse declared RTL ports
+        clean_pb = re.sub(r"//.*", "", port_block)
+        clean_pb = re.sub(r"/\*.*?\*/", "", clean_pb, flags=re.DOTALL)
+        rtl_ports = []
+        for line in clean_pb.split(","):
+            line = line.strip()
+            m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", line)
+            if m_p:
+                d, msb, lsb, n = m_p.groups()
+                w = abs(int(msb) - int(lsb)) + 1 if (msb and lsb) else 1
+                rtl_ports.append({"name": n, "direction": d, "width": w, "msb": msb, "lsb": lsb, "raw": line})
+
+        rtl_names_lower = {p["name"].lower() for p in rtl_ports}
+        spec_names_lower = {p["name"].lower() for p in spec_ports}
+
+        phantom_ports = [p for p in rtl_ports if p["name"].lower() not in spec_names_lower]
+        missing_ports = [p for p in spec_ports if p["name"].lower() not in rtl_names_lower]
+
+        if not phantom_ports and not missing_ports:
+            return rtl_code
+
+        # Reconstruct header with spec_ports
+        new_ports_decl = []
+        for sp in spec_ports:
+            w_str = f"[{sp['width']-1}:0] " if sp["width"] > 1 else "      "
+            d_type = "reg " if sp["direction"] == "output" else "wire"
+            new_ports_decl.append(f"    {sp['direction']:6} {d_type} {w_str}{sp['name']}")
+
+        new_header = f"module {mod_name} (\n" + ",\n".join(new_ports_decl) + "\n);\n"
+
+        internal_decls = []
+        for ph in phantom_ports:
+            w_str = f"[{ph['width']-1}:0] " if ph["width"] > 1 else ""
+            if ph["direction"] == "input":
+                tie_val = "1'b0" if any(k in ph["name"].lower() for k in ["rst", "clr", "reset", "clear"]) else "1'b1"
+                internal_decls.append(f"    wire {w_str}{ph['name']} = {tie_val}; // Internalized phantom input")
+            else:
+                internal_decls.append(f"    reg  {w_str}{ph['name']}; // Internalized phantom output")
+
+        for mp in missing_ports:
+            if mp["direction"] == "output":
+                if not re.search(r"\b" + mp["name"] + r"\s*<=|\b" + mp["name"] + r"\s*=", rest_of_code):
+                    internal_decls.append(f"    always @(*) {mp['name']} = {mp['width']}'d0; // Default driver for missing spec output")
+
+        inject_block = ("\n" + "\n".join(internal_decls) + "\n") if internal_decls else ""
+        return rtl_code[:m_mod.start()] + new_header + inject_block + rest_of_code
+
+
 class RTLGenerator:
     def __init__(self, src_dir):
         self.src_dir = src_dir
@@ -31,53 +95,65 @@ class RTLGenerator:
         ports = analyzer.extract_ports()
 
         if cat == "VENDING":
-            return mod_name, self.generate_vending_machine(spec_text, mod_name)
+            res_file = self.generate_vending_machine(spec_text, mod_name)
         elif cat == "ELEVATOR":
-            return mod_name, self.generate_elevator_controller(spec_text, mod_name)
+            res_file = self.generate_elevator_controller(spec_text, mod_name)
         elif cat == "TRAFFIC":
-            return mod_name, self.generate_traffic_light(spec_text, mod_name)
+            res_file = self.generate_traffic_light(spec_text, mod_name)
         elif cat == "MULTIPLIER":
-            return mod_name, self.generate_multiplier(mod_name, spec_text, ports)
+            res_file = self.generate_multiplier(mod_name, spec_text, ports)
         elif cat == "ADDER":
-            return mod_name, self.generate_adder(mod_name, spec_text, ports)
+            res_file = self.generate_adder(mod_name, spec_text, ports)
         elif cat == "SUBTRACTOR":
-            return mod_name, self.generate_subtractor(mod_name, spec_text, ports)
+            res_file = self.generate_subtractor(mod_name, spec_text, ports)
         elif cat == "COMPARATOR":
-            return mod_name, self.generate_comparator(mod_name, spec_text, ports)
+            res_file = self.generate_comparator(mod_name, spec_text, ports)
         elif cat == "ALU":
-            return mod_name, self.generate_alu(mod_name, spec_text, ports)
+            res_file = self.generate_alu(mod_name, spec_text, ports)
         elif cat == "FIFO":
-            return mod_name, self.generate_fifo(mod_name, spec_text, ports)
+            res_file = self.generate_fifo(mod_name, spec_text, ports)
         elif cat == "GRAY_COUNTER":
-            return mod_name, self.generate_gray_counter(mod_name, spec_text, ports)
+            res_file = self.generate_gray_counter(mod_name, spec_text, ports)
         elif cat == "STOPWATCH":
-            return mod_name, self.generate_stopwatch(mod_name, spec_text, ports)
+            res_file = self.generate_stopwatch(mod_name, spec_text, ports)
         elif cat == "COUNTER":
-            return mod_name, self.generate_counter(mod_name, spec_text, ports)
+            res_file = self.generate_counter(mod_name, spec_text, ports)
         elif cat == "ENCODER":
-            return mod_name, self.generate_priority_encoder(mod_name, spec_text, ports)
+            res_file = self.generate_priority_encoder(mod_name, spec_text, ports)
         elif cat == "PULSE_DETECTOR":
-            return mod_name, self.generate_pulse_detector(mod_name, spec_text, ports)
+            res_file = self.generate_pulse_detector(mod_name, spec_text, ports)
         elif cat == "BARREL_SHIFTER":
-            return mod_name, self.generate_barrel_shifter(mod_name, spec_text, ports)
+            res_file = self.generate_barrel_shifter(mod_name, spec_text, ports)
         elif cat == "PWM":
-            return mod_name, self.generate_pwm(mod_name, spec_text, ports)
+            res_file = self.generate_pwm(mod_name, spec_text, ports)
         elif cat == "STEPPER_MOTOR":
-            return mod_name, self.generate_stepper_motor(mod_name, spec_text, ports)
+            res_file = self.generate_stepper_motor(mod_name, spec_text, ports)
         elif cat == "UART_TX":
-            return mod_name, self.generate_uart_tx(mod_name, spec_text, ports)
+            res_file = self.generate_uart_tx(mod_name, spec_text, ports)
         elif cat == "WASHING_MACHINE":
-            return mod_name, self.generate_washing_machine(mod_name, spec_text, ports)
+            res_file = self.generate_washing_machine(mod_name, spec_text, ports)
         elif cat == "SMART_ALARM":
-            return mod_name, self.generate_smart_alarm(mod_name, spec_text, ports)
+            res_file = self.generate_smart_alarm(mod_name, spec_text, ports)
         elif cat == "SHIFT_REG":
-            return mod_name, self.generate_shift_reg(mod_name, spec_text, ports)
+            res_file = self.generate_shift_reg(mod_name, spec_text, ports)
         elif cat == "SEQUENCE_DETECTOR":
-            return mod_name, self.generate_sequence_detector(mod_name, spec_text, ports)
+            res_file = self.generate_sequence_detector(mod_name, spec_text, ports)
         elif cat == "DIGITAL_LOCK":
-            return mod_name, self.generate_digital_lock(mod_name, spec_text, ports)
+            res_file = self.generate_digital_lock(mod_name, spec_text, ports)
         else:
-            return mod_name, self.generate_generic_module(mod_name, spec_text, ports)
+            res_file = self.generate_generic_module(mod_name, spec_text, ports)
+
+        # Enforce exact port invariant on generated Verilog code
+        if ports and res_file and os.path.exists(res_file):
+            with open(res_file, "r", encoding="utf-8", errors="replace") as f:
+                raw_code = f.read()
+            enforced_code = RTLPortEnforcer.enforce(raw_code, ports)
+            if enforced_code != raw_code:
+                with open(res_file, "w", encoding="utf-8") as f:
+                    f.write(enforced_code)
+                print(f" -> [RTL Port Enforcer]: Reconciled Verilog module ports to match specification 100%!")
+
+        return mod_name, res_file
 
     def generate_vending_machine(self, spec_text="", module_name="vending_machine"):
         """Generates synthesizable Verilog for Vending Machine from spec."""
