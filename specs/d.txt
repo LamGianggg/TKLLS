@@ -1,0 +1,21 @@
+# Hệ Thống Cảnh Báo An Ninh & Báo Cháy Nhà Thông Minh
+
+## 1. Đầu vào (Inputs):
+- clk: Xung nhịp hệ thống
+- rst: Reset tích cực mức cao
+- motion_pir: Cảm biến chuyển động hồng ngoại phát hiện đột nhập
+- smoke_gas: Cảm biến khói/khí gas cháy nổ
+- arm_mode: Chế độ kích hoạt báo động của chủ nhà (1: Bật bảo vệ, 0: Tắt)
+
+## 2. Đầu ra (Outputs):
+- siren: Còi hú báo động âm thanh
+- sprinkler: Van xả nước cứu hỏa tự động
+- [1:0] status_code: Mã trạng thái (0: An toàn, 1: Có trộm, 2: Cháy nổ)
+
+## 3. Hoạt động / Logic mong muốn:
+- Khi rst = 1: Tắt toàn bộ còi hú, van nước, status_code = 0.
+- Trường hợp Báo Cháy (Ưu tiên cao nhất):
+  + Nếu smoke_gas = 1: Bất kể arm_mode bật hay tắt, siren lập tức bật = 1, sprinkler = 1, status_code = 2'b10.
+- Trường hợp Báo Trộm:
+  + Nếu arm_mode = 1 và motion_pir = 1: siren bật = 1, status_code = 2'b01, sprinkler = 0.
+  + Nếu arm_mode = 0 (chủ nhà đang ở nhà): Bỏ qua motion_pir, không báo trộm.

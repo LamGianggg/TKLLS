@@ -1,0 +1,63 @@
+/*
+WARNING: Do NOT edit the input and output ports in this file in a text
+editor if you plan to continue editing the block that represents it in
+the Block Editor! File corruption is VERY likely to occur.
+*/
+(header "symbol" (version "1.1"))
+(symbol
+	(rect 16 16 208 160)
+	(text "khoa_ma_so_dien_tu_4_chu_so_bao_mat" (rect 5 0 250 12)(font "Arial" ))
+	(text "inst" (rect 8 128 20 140)(font "Arial" ))
+	(port
+		(pt 0 24)
+		(input)
+		(text "clk" (rect 0 0 21 12)(font "Arial" ))
+		(text "clk" (rect 21 19 42 31)(font "Arial" ))
+		(line (pt 0 24)(pt 16 24)(line_width 1))
+	)
+	(port
+		(pt 0 56)
+		(input)
+		(text "rst" (rect 0 0 21 12)(font "Arial" ))
+		(text "rst" (rect 21 51 42 63)(font "Arial" ))
+		(line (pt 0 56)(pt 16 56)(line_width 1))
+	)
+	(port
+		(pt 0 80)
+		(input)
+		(text "key_in[3..0]" (rect 0 0 84 12)(font "Arial" ))
+		(text "key_in[3..0]" (rect 21 75 105 87)(font "Arial" ))
+		(line (pt 0 80)(pt 16 80)(line_width 3))
+	)
+	(port
+		(pt 0 112)
+		(input)
+		(text "enter" (rect 0 0 35 12)(font "Arial" ))
+		(text "enter" (rect 21 107 56 119)(font "Arial" ))
+		(line (pt 0 112)(pt 16 112)(line_width 1))
+	)
+	(port
+		(pt 192 32)
+		(output)
+		(text "unlock" (rect 0 0 42 12)(font "Arial" ))
+		(text "unlock" (rect 129 27 171 39)(font "Arial" ))
+		(line (pt 192 32)(pt 176 32)(line_width 1))
+	)
+	(port
+		(pt 192 72)
+		(output)
+		(text "alarm" (rect 0 0 35 12)(font "Arial" ))
+		(text "alarm" (rect 136 67 171 79)(font "Arial" ))
+		(line (pt 192 72)(pt 176 72)(line_width 1))
+	)
+	(port
+		(pt 192 104)
+		(output)
+		(text "err_count[1..0]" (rect 0 0 105 12)(font "Arial" ))
+		(text "err_count[1..0]" (rect 66 99 171 111)(font "Arial" ))
+		(line (pt 192 104)(pt 176 104)(line_width 3))
+	)
+	(drawing
+		(rectangle (rect 16 16 176 128)(line_width 1))
+	)
+)

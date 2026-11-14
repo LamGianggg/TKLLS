@@ -1,1 +1,19 @@
-Thiết kế mạch nhân 8 bit
+# Khóa Mã Số Điện Tử 4 Chữ Số Bảo Mật
+
+## 1. Đầu vào (Inputs):
+- clk: Xung nhịp hệ thống
+- rst: Reset tích cực mức cao
+- [3:0] key_in: Chữ số người dùng nhập vào (0-9)
+- enter: Xung kích xác nhận nhập một số (nhấn enter sau mỗi số)
+
+## 2. Đầu ra (Outputs):
+- unlock: Mở khóa thành công (1: Mở khóa, 0: Khóa)
+- alarm: Còi báo động (1: Báo động khi nhập sai quá 3 lần)
+- [1:0] err_count: Số lần đã nhập sai
+
+## 3. Hoạt động / Logic mong muốn:
+- Mật khẩu cố định là: 4 -> 2 -> 7 -> 9.
+- Người dùng nhập lần lượt từng số và nhấn `enter = 1` trong 1 chu kỳ clk.
+- Nếu nhập đúng liên tiếp 4 số: unlock bật lên 1 trong 5 chu kỳ clk rồi khóa lại, reset số lần sai về 0.
+- Nếu nhập sai bất kỳ số nào trong chuỗi: err_count tăng 1, chuỗi quay về chờ nhập lại từ đầu.
+- Nếu err_count đạt mức 3: alarm bật lên 1 và khóa cứng mạch cho đến khi có tín hiệu `rst = 1`.

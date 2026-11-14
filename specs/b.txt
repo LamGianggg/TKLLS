@@ -1,0 +1,17 @@
+# Đồng Hồ Bấm Giờ 0-9 Giây Kèm Giải Mã LED 7 Đoạn (Stopwatch)
+
+## 1. Đầu vào (Inputs):
+- clk: Xung nhịp đếm 1Hz (1 giây 1 xung)
+- rst: Xung reset về 0 (active-high)
+- start_stop: Nút bấm chạy/tạm dừng (1: Cho phép đếm, 0: Tạm dừng giữ nguyên số)
+
+## 2. Đầu ra (Outputs):
+- [3:0] count: Giá trị số đếm nhị phân (0 đến 9)
+- [6:0] seg: Mã hiển thị LED 7 đoạn Anode chung (active-low: a, b, c, d, e, f, g)
+
+## 3. Hoạt động / Logic mong muốn:
+- Khi rst = 1: count = 0, seg hiển thị số 0 (7'b1000000).
+- Khi start_stop = 1: Mỗi xung clk count tăng 1 đơn vị từ 0 lên 9. Khi đạt 9, chu kỳ sau tự tràn quay về 0.
+- Khi start_stop = 0: Giữ nguyên số đếm hiện tại.
+- Đầu ra seg giải mã trực tiếp từ count:
+  + 0: 7'b1000000, 1: 7'b1111001, 2: 7'b0100100, 3: 7'b0110000, 4: 7'b0011001...

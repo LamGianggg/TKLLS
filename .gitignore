@@ -18,6 +18,12 @@ quartus/output_files/
 *.summary
 *.done
 *.qws
+*.sof
+*.pof
+*.jdi
+*.pin
+*.smsg
+*.fit.smsg
 
 # Raw cloned datasets for Knowledge Base
 knowledge_base/raw/
