@@ -6,5 +6,5 @@ set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"
 set_global_assignment -name SEARCH_PATH ../src
 set_global_assignment -name SEARCH_PATH .
 set_global_assignment -name BDF_FILE sch_gray_counter_4bit.bdf
-set_global_assignment -name VERILOG_FILE ../src/gray_counter_4bit.v
+set_global_assignment -name VERILOG_FILE gray_counter_4bit.v
 set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf

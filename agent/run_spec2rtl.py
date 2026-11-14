@@ -78,7 +78,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
             if os.path.abspath(vf) != os.path.abspath(target_v) and os.path.exists(vf):
                 try: shutil.copy2(vf, target_v)
                 except Exception: pass
-            rel_vf = os.path.relpath(vf, q_dir).replace('\\', '/')
+            rel_vf = os.path.basename(vf)
             qsf_lines.append(f'set_global_assignment -name VERILOG_FILE {rel_vf}')
 
     with open(qsf_path, "w", encoding="utf-8") as f:
