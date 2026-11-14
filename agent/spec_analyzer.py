@@ -41,24 +41,33 @@ class SpecAnalyzer:
 
     def extract_module_name(self):
         """Extracts or deduces a clean Verilog module name from the spec content or filename."""
+        EXCLUDED_NAMES = {"name", "entity", "top", "inputs", "outputs", "input", "output", 
+                          "dau_vao", "dau_ra", "io", "ports", "tin_hieu", "state", "step"}
+
         # 1. Look for explicit module declaration: "module <name>" or "Module: <name>"
         m = re.search(r"(?:module|Module|Tên module|Module Name)\s*[:=]?\s*[`\*]?([A-Za-z0-9_]+)[`\*]?", self.content)
-        if m and m.group(1).lower() not in ["name", "entity", "top"]:
+        if m and m.group(1).lower() not in EXCLUDED_NAMES:
             return m.group(1).lower()
 
-        # 2. Look for name in parentheses: e.g. "Mạch nhân 4 bit (multiplier_4bit)" or "(counter_4bit)"
-        m_paren = re.search(r"\(([A-Za-z0-9_]{2,})\)", self.content)
-        if m_paren:
-            candidate = clean_identifier(m_paren.group(1))
-            if candidate and len(candidate) > 2:
-                return candidate
-
-        # 3. Look for primary Markdown H1 / H2 header: e.g. "# Thiết kế bộ đếm 4 bit"
+        # 2. Look for primary Markdown H1 / H2 header: e.g. "# Thiết kế khóa số (digital_lock)"
         m_h1 = re.search(r"^#+\s+(.+)$", self.content, re.MULTILINE)
         if m_h1:
-            header_text = m_h1.group(1).split("–")[0].split("-")[0].strip()
+            h1_line = m_h1.group(1).strip()
+            # Check for parenthesized identifier in H1 line first
+            m_h1_paren = re.search(r"\(([A-Za-z0-9_]{2,})\)", h1_line)
+            if m_h1_paren:
+                candidate = clean_identifier(m_h1_paren.group(1))
+                if candidate and len(candidate) > 2 and candidate not in EXCLUDED_NAMES:
+                    return candidate
+            header_text = h1_line.split("–")[0].split("-")[0].strip()
             candidate = clean_identifier(header_text)
-            if candidate and len(candidate) > 2 and candidate != "custom_module":
+            if candidate and len(candidate) > 2 and candidate != "custom_module" and candidate not in EXCLUDED_NAMES:
+                return candidate
+
+        # 3. Look for name in parentheses elsewhere in document, excluding section headers
+        for m_paren in re.finditer(r"\(([A-Za-z0-9_]{2,})\)", self.content):
+            candidate = clean_identifier(m_paren.group(1))
+            if candidate and len(candidate) > 2 and candidate not in EXCLUDED_NAMES:
                 return candidate
 
         # 4. If filename is generic (a, test, temp, spec, demo), deduce from first prompt sentence
@@ -69,9 +78,9 @@ class SpecAnalyzer:
                 non_empty = [l.strip() for l in self.content.splitlines() if l.strip()]
                 if non_empty:
                     candidate = clean_identifier(non_empty[0].split(".")[0].split(":")[0])
-                    if candidate and len(candidate) > 2 and candidate != "custom_module":
+                    if candidate and len(candidate) > 2 and candidate != "custom_module" and candidate not in EXCLUDED_NAMES:
                         return candidate
-            if clean_stem:
+            if clean_stem and clean_stem not in EXCLUDED_NAMES:
                 return clean_stem
 
         return "custom_hw_module"
