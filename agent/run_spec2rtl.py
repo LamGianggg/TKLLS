@@ -26,6 +26,7 @@ if hasattr(sys.stderr, 'reconfigure'):
 from spec_analyzer import SpecAnalyzer
 from rtl_generator import RTLGenerator
 from tb_generator import TBGenerator
+from harness_generator import HarnessGenerator
 from bdf_generator import BDFGenerator
 from simulator import EDASimulator
 from reflection_loop import ReflectionAgent
@@ -112,7 +113,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None, vwf_path
 
-def run_single_spec(spec_path, base_dir, open_gui=False):
+def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False):
     """Executes the full Spec2RTL pipeline for a single specification file."""
     src_dir = os.path.join(base_dir, "src")
     sim_dir = os.path.join(base_dir, "sim")
@@ -216,7 +217,21 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
             _, tb_file = tb_gen.generate_tb_from_spec(spec_text, v_file, spec_path)
             print(f" -> [Auto-Gen Dynamic TB] Synthesized: sim/{os.path.basename(tb_file)}")
 
-        verilog_files = [v_file, tb_file]
+        # Auto-generate Standardized Verilog Hardware Test Harness (Option A)
+        h_file = None
+        try:
+            harness_gen = HarnessGenerator(sim_dir)
+            h_name, h_file = harness_gen.generate_harness(v_file)
+            print(f" -> [Auto-Gen Option A Harness] Synthesized: sim/{os.path.basename(h_file)}")
+        except Exception as e:
+            print(f" -> [Harness Notice]: {e}")
+
+        if use_harness and h_file and os.path.exists(h_file):
+            verilog_files = [v_file, h_file]
+            print(f" -> [Test Harness Mode Active]: Simulating target with '{h_name}'")
+        else:
+            verilog_files = [v_file, tb_file]
+
         rtl_files = [v_file]
         primary_rtl = v_file
 
@@ -224,12 +239,12 @@ def run_single_spec(spec_path, base_dir, open_gui=False):
     if primary_rtl and os.path.exists(primary_rtl):
         with open(primary_rtl, "r", encoding="utf-8", errors="replace") as f:
             m_ent = re.search(r"module\s+([A-Za-z0-9_]+)", f.read())
-            if m_ent and not m_ent.group(1).startswith("tb_"):
+            if m_ent and not m_ent.group(1).startswith("tb_") and not m_ent.group(1).startswith("harness_"):
                 top_entity = m_ent.group(1)
                 project_name = "".join(part.capitalize() for part in top_entity.split("_"))
 
     for vf in verilog_files:
-        if os.path.basename(vf).startswith("tb_") and os.path.exists(vf):
+        if (os.path.basename(vf).startswith("tb_") or os.path.basename(vf).startswith("harness_")) and os.path.exists(vf):
             with open(vf, "r", encoding="utf-8", errors="replace") as f:
                 m_tb = re.search(r"module\s+([A-Za-z0-9_]+)", f.read())
                 if m_tb:
@@ -425,6 +440,7 @@ def main():
     parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
     parser.add_argument("--all", action="store_true", help="Run all available core specifications")
     parser.add_argument("--gui", action="store_true", help="Automatically launch ModelSim Graphical Waveform Viewer on completion")
+    parser.add_argument("--harness", action="store_true", help="Execute simulation using the standardized Option A Verilog Hardware Test Harness")
     parser.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Run benchmark suite: 'all', 'verilog_eval', 'rtllm', 'veriprefer'")
     args = parser.parse_args()
 
@@ -443,14 +459,22 @@ def main():
         suite_id = SUITE_MAP.get(target_bm.lower(), target_bm.lower())
         sys.exit(0 if run_benchmark_suite(suite_id, base_dir) else 1)
 
-    run_all_mode = args.all or (user_input and user_input.lower() in ["all", "a"])
+    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
+    if user_input and user_input.lower() == "all":
+        run_all_mode = True
+    elif user_input and user_input.lower() == "a" and not has_spec_a:
+        run_all_mode = True
+    elif args.all:
+        run_all_mode = True
+    else:
+        run_all_mode = False
 
     if not user_input and not args.all:
         print("\n[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:")
         for idx, s in enumerate(available_specs):
             desc = get_spec_description(s, specs_dir)
             print(f"  [{idx+1}] {s:<22} -> {desc}")
-        print(f"  [A]  Chạy TẤT CẢ ({len(available_specs)} bài toán core lần lượt)")
+        print(f"  [ALL] Chạy TẤT CẢ ({len(available_specs)} bài toán core lần lượt)")
         print("\n[CÁC BỘ BENCHMARK HỌC THUẬT TIÊU CHUẨN (benchmarks/)]:")
         print(f"  [B1] VerilogEval Suite  -> NVIDIA Research Benchmark ({len(bm_suites['verilog_eval']['specs'])} bài)")
         print(f"  [B2] RTLLM Suite        -> HKUST System-level RTL Benchmark ({len(bm_suites['rtllm']['specs'])} bài)")
@@ -459,11 +483,11 @@ def main():
 
         # Interactive selection
         try:
-            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, A, B1, B2, B3, hoặc B, mặc định: A]: ").strip()
+            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, ALL, B1, B2, B3, hoặc B, mặc định: ALL]: ").strip()
         except (EOFError, KeyboardInterrupt):
-            choice = "A"
+            choice = "ALL"
 
-        if choice == "" or choice.lower() in ["a", "all"]:
+        if choice == "" or choice.lower() == "all" or (choice.lower() == "a" and not has_spec_a):
             run_all_mode = True
         elif choice.lower() in SUITE_MAP:
             sys.exit(0 if run_benchmark_suite(SUITE_MAP[choice.lower()], base_dir) else 1)
@@ -476,7 +500,7 @@ def main():
         summary_results = []
         for s in available_specs:
             spec_file_path = os.path.join(specs_dir, s)
-            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui)
+            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui, use_harness=args.harness)
             summary_results.append((s, entity, success, elapsed, bdf, metrics))
 
         print("\n" + "=" * 96)
@@ -526,7 +550,7 @@ def main():
         print(f"[ERROR] Specification file not found: {target_path}")
         sys.exit(1)
 
-    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui)
+    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui, use_harness=args.harness)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

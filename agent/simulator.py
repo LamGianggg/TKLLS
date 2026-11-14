@@ -39,8 +39,9 @@ class EDASimulator:
     def run_iverilog_flow(self, verilog_files, top_module):
         """Compiles and executes using Icarus Verilog."""
         out_vvp = os.path.join(self.sim_dir, f"{top_module}.vvp")
+        abs_files = [os.path.abspath(f) for f in verilog_files]
         # Compile
-        c_cmd = [self.iverilog["iverilog"], "-o", out_vvp] + verilog_files
+        c_cmd = [self.iverilog["iverilog"], "-o", out_vvp] + abs_files
         c_res = subprocess.run(c_cmd, cwd=self.sim_dir, capture_output=True)
         if c_res.returncode != 0:
             return {
@@ -54,11 +55,11 @@ class EDASimulator:
         s_cmd = [self.iverilog["vvp"], out_vvp]
         s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
         stdout = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
-        has_errors = any(kw in stdout for kw in ["ERROR", "Error", "FAIL", "Fatal", "assert failed"])
-        has_success = any(marker in stdout for marker in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED"])
+        has_errors = any(kw in stdout for kw in ["ERROR", "Error", "FAIL", "Fatal", "assert failed", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
+        has_success = any(marker in stdout for marker in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED", "[HARNESS PASS]"])
         has_clean_finish = s_res.returncode == 0 and ("$finish" in stdout or has_success) and not has_errors
         passed = (has_success or has_clean_finish) and not has_errors
-        errors = [l.strip() for l in stdout.splitlines() if any(kw in l for kw in ["ERROR", "Error", "FAIL", "Fatal"])]
+        errors = [l.strip() for l in stdout.splitlines() if any(kw in l for kw in ["ERROR", "Error", "FAIL", "Fatal", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
 
         return {
             "stage": "simulate",
@@ -77,10 +78,11 @@ class EDASimulator:
     def run_modelsim_flow(self, verilog_files, top_module):
         """Compiles and executes using ModelSim."""
         self.init_work_library()
+        abs_files = [os.path.abspath(f) for f in verilog_files]
         
         # 1. Compile
         vlog = self.modelsim["vlog"]
-        cmd = [vlog, "-work", "work"] + verilog_files
+        cmd = [vlog, "-work", "work"] + abs_files
         res = subprocess.run(cmd, cwd=self.sim_dir, capture_output=True)
         stdout = res.stdout.decode('utf-8', errors='replace') if res.stdout else ""
         if res.returncode != 0:
@@ -98,16 +100,16 @@ class EDASimulator:
         s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
         s_out = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
 
-        has_errors = any(kw in s_out for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]"])
+        has_errors = any(kw in s_out for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
         m_failed = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", s_out)
         if m_failed:
             has_errors = True
 
-        has_success = any(tok in s_out for tok in ["[SUCCESS]", "PASSED", "Passed", "passed", "TEST PASSED", "All tests passed"])
+        has_success = any(tok in s_out for tok in ["[SUCCESS]", "PASSED", "Passed", "passed", "TEST PASSED", "All tests passed", "[HARNESS PASS]"])
         has_clean_finish = ("$finish" in s_out or "Simulation complete" in s_out or s_res.returncode == 0) and not has_errors and ("$finish" in s_out or has_success)
 
         passed = (has_success or has_clean_finish) and not has_errors
-        errors = [l.strip() for l in s_out.splitlines() if any(kw in l for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]"])]
+        errors = [l.strip() for l in s_out.splitlines() if any(kw in l for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
 
         return {
             "stage": "simulate",

@@ -16,10 +16,11 @@ echo   [3] Demo 3 Bộ Benchmark Chuẩn Quốc Tế (NVIDIA VerilogEval, HKUST 
 echo   [4] Demo Khả Năng RAG & Tự Sinh Mạch Bất Kỳ (Dynamic Spec2RTL từ Prompt tự do)
 echo   [5] Xem Dạng Sóng Trực Quan Tương Tác trên Trình Duyệt Web (waveform.html)
 echo   [6] Mở Sơ Đồ Nguyên Lý Khối BDF trong Quartus II (top_vending_machine.bdf)
+echo   [7] Demo Verilog Test Harness Wrapper (Option A - Watchdog + Assertions Fixture)
 echo   [0] Thoát
 echo.
 echo ===============================================================================
-set /p opt="👉 Vui lòng chọn kịch bản muốn demo cho Thầy [0-6, mặc định: 1]: "
+set /p opt="👉 Vui lòng chọn kịch bản muốn demo cho Thầy [0-7, mặc định: 1]: "
 
 if "%opt%"=="" set opt=1
 if "%opt%"=="1" goto DEMO_VENDING
@@ -28,6 +29,7 @@ if "%opt%"=="3" goto DEMO_BENCHMARK
 if "%opt%"=="4" goto DEMO_DYNAMIC
 if "%opt%"=="5" goto OPEN_HTML
 if "%opt%"=="6" goto OPEN_BDF
+if "%opt%"=="7" goto DEMO_HARNESS
 if "%opt%"=="0" goto EXIT
 goto MENU
 
@@ -84,6 +86,14 @@ if exist "quartus\top_vending_machine.bdf" (
 ) else (
     echo Chưa có file quartus\top_vending_machine.bdf. Vui lòng chạy kịch bản [1] trước!
 )
+pause
+goto MENU
+
+:DEMO_HARNESS
+cls
+echo [DEMO 7] Đang thực thi mô phỏng qua Khung Test Harness phần cứng chuẩn hóa (Option A)...
+python agent\run_spec2rtl.py specs\a.txt --harness --gui
+echo.
 pause
 goto MENU
 

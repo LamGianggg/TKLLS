@@ -9,11 +9,17 @@ import os
 import re
 from spec_analyzer import SpecAnalyzer
 from verilog_linter import VerilogLinter
+from harness_generator import HarnessGenerator
 
 class TBGenerator:
     def __init__(self, sim_dir):
         self.sim_dir = sim_dir
         os.makedirs(sim_dir, exist_ok=True)
+        self.harness_gen = HarnessGenerator(sim_dir)
+
+    def generate_harness(self, rtl_path):
+        """Generates a standardized Option A Verilog Hardware Test Harness wrapper."""
+        return self.harness_gen.generate_harness(rtl_path)
 
     def generate_tb_from_spec(self, spec_text, rtl_path, spec_path=None):
         """Unified entry point: dynamically synthesizes self-checking Testbench for ANY module."""
@@ -77,6 +83,13 @@ module {tb_name};
     );
 
     always #10 clk = ~clk;
+
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
 
     task insert_5k;
         begin
@@ -247,6 +260,13 @@ module {tb_name};
 
     always #10 clk = ~clk;
 
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
+
     function [47:0] color_str;
         input [1:0] c;
         begin
@@ -373,6 +393,13 @@ module {tb_name};
 
     always #10 clk = ~clk;
 
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
+
     task press_floor;
         input integer f;
         begin
@@ -484,6 +511,13 @@ module {tb_name};
     );
 
     always #10 clk = ~clk;
+
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
 
     task check_alu;
         input [3:0] in_a;
@@ -626,6 +660,13 @@ module {tb_name};
 
     always #10 clk = ~clk;
 
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
+
     initial begin
         $dumpfile("{module_name}.vcd");
         $dumpvars(0, {tb_name});
@@ -726,6 +767,13 @@ module {tb_name};
     );
 
     always #10 clk = ~clk;
+
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
 
     task press_key;
         input [3:0] k;
@@ -864,6 +912,13 @@ module {tb_name};
     );
 
     always #10 clk = ~clk;
+
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
 
     task send_bit;
         input b;
@@ -1090,6 +1145,13 @@ module {tb_name};
     );
 
     {clk_gen_str}
+
+    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    initial begin
+        #100000;
+        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $finish;
+    end
 
     initial begin
         $dumpfile("{module_name}.vcd");

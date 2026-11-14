@@ -21,7 +21,7 @@ SIGNAL("clk")
 	DIRECTION = INPUT;
 	PARENT = "";
 }
-SIGNAL("clr")
+SIGNAL("rst")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
@@ -30,7 +30,7 @@ SIGNAL("clr")
 	DIRECTION = INPUT;
 	PARENT = "";
 }
-SIGNAL("coin_5k")
+SIGNAL("din")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
@@ -39,16 +39,7 @@ SIGNAL("coin_5k")
 	DIRECTION = INPUT;
 	PARENT = "";
 }
-SIGNAL("coin_10k")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = INPUT;
-	PARENT = "";
-}
-SIGNAL("dispense")
+SIGNAL("detected")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
@@ -56,69 +47,6 @@ SIGNAL("dispense")
 	LSB_INDEX = -1;
 	DIRECTION = OUTPUT;
 	PARENT = "";
-}
-SIGNAL("change_5k")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "";
-}
-SIGNAL("balance")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = BUS;
-	WIDTH = 5;
-	LSB_INDEX = 0;
-	DIRECTION = OUTPUT;
-	PARENT = "";
-}
-SIGNAL("balance[4]")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "balance";
-}
-SIGNAL("balance[3]")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "balance";
-}
-SIGNAL("balance[2]")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "balance";
-}
-SIGNAL("balance[1]")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "balance";
-}
-SIGNAL("balance[0]")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "balance";
 }
 SIGNAL("state_out")
 {
@@ -170,7 +98,7 @@ TRANSITION_LIST("clk")
 		}
 	}
 }
-TRANSITION_LIST("clr")
+TRANSITION_LIST("rst")
 {
 	NODE
 	{
@@ -179,7 +107,7 @@ TRANSITION_LIST("clr")
 		LEVEL 0 FOR 980.0;
 	}
 }
-TRANSITION_LIST("coin_5k")
+TRANSITION_LIST("din")
 {
 	NODE
 	{
@@ -191,67 +119,7 @@ TRANSITION_LIST("coin_5k")
 		LEVEL 0 FOR 840.0;
 	}
 }
-TRANSITION_LIST("coin_10k")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL 0 FOR 40.0;
-		LEVEL 1 FOR 20.0;
-		LEVEL 0 FOR 80.0;
-		LEVEL 1 FOR 20.0;
-		LEVEL 0 FOR 840.0;
-	}
-}
-TRANSITION_LIST("dispense")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("change_5k")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("balance[4]")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("balance[3]")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("balance[2]")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("balance[1]")
-{
-	NODE
-	{
-		REPEAT = 1;
-		LEVEL X FOR 1000.0;
-	}
-}
-TRANSITION_LIST("balance[0]")
+TRANSITION_LIST("detected")
 {
 	NODE
 	{
@@ -294,7 +162,7 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "clr";
+	CHANNEL = "rst";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Binary;
 	TREE_INDEX = 1;
@@ -302,7 +170,7 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "coin_5k";
+	CHANNEL = "din";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Binary;
 	TREE_INDEX = 2;
@@ -310,7 +178,7 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "coin_10k";
+	CHANNEL = "detected";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Binary;
 	TREE_INDEX = 3;
@@ -318,80 +186,10 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "dispense";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Binary;
-	TREE_INDEX = 4;
-	TREE_LEVEL = 0;
-}
-DISPLAY_LINE
-{
-	CHANNEL = "change_5k";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Binary;
-	TREE_INDEX = 5;
-	TREE_LEVEL = 0;
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance";
-	EXPAND_STATUS = EXPANDED;
-	RADIX = Unsigned;
-	TREE_INDEX = 6;
-	TREE_LEVEL = 0;
-	CHILDREN = "balance[4]", "balance[3]", "balance[2]", "balance[1]", "balance[0]";
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance[4]";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Unsigned;
-	TREE_INDEX = 7;
-	TREE_LEVEL = 1;
-	PARENT = "balance";
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance[3]";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Unsigned;
-	TREE_INDEX = 8;
-	TREE_LEVEL = 1;
-	PARENT = "balance";
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance[2]";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Unsigned;
-	TREE_INDEX = 9;
-	TREE_LEVEL = 1;
-	PARENT = "balance";
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance[1]";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Unsigned;
-	TREE_INDEX = 10;
-	TREE_LEVEL = 1;
-	PARENT = "balance";
-}
-DISPLAY_LINE
-{
-	CHANNEL = "balance[0]";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Unsigned;
-	TREE_INDEX = 11;
-	TREE_LEVEL = 1;
-	PARENT = "balance";
-}
-DISPLAY_LINE
-{
 	CHANNEL = "state_out";
 	EXPAND_STATUS = EXPANDED;
 	RADIX = Unsigned;
-	TREE_INDEX = 12;
+	TREE_INDEX = 4;
 	TREE_LEVEL = 0;
 	CHILDREN = "state_out[2]", "state_out[1]", "state_out[0]";
 }
@@ -400,7 +198,7 @@ DISPLAY_LINE
 	CHANNEL = "state_out[2]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
-	TREE_INDEX = 13;
+	TREE_INDEX = 5;
 	TREE_LEVEL = 1;
 	PARENT = "state_out";
 }
@@ -409,7 +207,7 @@ DISPLAY_LINE
 	CHANNEL = "state_out[1]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
-	TREE_INDEX = 14;
+	TREE_INDEX = 6;
 	TREE_LEVEL = 1;
 	PARENT = "state_out";
 }
@@ -418,7 +216,7 @@ DISPLAY_LINE
 	CHANNEL = "state_out[0]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
-	TREE_INDEX = 15;
+	TREE_INDEX = 7;
 	TREE_LEVEL = 1;
 	PARENT = "state_out";
 }

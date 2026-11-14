@@ -17,6 +17,7 @@ sys.path.insert(0, CURRENT_DIR)
 from report_builder import register_system_fonts
 from reports_data_01_03 import build_report_01, build_report_02, build_report_03
 from reports_data_04_06 import build_report_04, build_report_05, build_report_06
+from reports_data_07 import build_report_07
 from reports_data_master import build_report_master
 
 try:
@@ -31,7 +32,7 @@ def generate_all_reports(output_dir=None):
     os.makedirs(output_dir, exist_ok=True)
 
     print("=" * 80)
-    print("KHỞI ĐỘNG TIẾN TRÌNH XUẤT 7 BÁO CÁO NGHIÊN CỨU SPEC2RTL & PROMPT2SILICON")
+    print("KHỞI ĐỘNG TIẾN TRÌNH XUẤT 8 BÁO CÁO NGHIÊN CỨU SPEC2RTL & PROMPT2SILICON")
     print(f"Thư mục xuất báo cáo: {output_dir}")
     print("=" * 80)
 
@@ -45,13 +46,14 @@ def generate_all_reports(output_dir=None):
         ("04", build_report_04),
         ("05", build_report_05),
         ("06", build_report_06),
+        ("07", build_report_07),
         ("00", build_report_master)
     ]
 
     results = []
 
     for idx, (code, builder_fn) in enumerate(builders, 1):
-        print(f"\n[{idx}/7] Đang xử lý báo cáo mã: {code} ...")
+        print(f"\n[{idx}/8] Đang xử lý báo cáo mã: {code} ...")
         t0 = time.time()
         doc = builder_fn()
 
@@ -96,7 +98,7 @@ def generate_all_reports(output_dir=None):
 
     total_time = time.time() - start_time
     print("\n" + "=" * 80)
-    print("BẢNG TỔNG HỢP KIỂM ĐỊNH CHẤT LƯỢNG 14 TỆP BÁO CÁO (7 MD + 7 PDF)")
+    print("BẢNG TỔNG HỢP KIỂM ĐỊNH CHẤT LƯỢNG 16 TỆP BÁO CÁO (8 MD + 8 PDF)")
     print("=" * 80)
     print(f"{'Mã':<4} | {'Số Dòng MD':<10} | {'Số Trang PDF':<12} | {'Dung Lượng PDF':<14} | {'Trạng Thái':<10}")
     print("-" * 65)
@@ -110,8 +112,8 @@ def generate_all_reports(output_dir=None):
         print(f"{r['code']:<4} | {r['md_lines']:<10} | {r['pdf_pages']:<12} | {r['pdf_size_kb']:.1f} KB{'':<7} | {status_str:<10}")
 
     print("=" * 80)
-    print(f"Tổng thời gian sinh 14 tệp: {total_time:.2f} giây.")
-    print(f"Kết luận kiểm định toàn bộ: {'THÀNH CÔNG 100% [ALL 14 FILES PASSED]' if all_passed else 'CẦN KIỂM TRA LẠI'}")
+    print(f"Tổng thời gian sinh 16 tệp: {total_time:.2f} giây.")
+    print(f"Kết luận kiểm định toàn bộ: {'THÀNH CÔNG 100% [ALL 16 FILES PASSED]' if all_passed else 'CẦN KIỂM TRA LẠI'}")
     print("=" * 80)
     return results
 
