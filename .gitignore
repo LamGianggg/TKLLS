@@ -27,4 +27,12 @@ knowledge_base/raw/
 sim/audit_reports.py
 sim/test_reflection*.py
 
+# Transient web spec & test artifacts
+specs/web_spec_*
+src/web_spec_*
+sim/*web_spec_*
+quartus/*web_spec_*
+quartus/WebSpec*
+sim/wlf*
+
 

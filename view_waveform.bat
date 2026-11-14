@@ -4,12 +4,12 @@ echo ===========================================================================
 echo     Spec2RTL ^& Prompt2Silicon: 1-Click Graphical Waveform Launcher
 echo ===============================================================================
 echo.
-echo [1/2] Khoi dong ModelSim Waveform GUI cho module: tb_sequence_detector_1011...
+echo [1/2] Khoi dong ModelSim Waveform GUI cho module: harness_gray_counter_4bit...
 
 cd /d "D:\altera\13.0sp1\BTVN\Do_An_3\sim"
 
 if exist "D:\altera\13.0sp1\modelsim_ase\win32aloem\vsim.exe" (
-    start "" "D:\altera\13.0sp1\modelsim_ase\win32aloem\vsim.exe" -novopt work.tb_sequence_detector_1011 -do "add wave -r /*; run -all; wave zoom full;"
+    start "" "D:\altera\13.0sp1\modelsim_ase\win32aloem\vsim.exe" -novopt work.harness_gray_counter_4bit -do "add wave -r /*; run -all; wave zoom full;"
     echo -> [OK] Da mo cua so song truc quan trong ModelSim GUI!
 ) else (
     echo -> [Luu y] Khong tim thay ModelSim GUI, dang mo Waveform HTML truc tiep tren trinh duyet...

@@ -80,12 +80,8 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
     with open(qsf_path, "w", encoding="utf-8") as f:
         f.write('\n'.join(qsf_lines) + '\n')
 
-    # 2. Generate BSF Symbol (via quartus_map or standalone generator fallback)
+    # 2. Generate BSF Symbol directly from RTL ports
     bdf_gen = BDFGenerator()
-    if qmap_exe and os.path.exists(qmap_exe) and os.path.exists(primary_rtl):
-        subprocess.run([qmap_exe, project_name, f"--generate_symbol={primary_rtl}"], cwd=q_dir, capture_output=True)
-
-    # Always ensure BSF is synchronized with the latest primary_rtl ports
     if os.path.exists(primary_rtl):
         bdf_gen.generate_bsf_from_rtl(primary_rtl, bsf_path)
 
@@ -105,8 +101,13 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
             with open(qsf_path, "w", encoding="utf-8") as f:
                 f.write('\n'.join(qsf_lines) + '\n')
 
-    # 4. Final Analysis & Synthesis
+    # 4. Final Analysis & Synthesis (clean stale db caches to avoid megafunction port collisions)
     if qmap_exe and os.path.exists(qmap_exe):
+        for temp_sub in ["db", "incremental_db"]:
+            td = os.path.join(q_dir, temp_sub)
+            if os.path.exists(td):
+                try: shutil.rmtree(td, ignore_errors=True)
+                except Exception: pass
         subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True)
     elif not qmap_exe:
         print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf, sơ đồ {schematic_top}.bdf và sóng Waveform.vwf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")

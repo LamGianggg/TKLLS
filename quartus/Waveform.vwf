@@ -30,7 +30,7 @@ SIGNAL("rst")
 	DIRECTION = INPUT;
 	PARENT = "";
 }
-SIGNAL("din")
+SIGNAL("enable")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
@@ -39,50 +39,113 @@ SIGNAL("din")
 	DIRECTION = INPUT;
 	PARENT = "";
 }
-SIGNAL("detected")
-{
-	VALUE_TYPE = NINE_LEVEL_BIT;
-	SIGNAL_TYPE = SINGLE_BIT;
-	WIDTH = 1;
-	LSB_INDEX = -1;
-	DIRECTION = OUTPUT;
-	PARENT = "";
-}
-SIGNAL("state_out")
+SIGNAL("gray_out")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = BUS;
-	WIDTH = 3;
+	WIDTH = 4;
 	LSB_INDEX = 0;
 	DIRECTION = OUTPUT;
 	PARENT = "";
 }
-SIGNAL("state_out[2]")
+SIGNAL("gray_out[3]")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
 	WIDTH = 1;
 	LSB_INDEX = -1;
 	DIRECTION = OUTPUT;
-	PARENT = "state_out";
+	PARENT = "gray_out";
 }
-SIGNAL("state_out[1]")
+SIGNAL("gray_out[2]")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
 	WIDTH = 1;
 	LSB_INDEX = -1;
 	DIRECTION = OUTPUT;
-	PARENT = "state_out";
+	PARENT = "gray_out";
 }
-SIGNAL("state_out[0]")
+SIGNAL("gray_out[1]")
 {
 	VALUE_TYPE = NINE_LEVEL_BIT;
 	SIGNAL_TYPE = SINGLE_BIT;
 	WIDTH = 1;
 	LSB_INDEX = -1;
 	DIRECTION = OUTPUT;
-	PARENT = "state_out";
+	PARENT = "gray_out";
+}
+SIGNAL("gray_out[0]")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "gray_out";
+}
+SIGNAL("up_down")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = INPUT;
+	PARENT = "";
+}
+SIGNAL("count")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = BUS;
+	WIDTH = 4;
+	LSB_INDEX = 0;
+	DIRECTION = OUTPUT;
+	PARENT = "";
+}
+SIGNAL("count[3]")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "count";
+}
+SIGNAL("count[2]")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "count";
+}
+SIGNAL("count[1]")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "count";
+}
+SIGNAL("count[0]")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "count";
+}
+SIGNAL("tc")
+{
+	VALUE_TYPE = NINE_LEVEL_BIT;
+	SIGNAL_TYPE = SINGLE_BIT;
+	WIDTH = 1;
+	LSB_INDEX = -1;
+	DIRECTION = OUTPUT;
+	PARENT = "";
 }
 
 TRANSITION_LIST("clk")
@@ -107,7 +170,7 @@ TRANSITION_LIST("rst")
 		LEVEL 0 FOR 980.0;
 	}
 }
-TRANSITION_LIST("din")
+TRANSITION_LIST("enable")
 {
 	NODE
 	{
@@ -119,7 +182,7 @@ TRANSITION_LIST("din")
 		LEVEL 0 FOR 840.0;
 	}
 }
-TRANSITION_LIST("detected")
+TRANSITION_LIST("gray_out[3]")
 {
 	NODE
 	{
@@ -127,7 +190,7 @@ TRANSITION_LIST("detected")
 		LEVEL X FOR 1000.0;
 	}
 }
-TRANSITION_LIST("state_out[2]")
+TRANSITION_LIST("gray_out[2]")
 {
 	NODE
 	{
@@ -135,7 +198,7 @@ TRANSITION_LIST("state_out[2]")
 		LEVEL X FOR 1000.0;
 	}
 }
-TRANSITION_LIST("state_out[1]")
+TRANSITION_LIST("gray_out[1]")
 {
 	NODE
 	{
@@ -143,7 +206,59 @@ TRANSITION_LIST("state_out[1]")
 		LEVEL X FOR 1000.0;
 	}
 }
-TRANSITION_LIST("state_out[0]")
+TRANSITION_LIST("gray_out[0]")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL X FOR 1000.0;
+	}
+}
+TRANSITION_LIST("up_down")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL 0 FOR 40.0;
+		LEVEL 1 FOR 20.0;
+		LEVEL 0 FOR 80.0;
+		LEVEL 1 FOR 20.0;
+		LEVEL 0 FOR 840.0;
+	}
+}
+TRANSITION_LIST("count[3]")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL X FOR 1000.0;
+	}
+}
+TRANSITION_LIST("count[2]")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL X FOR 1000.0;
+	}
+}
+TRANSITION_LIST("count[1]")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL X FOR 1000.0;
+	}
+}
+TRANSITION_LIST("count[0]")
+{
+	NODE
+	{
+		REPEAT = 1;
+		LEVEL X FOR 1000.0;
+	}
+}
+TRANSITION_LIST("tc")
 {
 	NODE
 	{
@@ -170,7 +285,7 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "din";
+	CHANNEL = "enable";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Binary;
 	TREE_INDEX = 2;
@@ -178,45 +293,107 @@ DISPLAY_LINE
 }
 DISPLAY_LINE
 {
-	CHANNEL = "detected";
-	EXPAND_STATUS = COLLAPSED;
-	RADIX = Binary;
-	TREE_INDEX = 3;
-	TREE_LEVEL = 0;
-}
-DISPLAY_LINE
-{
-	CHANNEL = "state_out";
+	CHANNEL = "gray_out";
 	EXPAND_STATUS = EXPANDED;
 	RADIX = Unsigned;
-	TREE_INDEX = 4;
+	TREE_INDEX = 3;
 	TREE_LEVEL = 0;
-	CHILDREN = "state_out[2]", "state_out[1]", "state_out[0]";
+	CHILDREN = "gray_out[3]", "gray_out[2]", "gray_out[1]", "gray_out[0]";
 }
 DISPLAY_LINE
 {
-	CHANNEL = "state_out[2]";
+	CHANNEL = "gray_out[3]";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Unsigned;
+	TREE_INDEX = 4;
+	TREE_LEVEL = 1;
+	PARENT = "gray_out";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "gray_out[2]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
 	TREE_INDEX = 5;
 	TREE_LEVEL = 1;
-	PARENT = "state_out";
+	PARENT = "gray_out";
 }
 DISPLAY_LINE
 {
-	CHANNEL = "state_out[1]";
+	CHANNEL = "gray_out[1]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
 	TREE_INDEX = 6;
 	TREE_LEVEL = 1;
-	PARENT = "state_out";
+	PARENT = "gray_out";
 }
 DISPLAY_LINE
 {
-	CHANNEL = "state_out[0]";
+	CHANNEL = "gray_out[0]";
 	EXPAND_STATUS = COLLAPSED;
 	RADIX = Unsigned;
 	TREE_INDEX = 7;
 	TREE_LEVEL = 1;
-	PARENT = "state_out";
+	PARENT = "gray_out";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "up_down";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Binary;
+	TREE_INDEX = 8;
+	TREE_LEVEL = 0;
+}
+DISPLAY_LINE
+{
+	CHANNEL = "count";
+	EXPAND_STATUS = EXPANDED;
+	RADIX = Unsigned;
+	TREE_INDEX = 9;
+	TREE_LEVEL = 0;
+	CHILDREN = "count[3]", "count[2]", "count[1]", "count[0]";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "count[3]";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Unsigned;
+	TREE_INDEX = 10;
+	TREE_LEVEL = 1;
+	PARENT = "count";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "count[2]";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Unsigned;
+	TREE_INDEX = 11;
+	TREE_LEVEL = 1;
+	PARENT = "count";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "count[1]";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Unsigned;
+	TREE_INDEX = 12;
+	TREE_LEVEL = 1;
+	PARENT = "count";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "count[0]";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Unsigned;
+	TREE_INDEX = 13;
+	TREE_LEVEL = 1;
+	PARENT = "count";
+}
+DISPLAY_LINE
+{
+	CHANNEL = "tc";
+	EXPAND_STATUS = COLLAPSED;
+	RADIX = Binary;
+	TREE_INDEX = 14;
+	TREE_LEVEL = 0;
 }
