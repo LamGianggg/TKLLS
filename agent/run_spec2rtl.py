@@ -16,6 +16,7 @@ import sys
 import time
 import argparse
 import subprocess
+import shutil
 
 # Force UTF-8 output on Windows consoles to prevent charmap crashes
 if hasattr(sys.stdout, 'reconfigure'):
