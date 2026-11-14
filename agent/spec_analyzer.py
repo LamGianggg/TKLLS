@@ -100,6 +100,8 @@ class SpecAnalyzer:
             return "TRAFFIC"
 
         # Specific peripherals & protocols (evaluated before simple arithmetic / counters)
+        if any(k in text for k in ["khoa", "khoa so", "password", "mat khau", "digital lock", "safe lock", "an ninh", "unlock"]):
+            return "DIGITAL_LOCK"
         if any(k in text for k in ["uart", "uart_tx", "truyen noi tiep", "serial tx", "tx_data", "tx_serial"]):
             return "UART_TX"
         if any(k in text for k in ["dong co buoc", "stepper", "step motor", "motor buoc", "phase_out"]):
@@ -139,10 +141,8 @@ class SpecAnalyzer:
             return "COUNTER"
         if any(k in text for k in ["shift", "thanh ghi dich", "thanh ghi", "dich trai", "dich phai", "sipo", "piso"]):
             return "SHIFT_REG"
-        if any(k in text for k in ["chuoi", "sequence", "phat hien", "detector", "1011", "1101"]):
+        if any(k in text for k in ["do chuoi", "phat hien chuoi", "sequence detector", "nhan dang chuoi", "tim chuoi", "sequence_detector"]) or re.search(r"\b(?:chuoi\s+bit|sequence\s+of\s+bits|chuoi\s+1011|chuoi\s+1101)\b", text):
             return "SEQUENCE_DETECTOR"
-        if any(k in text for k in ["khoa", "khoa so", "password", "mat khau", "lock", "an ninh"]):
-            return "DIGITAL_LOCK"
         if any(k in text for k in ["fsm", "trang thai", "state machine", "chuyen trang thai"]):
             return "CUSTOM_FSM"
 

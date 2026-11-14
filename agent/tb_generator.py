@@ -27,21 +27,21 @@ class TBGenerator:
         cat = analyzer.classify_system()
         mod_name = analyzer.extract_module_name()
 
-        if cat == "VENDING":
+        if cat == "VENDING" and mod_name == "vending_machine":
             return f"tb_{mod_name}", self.generate_vending_tb(mod_name)
-        elif cat == "ELEVATOR":
+        elif cat == "ELEVATOR" and mod_name == "elevator_controller":
             return f"tb_{mod_name}", self.generate_elevator_tb(mod_name)
-        elif cat == "TRAFFIC":
+        elif cat == "TRAFFIC" and mod_name == "traffic_light":
             return f"tb_{mod_name}", self.generate_traffic_tb(mod_name)
         elif cat == "SOC_AI":
             return "tb_top_soc", os.path.join(self.sim_dir, "tb_top_soc.v")
-        elif cat == "ALU":
+        elif cat == "ALU" and mod_name == "alu_4bit":
             return f"tb_{mod_name}", self.generate_alu_tb(mod_name)
-        elif cat == "GRAY_COUNTER":
+        elif cat == "GRAY_COUNTER" and mod_name == "gray_counter_4bit":
             return f"tb_{mod_name}", self.generate_gray_counter_tb(mod_name)
-        elif cat == "DIGITAL_LOCK":
+        elif cat == "DIGITAL_LOCK" and mod_name == "digital_lock_fsm":
             return f"tb_{mod_name}", self.generate_digital_lock_tb(mod_name)
-        elif cat == "SEQUENCE_DETECTOR":
+        elif cat == "SEQUENCE_DETECTOR" and mod_name == "sequence_detector_1011":
             return f"tb_{mod_name}", self.generate_sequence_detector_tb(mod_name)
         else:
             return f"tb_{mod_name}", self.generate_generic_tb(rtl_path, mod_name)

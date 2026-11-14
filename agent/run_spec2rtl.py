@@ -204,23 +204,19 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
 
-        # Stale Check: If spec file was edited or newer than existing RTL, clean old files to force re-synthesis
-        if os.path.exists(v_file) and os.path.getmtime(spec_path) >= os.path.getmtime(v_file):
-            print(f" -> [Spec Updated]: Detected new prompt in {os.path.basename(spec_path)}. Re-synthesizing fresh RTL...")
-            for stale_f in [v_file, tb_file, os.path.join(q_dir, f"{top_entity}.bsf"), os.path.join(q_dir, f"{top_entity}.bdf"), os.path.join(q_dir, f"top_{top_entity}.bdf"), os.path.join(q_dir, f"sch_{top_entity}.bdf")]:
-                if os.path.exists(stale_f):
-                    try: os.remove(stale_f)
-                    except Exception: pass
+        # Clean any stale artifacts and force fresh synthesis
+        for stale_f in [os.path.join(q_dir, f"{top_entity}.bsf"), os.path.join(q_dir, f"{top_entity}.bdf"), os.path.join(q_dir, f"top_{top_entity}.bdf"), os.path.join(q_dir, f"sch_{top_entity}.bdf")]:
+            if os.path.exists(stale_f):
+                try: os.remove(stale_f)
+                except Exception: pass
 
-        # Synthesize RTL
-        if not os.path.exists(v_file):
-            _, v_file = rtl_gen.generate_from_spec(spec_text, spec_path)
-            print(f" -> [Auto-Gen Dynamic RTL] Synthesized: src/{os.path.basename(v_file)}")
+        # Always synthesize fresh RTL from spec
+        _, v_file = rtl_gen.generate_from_spec(spec_text, spec_path)
+        print(f" -> [Auto-Gen Dynamic RTL] Synthesized: src/{os.path.basename(v_file)}")
 
-        # Synthesize Testbench
-        if not os.path.exists(tb_file):
-            _, tb_file = tb_gen.generate_tb_from_spec(spec_text, v_file, spec_path)
-            print(f" -> [Auto-Gen Dynamic TB] Synthesized: sim/{os.path.basename(tb_file)}")
+        # Always synthesize fresh Testbench
+        _, tb_file = tb_gen.generate_tb_from_spec(spec_text, v_file, spec_path)
+        print(f" -> [Auto-Gen Dynamic TB] Synthesized: sim/{os.path.basename(tb_file)}")
 
         # Auto-generate Standardized Verilog Hardware Test Harness (Option A)
         h_file = None
