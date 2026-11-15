@@ -87,7 +87,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -263,7 +263,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -396,7 +396,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -515,7 +515,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -663,7 +663,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -771,7 +771,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -916,7 +916,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 
@@ -1149,7 +1149,7 @@ module {tb_name};
     // Watchdog Safety Timer Guard (Option A Harness Architecture)
     initial begin
         #100000;
-        $display("\n[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
+        $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
         $finish;
     end
 

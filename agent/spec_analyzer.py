@@ -34,15 +34,17 @@ class SpecAnalyzer:
     def __init__(self, spec_path):
         self.spec_path = spec_path
         if os.path.exists(spec_path):
-            with open(spec_path, "r", encoding="utf-8", errors="replace") as f:
-                self.content = f.read()
+            with open(spec_path, "r", encoding="utf-8-sig", errors="replace") as f:
+                self.content = f.read().lstrip('\ufeff')
         else:
-            self.content = str(spec_path)
+            self.content = str(spec_path).lstrip('\ufeff')
 
     def extract_module_name(self):
         """Extracts or deduces a clean Verilog module name from the spec content or filename."""
         EXCLUDED_NAMES = {"name", "entity", "top", "inputs", "outputs", "input", "output", 
-                          "dau_vao", "dau_ra", "io", "ports", "tin_hieu", "state", "step"}
+                          "dau_vao", "dau_ra", "io", "ports", "tin_hieu", "state", "step",
+                          "1_dau_vao_inputs", "dau_vao_inputs", "2_dau_ra_outputs", "dau_ra_outputs",
+                          "3_hoat_dong_logic", "hoat_dong_logic"}
 
         # 1. Look for explicit module declaration: "module <name>" or "Module: <name>"
         m = re.search(r"(?:module|Module|Tên module|Module Name)\s*[:=]?\s*[`\*]?([A-Za-z0-9_]+)[`\*]?", self.content)
