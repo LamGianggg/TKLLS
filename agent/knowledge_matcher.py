@@ -1,35 +1,46 @@
 """
 Module: knowledge_matcher.py
-Description: Semantic Hardware Knowledge Matcher and In-Context Exemplar Retriever.
-Enables Spec2RTL to autonomously search, recognize, and retrieve reference architectures,
-ports, golden RTL, and testbenches from 308+ benchmark designs (VerilogEval, RTLLM, VeriPrefer).
+Chuc nang: Tra cuu va tim kiem thiet ke mau tu co so du lieu phan cung.
+Ho tro he thong nhan dien mach, trich xuat cong, ma RTL chuan va testbench.
 """
 
 import os
 import re
 import json
 import unicodedata
-from collections import Counter
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_PATH = os.path.join(BASE_DIR, "knowledge_base", "hardware_db.json")
-REFL_PATH = os.path.join(BASE_DIR, "knowledge_base", "reflection_db.json")
+ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DuongDanDb = os.path.join(ThuMucGoc, "knowledge_base", "hardware_db.json")
+DuongDanQuyTac = os.path.join(ThuMucGoc, "knowledge_base", "reflection_db.json")
 
-def remove_vietnamese_accents(text):
-    text = text.replace('đ', 'd').replace('Đ', 'D')
-    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
-    return text.lower()
+# Ho tro tuong thich bien cu
+BASE_DIR = ThuMucGoc
+DB_PATH = DuongDanDb
+REFL_PATH = DuongDanQuyTac
 
-def tokenize(text):
-    clean = remove_vietnamese_accents(text)
-    tokens = re.findall(r"[a-z0-9_]+", clean)
-    stop_words = {"va", "thi", "la", "cac", "cho", "co", "the", "duoc", "mot", "trong",
-                  "the", "a", "an", "and", "or", "to", "of", "in", "with", "is", "for",
-                  "module", "thiet", "ke", "mach", "he", "thong", "dong", "bo"}
-    return [t for t in tokens if len(t) > 1 and t not in stop_words]
+def xoa_dau_tieng_viet(VanBan):
+    """Loai bo dau tieng Viet de tim kiem khong dau."""
+    VanBanKhongDau = VanBan.replace('đ', 'd').replace('Đ', 'D')
+    VanBanKhongDau = unicodedata.normalize('NFKD', VanBanKhongDau).encode('ascii', 'ignore').decode('ascii')
+    return VanBanKhongDau.lower()
 
-# Concept definitions mapping keywords & phrases to canonical hardware types
-HARDWARE_CONCEPTS = {
+remove_vietnamese_accents = xoa_dau_tieng_viet
+
+def tach_tu(VanBan):
+    """Tach van ban thanh danh sach cac tu khoa co nghia."""
+    VanBanSach = xoa_dau_tieng_viet(VanBan)
+    DanhSachTu = re.findall(r"[a-z0-9_]+", VanBanSach)
+    TuDung = {
+        "va", "thi", "la", "cac", "cho", "co", "the", "duoc", "mot", "trong",
+        "the", "a", "an", "and", "or", "to", "of", "in", "with", "is", "for",
+        "module", "thiet", "ke", "mach", "he", "thong", "dong", "bo"
+    }
+    return [Tu for Tu in DanhSachTu if len(Tu) > 1 and Tu not in TuDung]
+
+tokenize = tach_tu
+
+# Tap khai niem phan cung de nhan dien kieu mach
+KHAI_NIEM_PHAN_CUNG = {
     "vending_machine": {
         "triggers": ["ban nuoc", "vending", "lon nuoc", "15000", "5000", "10000", "thoi tien", "nhan tien"],
         "target_names": ["vending_machine"],
@@ -117,128 +128,134 @@ HARDWARE_CONCEPTS = {
     }
 }
 
+HARDWARE_CONCEPTS = KHAI_NIEM_PHAN_CUNG
+
 class KnowledgeMatcher:
-    def __init__(self, db_path=DB_PATH, refl_path=REFL_PATH):
-        self.db_path = db_path
-        self.refl_path = refl_path
-        self.entries = []
-        self.reflection_rules = []
-        self._load_db()
+    """Bo tra cuu tri thuc phan cung tu co so du lieu mau."""
 
-    def _load_db(self):
-        if os.path.exists(self.db_path):
-            with open(self.db_path, "r", encoding="utf-8", errors="replace") as f:
-                self.entries = json.load(f)
-        if os.path.exists(self.refl_path):
-            with open(self.refl_path, "r", encoding="utf-8", errors="replace") as f:
-                self.reflection_rules = json.load(f)
+    def __init__(self, DuongDanCoSo=DuongDanDb, DuongDanPhanChieu=DuongDanQuyTac, db_path=None, refl_path=None):
+        self.DuongDanDb = db_path if db_path is not None else DuongDanCoSo
+        self.DuongDanQuyTac = refl_path if refl_path is not None else DuongDanPhanChieu
+        self.db_path = self.DuongDanDb
+        self.refl_path = self.DuongDanQuyTac
+        self.DanhSachMau = []
+        self.QuyTacPhanChieu = []
+        self._tai_du_lieu()
 
-    def search(self, spec_text, top_k=3):
-        """Searches the knowledge base for designs matching the input specification.
-        Returns:
-            best_match: dict or None
-            match_type: 'EXACT' | 'SIMILAR' | 'CUSTOM'
-            confidence: float (0.0 - 1.0)
-            exemplars: list of top matching unique entries
-        """
-        if not self.entries:
+    def _tai_du_lieu(self):
+        """Doc du lieu tu file JSON."""
+        if os.path.exists(self.DuongDanDb):
+            with open(self.DuongDanDb, "r", encoding="utf-8", errors="replace") as TepTin:
+                self.DanhSachMau = json.load(TepTin)
+        if os.path.exists(self.DuongDanQuyTac):
+            with open(self.DuongDanQuyTac, "r", encoding="utf-8", errors="replace") as TepTin:
+                self.QuyTacPhanChieu = json.load(TepTin)
+        self.entries = self.DanhSachMau
+        self.reflection_rules = self.QuyTacPhanChieu
+
+    def search(self, VanBanSpec, TopK=3, spec_text=None, top_k=None):
+        """Tim kiem mach phu hop nhat trong CSDL tri thuc."""
+        VanBanCanTim = spec_text if spec_text is not None else VanBanSpec
+        SoLuongCanLay = top_k if top_k is not None else TopK
+
+        if not self.DanhSachMau:
             return None, "CUSTOM", 0.0, []
 
-        spec_norm = remove_vietnamese_accents(spec_text)
-        query_tokens = tokenize(spec_text)
-        query_set = set(query_tokens)
+        VanBanChuanHoa = xoa_dau_tieng_viet(VanBanCanTim)
+        TuKhoaTruyVan = tach_tu(VanBanCanTim)
+        TapTuKhoa = set(TuKhoaTruyVan)
 
-        # Detect active concepts
-        matched_concepts = []
-        for c_id, c_data in HARDWARE_CONCEPTS.items():
-            for trig in c_data["triggers"]:
-                if trig in spec_norm:
-                    matched_concepts.append(c_data)
+        # Nhan dien khai niem phan cung
+        KhaiNiemKhop = []
+        for TenKhaiNiem, DuLieuKhaiNiem in KHAI_NIEM_PHAN_CUNG.items():
+            for TuKichHoat in DuLieuKhaiNiem["triggers"]:
+                if TuKichHoat in VanBanChuanHoa:
+                    KhaiNiemKhop.append(DuLieuKhaiNiem)
                     break
 
-        scored = []
-        seen_names = set()
+        DanhSachChamDiem = []
+        TenDaGap = set()
 
-        for item in self.entries:
-            score = 0.0
-            item_name = item.get("name", "").lower()
-            item_mod = item.get("module_name", "").lower()
-            item_desc = item.get("spec", "").lower()
-            item_cat = item.get("category", "")
-            item_kws = [k.lower() for k in item.get("keywords", [])]
+        for Muc in self.DanhSachMau:
+            DiemSo = 0.0
+            TenMuc = Muc.get("name", "").lower()
+            TenModule = Muc.get("module_name", "").lower()
+            DanhMuc = Muc.get("category", "")
+            TuKhoaMuc = [Tu.lower() for Tu in Muc.get("keywords", [])]
 
-            # 1. Concept direct hit
-            for c_data in matched_concepts:
-                if item_name in c_data["target_names"] or item_mod in c_data["target_names"]:
-                    score += 1.5
-                elif item_cat == c_data.get("target_category"):
-                    score += 0.4
+            # 1. Khop khai niem truc tiep
+            for DuLieu in KhaiNiemKhop:
+                if TenMuc in DuLieu["target_names"] or TenModule in DuLieu["target_names"]:
+                    DiemSo += 1.5
+                elif DanhMuc == DuLieu.get("target_category"):
+                    DiemSo += 0.4
 
-            # 2. Token overlap on name and keywords
-            for q_tok in query_tokens:
-                if q_tok == item_name or q_tok == item_mod:
-                    score += 0.8
-                elif q_tok in item_name or item_name in q_tok:
-                    score += 0.35
-                if any(q_tok in kw for kw in item_kws):
-                    score += 0.2
+            # 2. Khop tu khoa voi ten va danh sach keywords
+            for Tu in TuKhoaTruyVan:
+                if Tu == TenMuc or Tu == TenModule:
+                    DiemSo += 0.8
+                elif Tu in TenMuc or TenMuc in Tu:
+                    DiemSo += 0.35
+                if any(Tu in Kw for Kw in TuKhoaMuc):
+                    DiemSo += 0.2
 
-            # 3. Text overlap with target spec
-            target_tokens = set(tokenize(item_name + " " + " ".join(item_kws)))
-            intersection = query_set.intersection(target_tokens)
-            if target_tokens:
-                score += (len(intersection) / float(len(target_tokens))) * 0.5
+            # 3. Khop tu giua spec va keywords cua muc
+            TapTuDich = set(tach_tu(TenMuc + " " + " ".join(TuKhoaMuc)))
+            GiaoDiem = TapTuKhoa.intersection(TapTuDich)
+            if TapTuDich:
+                DiemSo += (len(GiaoDiem) / float(len(TapTuDich))) * 0.5
 
-            if score > 0.25:
-                confidence = min(1.0, score / 3.0)
-                scored.append((score, confidence, item))
+            if DiemSo > 0.25:
+                DoTinCay = min(1.0, DiemSo / 3.0)
+                DanhSachChamDiem.append((DiemSo, DoTinCay, Muc))
 
-        # Sort by actual raw score first (highest relevance first)
-        scored.sort(key=lambda x: x[0], reverse=True)
+        # Sap xep theo diem cao nhat truoc
+        DanhSachChamDiem.sort(key=lambda x: x[0], reverse=True)
 
-        if not scored:
+        if not DanhSachChamDiem:
             return None, "CUSTOM", 0.0, []
 
-        # Deduplicate exemplars by module_name
-        unique_exemplars = []
-        for raw_s, conf, item in scored:
-            m_name = item.get("module_name", item.get("name"))
-            if m_name not in seen_names:
-                seen_names.add(m_name)
-                unique_exemplars.append(item)
-            if len(unique_exemplars) >= top_k:
+        # Loc cac ban ghi duy nhat theo ten module
+        MauDuyNhat = []
+        for DiemGoc, DoTinCay, Muc in DanhSachChamDiem:
+            TenMod = Muc.get("module_name", Muc.get("name"))
+            if TenMod not in TenDaGap:
+                TenDaGap.add(TenMod)
+                MauDuyNhat.append(Muc)
+            if len(MauDuyNhat) >= SoLuongCanLay:
                 break
 
-        best_score, best_conf, best_item = scored[0]
+        DiemCaoNhat, DoTinCayCaoNhat, MauTotNhat = DanhSachChamDiem[0]
 
-        if best_conf >= 0.70:
-            match_type = "EXACT"
-        elif best_conf >= 0.35:
-            match_type = "SIMILAR"
+        if DoTinCayCaoNhat >= 0.70:
+            LoaiKhop = "EXACT"
+        elif DoTinCayCaoNhat >= 0.35:
+            LoaiKhop = "SIMILAR"
         else:
-            match_type = "CUSTOM"
+            LoaiKhop = "CUSTOM"
 
-        return best_item, match_type, round(best_conf, 3), unique_exemplars
+        return MauTotNhat, LoaiKhop, round(DoTinCayCaoNhat, 3), MauDuyNhat
 
-    def get_reflection_guidance(self, error_message):
-        """Looks up VeriPrefer reflection rules based on an EDA error message."""
-        recs = []
-        for rule in self.reflection_rules:
-            pattern = rule.get("pattern", "")
-            if re.search(pattern, error_message, re.IGNORECASE):
-                recs.append({
-                    "error_type": rule.get("error_type"),
-                    "diagnosis": rule.get("diagnosis"),
-                    "remedy": rule.get("remedy")
+    def get_reflection_guidance(self, ThongBaoLoi=None, error_message=None):
+        """Tra cuu huong dan sua loi EDA dua tren quy tac phan chieu."""
+        NoiDungLoi = error_message if error_message is not None else (ThongBaoLoi or "")
+        DanhSachGoiY = []
+        for QuyTac in self.QuyTacPhanChieu:
+            MauLoi = QuyTac.get("pattern", "")
+            if re.search(MauLoi, NoiDungLoi, re.IGNORECASE):
+                DanhSachGoiY.append({
+                    "error_type": QuyTac.get("error_type"),
+                    "diagnosis": QuyTac.get("diagnosis"),
+                    "remedy": QuyTac.get("remedy")
                 })
-        return recs
+        return DanhSachGoiY
 
 if __name__ == "__main__":
-    matcher = KnowledgeMatcher()
+    BoTraCuu = KnowledgeMatcher()
     print("=" * 75)
-    print("   TESTING HARDWARE KNOWLEDGE MATCHER (RAG BENCHMARK)")
+    print("   KIEM TRA BO TRA CUU TRI THUC PHAN CUNG")
     print("=" * 75)
-    queries = [
+    DanhSachCauHoi = [
         "Thiết kế máy bán nước tự động nhận 5k và 10k, lon nước giá 15k",
         "Thiết kế hệ thống đèn giao thông ngã tư với đèn đỏ, xanh, vàng và nút cho người đi bộ",
         "Mạch đếm lên xuống (up down counter) 4 bit đồng bộ",
@@ -247,10 +264,10 @@ if __name__ == "__main__":
         "Thiết kế bộ cộng BCD (BCD Adder)",
         "Hệ thống SoC AI Accelerator tích hợp CPU, DMA, AI Core và RAM"
     ]
-    for q in queries:
-        match, m_type, conf, ex = matcher.search(q)
-        print(f"\n[Query]: {q}")
-        print(f" -> Result: [{m_type}] Confidence: {conf*100:.1f}%")
-        if match:
-            print(f" -> Matched: {match['id']} ({match['name']}) | Source: {match['source']} | Cat: {match['category']}")
-        print(f" -> Top {len(ex)} Unique Exemplars: {', '.join([e['name'] for e in ex])}")
+    for CauHoi in DanhSachCauHoi:
+        Mau, Loai, DoTinCay, DanhSachMauGoiY = BoTraCuu.search(CauHoi)
+        print(f"\n[Truy van]: {CauHoi}")
+        print(f" -> Ket qua: [{Loai}] Do tin cay: {DoTinCay*100:.1f}%")
+        if Mau:
+            print(f" -> Khop: {Mau['id']} ({Mau['name']}) | Nguon: {Mau['source']} | Nhom: {Mau['category']}")
+        print(f" -> Top {len(DanhSachMauGoiY)} mau: {', '.join([M['name'] for M in DanhSachMauGoiY])}")

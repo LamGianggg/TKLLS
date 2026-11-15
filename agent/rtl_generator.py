@@ -1,8 +1,8 @@
 """
 Module: rtl_generator.py
-Description: Automated Verilog RTL Code Generator for Spec2RTL & Prompt2Silicon.
-Parses natural language / markdown hardware specifications and autonomously synthesizes
-clean, synthesizable IEEE 1364-2001 Verilog for ANY custom or benchmark digital system.
+Chuc nang: Tu dong sinh ma Verilog RTL cho he thong Spec2RTL & Prompt2Silicon.
+Phan tich dac ta ngon ngu tu nhien / Markdown va tong hop ma Verilog
+tong hop duoc (synthesizable IEEE 1364-2001) cho moi thiet ke so.
 """
 
 import os
@@ -11,151 +11,162 @@ from spec_analyzer import SpecAnalyzer, clean_identifier, remove_vietnamese_acce
 from verilog_linter import VerilogLinter
 
 class RTLPortEnforcer:
-    """Enforces mathematical invariant: Verilog top-level module ports must match
-    the user's specification 100%, removing phantom ports and adding missing ports."""
+    """Kiem toan va ep buoc cac cong module RTL phai khop 100% voi dac ta dac ta."""
+
     @staticmethod
-    def enforce(rtl_code, spec_ports):
-        if not spec_ports:
-            return rtl_code
+    def enforce(MaRtl=None, DanhSachCongSpec=None, rtl_code=None, spec_ports=None):
+        NoiDungRtl = rtl_code if rtl_code is not None else MaRtl
+        CongSpec = spec_ports if spec_ports is not None else DanhSachCongSpec
 
-        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", rtl_code, re.DOTALL)
-        if not m_mod:
-            return rtl_code
+        if not CongSpec or not NoiDungRtl:
+            return NoiDungRtl
 
-        mod_name = m_mod.group(1)
-        port_block = m_mod.group(2)
-        rest_of_code = rtl_code[m_mod.end():]
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", NoiDungRtl, re.DOTALL)
+        if not KhopModule:
+            return NoiDungRtl
 
-        # Parse declared RTL ports
-        clean_pb = re.sub(r"//.*", "", port_block)
-        clean_pb = re.sub(r"/\*.*?\*/", "", clean_pb, flags=re.DOTALL)
-        rtl_ports = []
-        for line in clean_pb.split(","):
-            line = line.strip()
-            m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", line)
-            if m_p:
-                d, msb, lsb, n = m_p.groups()
-                w = abs(int(msb) - int(lsb)) + 1 if (msb and lsb) else 1
-                rtl_ports.append({"name": n, "direction": d, "width": w, "msb": msb, "lsb": lsb, "raw": line})
+        TenModule = KhopModule.group(1)
+        KhoiKhaiBaoCong = KhopModule.group(2)
+        PhanConLai = NoiDungRtl[KhopModule.end():]
 
-        rtl_names_lower = {p["name"].lower() for p in rtl_ports}
-        spec_names_lower = {p["name"].lower() for p in spec_ports}
+        # Phan tich cac cong hien co trong RTL
+        KhoiCongSach = re.sub(r"//.*", "", KhoiKhaiBaoCong)
+        KhoiCongSach = re.sub(r"/\*.*?\*/", "", KhoiCongSach, flags=re.DOTALL)
+        DanhSachCongRtl = []
+        for Dong in KhoiCongSach.split(","):
+            Dong = Dong.strip()
+            KhopCong = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", Dong)
+            if KhopCong:
+                HuongCong, Msb, Lsb, TenCong = KhopCong.groups()
+                DoRong = abs(int(Msb) - int(Lsb)) + 1 if (Msb and Lsb) else 1
+                DanhSachCongRtl.append({"name": TenCong, "direction": HuongCong, "width": DoRong, "msb": Msb, "lsb": Lsb, "raw": Dong})
 
-        phantom_ports = [p for p in rtl_ports if p["name"].lower() not in spec_names_lower]
-        missing_ports = [p for p in spec_ports if p["name"].lower() not in rtl_names_lower]
+        TenRtlThuong = {Cong["name"].lower() for Cong in DanhSachCongRtl}
+        TenSpecThuong = {Cong["name"].lower() for Cong in CongSpec}
 
-        if not phantom_ports and not missing_ports:
-            return rtl_code
+        CongThua = [Cong for Cong in DanhSachCongRtl if Cong["name"].lower() not in TenSpecThuong]
+        CongThieu = [Cong for Cong in CongSpec if Cong["name"].lower() not in TenRtlThuong]
 
-        # Reconstruct header with spec_ports
-        new_ports_decl = []
-        for sp in spec_ports:
-            w_str = f"[{sp['width']-1}:0] " if sp["width"] > 1 else "      "
-            d_type = "reg " if sp["direction"] == "output" else "wire"
-            new_ports_decl.append(f"    {sp['direction']:6} {d_type} {w_str}{sp['name']}")
+        if not CongThua and not CongThieu:
+            return NoiDungRtl
 
-        new_header = f"module {mod_name} (\n" + ",\n".join(new_ports_decl) + "\n);\n"
+        # Tai tao phan header theo cong spec
+        KhaiBaoCongMoi = []
+        for Cong in CongSpec:
+            ChuoiDoRong = f"[{Cong['width']-1}:0] " if Cong['width'] > 1 else "      "
+            KieuBien = "reg " if Cong["direction"] == "output" else "wire"
+            KhaiBaoCongMoi.append(f"    {Cong['direction']:6} {KieuBien} {ChuoiDoRong}{Cong['name']}")
 
-        internal_decls = []
-        for ph in phantom_ports:
-            w_str = f"[{ph['width']-1}:0] " if ph["width"] > 1 else ""
-            if ph["direction"] == "input":
-                tie_val = "1'b0" if any(k in ph["name"].lower() for k in ["rst", "clr", "reset", "clear"]) else "1'b1"
-                internal_decls.append(f"    wire {w_str}{ph['name']} = {tie_val}; // Internalized phantom input")
+        HeaderMoi = f"module {TenModule} (\n" + ",\n".join(KhaiBaoCongMoi) + "\n);\n"
+
+        KhaiBaoNoiBo = []
+        for Cong in CongThua:
+            ChuoiDoRong = f"[{Cong['width']-1}:0] " if Cong['width'] > 1 else ""
+            if Cong["direction"] == "input":
+                GiaTriGan = "1'b0" if any(Tu in Cong["name"].lower() for Tu in ["rst", "clr", "reset", "clear"]) else "1'b1"
+                KhaiBaoNoiBo.append(f"    wire {ChuoiDoRong}{Cong['name']} = {GiaTriGan}; // Cong thua duoc noi noi bo")
             else:
-                is_assign = bool(re.search(r"\bassign\s+" + re.escape(ph['name']) + r"\b", rest_of_code))
-                decl_type = "wire" if is_assign else "reg "
-                internal_decls.append(f"    {decl_type} {w_str}{ph['name']}; // Internalized phantom output")
+                CoGanAssign = bool(re.search(r"\bassign\s+" + re.escape(Cong['name']) + r"\b", PhanConLai))
+                KieuNoi = "wire" if CoGanAssign else "reg "
+                KhaiBaoNoiBo.append(f"    {KieuNoi} {ChuoiDoRong}{Cong['name']}; // Cong thua duoc noi noi bo")
 
-        for mp in missing_ports:
-            if mp["direction"] == "output":
-                if not re.search(r"\b" + mp["name"] + r"\s*<=|\b" + mp["name"] + r"\s*=", rest_of_code):
-                    internal_decls.append(f"    always @(*) {mp['name']} = {mp['width']}'d0; // Default driver for missing spec output")
+        for Cong in CongThieu:
+            if Cong["direction"] == "output":
+                if not re.search(r"\b" + Cong["name"] + r"\s*<=|\b" + Cong["name"] + r"\s*=", PhanConLai):
+                    KhaiBaoNoiBo.append(f"    always @(*) {Cong['name']} = {Cong['width']}'d0; // Gia tri mac dinh cho cong thieu")
 
-        inject_block = ("\n" + "\n".join(internal_decls) + "\n") if internal_decls else ""
-        return rtl_code[:m_mod.start()] + new_header + inject_block + rest_of_code
+        KhoiChenNoiBo = ("\n" + "\n".join(KhaiBaoNoiBo) + "\n") if KhaiBaoNoiBo else ""
+        return NoiDungRtl[:KhopModule.start()] + HeaderMoi + KhoiChenNoiBo + PhanConLai
 
 
 class RTLGenerator:
-    def __init__(self, src_dir):
-        self.src_dir = src_dir
-        os.makedirs(src_dir, exist_ok=True)
+    """Bo tao ma nguon Verilog RTL tu dac ta phan cung."""
 
-    def _write_verilog(self, file_name, code):
-        """Sanitizes code using VerilogDB rules and writes to src directory."""
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.src_dir, file_name)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+    def __init__(self, ThuMucSrc=None, src_dir=None):
+        self.ThuMucSrc = src_dir if src_dir is not None else ThuMucSrc
+        self.src_dir = self.ThuMucSrc
+        os.makedirs(self.ThuMucSrc, exist_ok=True)
 
-    def generate_from_spec(self, spec_text, spec_path=None):
-        """Unified entry point: dynamically synthesizes synthesizable Verilog for ANY specification."""
-        analyzer = SpecAnalyzer(spec_path if spec_path else spec_text)
-        cat = analyzer.classify_system()
-        mod_name = analyzer.extract_module_name()
-        ports = analyzer.extract_ports()
+    def _write_verilog(self, TenFile=None, MaNguon=None, file_name=None, code=None):
+        """Kiem tra va ghi ma nguon Verilog vao thu muc src."""
+        TenTep = file_name if file_name is not None else TenFile
+        MaRtl = code if code is not None else MaNguon
+        MaRtlSach = VerilogLinter.sanitize_verilog_code(MaRtl)
+        DuongDanXuat = os.path.join(self.ThuMucSrc, TenTep)
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaRtlSach)
+        return DuongDanXuat
 
-        if cat == "VENDING":
-            res_file = self.generate_vending_machine(spec_text, mod_name)
-        elif cat == "ELEVATOR":
-            res_file = self.generate_elevator_controller(spec_text, mod_name)
-        elif cat == "TRAFFIC":
-            res_file = self.generate_traffic_light(spec_text, mod_name)
-        elif cat == "MULTIPLIER":
-            res_file = self.generate_multiplier(mod_name, spec_text, ports)
-        elif cat == "ADDER":
-            res_file = self.generate_adder(mod_name, spec_text, ports)
-        elif cat == "SUBTRACTOR":
-            res_file = self.generate_subtractor(mod_name, spec_text, ports)
-        elif cat == "COMPARATOR":
-            res_file = self.generate_comparator(mod_name, spec_text, ports)
-        elif cat == "ALU":
-            res_file = self.generate_alu(mod_name, spec_text, ports)
-        elif cat == "FIFO":
-            res_file = self.generate_fifo(mod_name, spec_text, ports)
-        elif cat == "GRAY_COUNTER":
-            res_file = self.generate_gray_counter(mod_name, spec_text, ports)
-        elif cat == "STOPWATCH":
-            res_file = self.generate_stopwatch(mod_name, spec_text, ports)
-        elif cat == "COUNTER":
-            res_file = self.generate_counter(mod_name, spec_text, ports)
-        elif cat == "ENCODER":
-            res_file = self.generate_priority_encoder(mod_name, spec_text, ports)
-        elif cat == "PULSE_DETECTOR":
-            res_file = self.generate_pulse_detector(mod_name, spec_text, ports)
-        elif cat == "BARREL_SHIFTER":
-            res_file = self.generate_barrel_shifter(mod_name, spec_text, ports)
-        elif cat == "PWM":
-            res_file = self.generate_pwm(mod_name, spec_text, ports)
-        elif cat == "STEPPER_MOTOR":
-            res_file = self.generate_stepper_motor(mod_name, spec_text, ports)
-        elif cat == "UART_TX":
-            res_file = self.generate_uart_tx(mod_name, spec_text, ports)
-        elif cat == "WASHING_MACHINE":
-            res_file = self.generate_washing_machine(mod_name, spec_text, ports)
-        elif cat == "SMART_ALARM":
-            res_file = self.generate_smart_alarm(mod_name, spec_text, ports)
-        elif cat == "SHIFT_REG":
-            res_file = self.generate_shift_reg(mod_name, spec_text, ports)
-        elif cat == "SEQUENCE_DETECTOR":
-            res_file = self.generate_sequence_detector(mod_name, spec_text, ports)
-        elif cat == "DIGITAL_LOCK":
-            res_file = self.generate_digital_lock(mod_name, spec_text, ports)
+    def generate_from_spec(self, NoiDungSpec=None, DuongDanSpec=None, spec_text=None, spec_path=None):
+        """Diem vao duy nhat: Tu dong tong hop Verilog RTL cho bat ky dac ta nao."""
+        VanBanSpec = spec_text if spec_text is not None else NoiDungSpec
+        TepSpec = spec_path if spec_path is not None else DuongDanSpec
+
+        BoPhanTich = SpecAnalyzer(TepSpec if TepSpec else VanBanSpec)
+        NhomMach = BoPhanTich.classify_system()
+        TenModule = BoPhanTich.extract_module_name()
+        DanhSachCong = BoPhanTich.extract_ports()
+
+        if NhomMach == "VENDING":
+            TepKetQua = self.generate_vending_machine(VanBanSpec, TenModule)
+        elif NhomMach == "ELEVATOR":
+            TepKetQua = self.generate_elevator_controller(VanBanSpec, TenModule)
+        elif NhomMach == "TRAFFIC":
+            TepKetQua = self.generate_traffic_light(VanBanSpec, TenModule)
+        elif NhomMach == "MULTIPLIER":
+            TepKetQua = self.generate_multiplier(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "ADDER":
+            TepKetQua = self.generate_adder(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "SUBTRACTOR":
+            TepKetQua = self.generate_subtractor(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "COMPARATOR":
+            TepKetQua = self.generate_comparator(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "ALU":
+            TepKetQua = self.generate_alu(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "FIFO":
+            TepKetQua = self.generate_fifo(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "GRAY_COUNTER":
+            TepKetQua = self.generate_gray_counter(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "STOPWATCH":
+            TepKetQua = self.generate_stopwatch(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "COUNTER":
+            TepKetQua = self.generate_counter(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "ENCODER":
+            TepKetQua = self.generate_priority_encoder(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "PULSE_DETECTOR":
+            TepKetQua = self.generate_pulse_detector(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "BARREL_SHIFTER":
+            TepKetQua = self.generate_barrel_shifter(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "PWM":
+            TepKetQua = self.generate_pwm(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "STEPPER_MOTOR":
+            TepKetQua = self.generate_stepper_motor(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "UART_TX":
+            TepKetQua = self.generate_uart_tx(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "WASHING_MACHINE":
+            TepKetQua = self.generate_washing_machine(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "SMART_ALARM":
+            TepKetQua = self.generate_smart_alarm(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "SHIFT_REG":
+            TepKetQua = self.generate_shift_reg(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "SEQUENCE_DETECTOR":
+            TepKetQua = self.generate_sequence_detector(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "DIGITAL_LOCK":
+            TepKetQua = self.generate_digital_lock(TenModule, VanBanSpec, DanhSachCong)
         else:
-            res_file = self.generate_generic_module(mod_name, spec_text, ports)
+            TepKetQua = self.generate_generic_module(TenModule, VanBanSpec, DanhSachCong)
 
-        # Enforce exact port invariant on generated Verilog code
-        if ports and res_file and os.path.exists(res_file):
-            with open(res_file, "r", encoding="utf-8", errors="replace") as f:
-                raw_code = f.read()
-            enforced_code = RTLPortEnforcer.enforce(raw_code, ports)
-            if enforced_code != raw_code:
-                with open(res_file, "w", encoding="utf-8") as f:
-                    f.write(enforced_code)
-                print(f" -> [RTL Port Enforcer]: Reconciled Verilog module ports to match specification 100%!")
+        # Ep buoc cong phai khop 100% voi dac ta
+        if DanhSachCong and TepKetQua and os.path.exists(TepKetQua):
+            with open(TepKetQua, "r", encoding="utf-8", errors="replace") as TepTin:
+                MaTho = TepTin.read()
+            MaDaSua = RTLPortEnforcer.enforce(MaTho, DanhSachCong)
+            if MaDaSua != MaTho:
+                with open(TepKetQua, "w", encoding="utf-8") as TepTin:
+                    TepTin.write(MaDaSua)
+                print(f" -> [RTL Port Enforcer]: Da can chinh cac cong Verilog khop 100% voi dac ta!")
 
-        return mod_name, res_file
+        return TenModule, TepKetQua
 
     def generate_vending_machine(self, spec_text="", module_name="vending_machine"):
         """Generates synthesizable Verilog for Vending Machine from spec."""
@@ -259,10 +270,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_traffic_light(self, spec_text="", module_name="traffic_light"):
         """Generates synthesizable Verilog for Traffic Light Controller."""
@@ -369,10 +377,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_elevator_controller(self, spec_text="", module_name="elevator_controller"):
         """Generates synthesizable Verilog for 5-Floor Elevator Controller."""
@@ -483,10 +488,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_alu(self, module_name, spec_text="", ports=None):
         """Generates synthesizable Verilog for Arithmetic Logic Unit (ALU)."""
@@ -863,10 +865,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_stepper_motor(self, module_name, spec_text="", ports=None):
         """Generates synthesizable Verilog for 4-Phase Stepper Motor Controller (Full-Step Mode)."""
@@ -1175,10 +1174,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_sequence_detector(self, module_name, spec_text="", ports=None):
         """Generates synthesizable Verilog for Sequence Detector FSM (default 1011)."""
@@ -1230,10 +1226,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_digital_lock(self, module_name, spec_text="", ports=None):
         """Generates synthesizable Verilog for 4-Digit Security Combination Lock."""
@@ -1419,10 +1412,7 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
     def generate_fifo(self, module_name, spec_text="", ports=None):
         """Generates synthesizable Verilog for Synchronous FIFO Buffer."""
@@ -1700,12 +1690,9 @@ module {module_name} (
 
 endmodule
 """
-        out_path = os.path.join(self.src_dir, f"{module_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        return self._write_verilog(f"{module_name}.v", code)
 
 if __name__ == "__main__":
-    gen = RTLGenerator("../src")
-    name, p = gen.generate_from_spec("specs/a.txt")
-    print("Generated:", name, p)
+    BoTaoRtl = RTLGenerator("../src")
+    TenModule, DuongDanFile = BoTaoRtl.generate_from_spec("specs/a.txt")
+    print("Da sinh thanh cong:", TenModule, DuongDanFile)

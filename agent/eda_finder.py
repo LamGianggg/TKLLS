@@ -1,7 +1,7 @@
 """
 Module: eda_finder.py
-Description: Cross-platform Auto-Discovery Engine for EDA Toolchains (ModelSim, Quartus II, Icarus Verilog).
-Enables seamless execution across different machines without hardcoded paths.
+Mô tả: Tự động tìm kiếm công cụ ModelSim, Quartus II, Icarus Verilog trên máy.
+Hỗ trợ chạy mượt mà trên nhiều máy tính mà không cần cấu hình thủ công.
 """
 
 import os
@@ -9,119 +9,119 @@ import glob
 import shutil
 
 def find_modelsim():
-    """Locates ModelSim binaries (vlog, vsim, vlib)."""
-    # 1. Check if vlog is on PATH
-    vlog_path = shutil.which("vlog")
-    if vlog_path:
-        bin_dir = os.path.dirname(vlog_path)
-        if os.path.exists(os.path.join(bin_dir, "vsim.exe")) or shutil.which("vsim"):
+    """Tìm kiếm phần mềm mô phỏng ModelSim (vlog, vsim, vlib)."""
+    # 1. Kiểm tra trong biến môi trường PATH
+    DuongDanVlog = shutil.which("vlog")
+    if DuongDanVlog:
+        ThuMucChay = os.path.dirname(DuongDanVlog)
+        if os.path.exists(os.path.join(ThuMucChay, "vsim.exe")) or shutil.which("vsim"):
             return {
-                "bin_dir": bin_dir,
-                "vlog": vlog_path,
-                "vsim": shutil.which("vsim") or os.path.join(bin_dir, "vsim.exe"),
-                "vlib": shutil.which("vlib") or os.path.join(bin_dir, "vlib.exe"),
+                "bin_dir": ThuMucChay,
+                "vlog": DuongDanVlog,
+                "vsim": shutil.which("vsim") or os.path.join(ThuMucChay, "vsim.exe"),
+                "vlib": shutil.which("vlib") or os.path.join(ThuMucChay, "vlib.exe"),
                 "type": "modelsim"
             }
 
-    # 2. Check environment variables
-    env_roots = [os.environ.get("QUARTUS_ROOTDIR", ""), os.environ.get("MODELSIM_ROOT", ""), os.environ.get("ALTERA_ROOT", "")]
-    for env_r in env_roots:
-        if env_r:
-            candidate = os.path.join(env_r, "..", "modelsim_ase", "win32aloem")
-            if os.path.exists(os.path.join(candidate, "vlog.exe")):
+    # 2. Kiểm tra biến môi trường của hệ điều hành
+    DanhSachMoiTruong = [os.environ.get("QUARTUS_ROOTDIR", ""), os.environ.get("MODELSIM_ROOT", ""), os.environ.get("ALTERA_ROOT", "")]
+    for GiaTriMoiTruong in DanhSachMoiTruong:
+        if GiaTriMoiTruong:
+            DuongDanThu = os.path.join(GiaTriMoiTruong, "..", "modelsim_ase", "win32aloem")
+            if os.path.exists(os.path.join(DuongDanThu, "vlog.exe")):
                 return {
-                    "bin_dir": os.path.abspath(candidate),
-                    "vlog": os.path.join(candidate, "vlog.exe"),
-                    "vsim": os.path.join(candidate, "vsim.exe"),
-                    "vlib": os.path.join(candidate, "vlib.exe"),
+                    "bin_dir": os.path.abspath(DuongDanThu),
+                    "vlog": os.path.join(DuongDanThu, "vlog.exe"),
+                    "vsim": os.path.join(DuongDanThu, "vsim.exe"),
+                    "vlib": os.path.join(DuongDanThu, "vlib.exe"),
                     "type": "modelsim"
                 }
 
-    # 3. Scan common Altera / Intel FPGA installation locations across drives
-    for drive in ["C", "D", "E", "F", "G", "H"]:
-        patterns = [
-            f"{drive}:/altera/*/modelsim_ase/win32aloem",
-            f"{drive}:/altera/*/modelsim_ae/win32aloem",
-            f"{drive}:/intelFPGA/*/modelsim_ase/win32aloem",
-            f"{drive}:/intelFPGA_lite/*/modelsim_ase/win32aloem",
-            f"{drive}:/intelFPGA/*/modelsim_ae/win32aloem",
-            f"{drive}:/intelFPGA_lite/*/modelsim_ae/win32aloem",
-            f"{drive}:/intelFPGA_pro/*/modelsim_ase/win32aloem",
-            f"{drive}:/intelFPGA_pro/*/modelsim_ae/win32aloem",
-            f"{drive}:/modeltech*/win32",
-            f"{drive}:/modeltech*/win64",
-            f"{drive}:/Program Files/altera/*/modelsim_ase/win32aloem",
-            f"{drive}:/Program Files (x86)/altera/*/modelsim_ase/win32aloem",
+    # 3. Quét tự động trên các ổ đĩa của máy tính
+    for TenODia in ["C", "D", "E", "F", "G", "H"]:
+        MauTimKiem = [
+            f"{TenODia}:/altera/*/modelsim_ase/win32aloem",
+            f"{TenODia}:/altera/*/modelsim_ae/win32aloem",
+            f"{TenODia}:/intelFPGA/*/modelsim_ase/win32aloem",
+            f"{TenODia}:/intelFPGA_lite/*/modelsim_ase/win32aloem",
+            f"{TenODia}:/intelFPGA/*/modelsim_ae/win32aloem",
+            f"{TenODia}:/intelFPGA_lite/*/modelsim_ae/win32aloem",
+            f"{TenODia}:/intelFPGA_pro/*/modelsim_ase/win32aloem",
+            f"{TenODia}:/intelFPGA_pro/*/modelsim_ae/win32aloem",
+            f"{TenODia}:/modeltech*/win32",
+            f"{TenODia}:/modeltech*/win64",
+            f"{TenODia}:/Program Files/altera/*/modelsim_ase/win32aloem",
+            f"{TenODia}:/Program Files (x86)/altera/*/modelsim_ase/win32aloem",
         ]
-        for p in patterns:
-            for m in glob.glob(p):
-                vlog_f = os.path.join(m, "vlog.exe")
-                if os.path.exists(vlog_f):
+        for Mau in MauTimKiem:
+            for ThuMuc in glob.glob(Mau):
+                FileVlog = os.path.join(ThuMuc, "vlog.exe")
+                if os.path.exists(FileVlog):
                     return {
-                        "bin_dir": os.path.abspath(m),
-                        "vlog": os.path.abspath(vlog_f),
-                        "vsim": os.path.abspath(os.path.join(m, "vsim.exe")),
-                        "vlib": os.path.abspath(os.path.join(m, "vlib.exe")),
+                        "bin_dir": os.path.abspath(ThuMuc),
+                        "vlog": os.path.abspath(FileVlog),
+                        "vsim": os.path.abspath(os.path.join(ThuMuc, "vsim.exe")),
+                        "vlib": os.path.abspath(os.path.join(ThuMuc, "vlib.exe")),
                         "type": "modelsim"
                     }
 
     return None
 
 def find_iverilog():
-    """Locates Icarus Verilog binaries as an alternative EDA simulator."""
-    iverilog_exe = shutil.which("iverilog")
-    vvp_exe = shutil.which("vvp")
-    if iverilog_exe and vvp_exe:
+    """Tìm phần mềm mô phỏng Icarus Verilog dự phòng."""
+    FileIVerilog = shutil.which("iverilog")
+    FileVvp = shutil.which("vvp")
+    if FileIVerilog and FileVvp:
         return {
-            "iverilog": iverilog_exe,
-            "vvp": vvp_exe,
+            "iverilog": FileIVerilog,
+            "vvp": FileVvp,
             "type": "iverilog"
         }
 
-    for drive in ["C", "D", "E"]:
-        cand_bin = f"{drive}:/iverilog/bin"
-        if os.path.exists(os.path.join(cand_bin, "iverilog.exe")):
+    for TenODia in ["C", "D", "E"]:
+        ThuMucChay = f"{TenODia}:/iverilog/bin"
+        if os.path.exists(os.path.join(ThuMucChay, "iverilog.exe")):
             return {
-                "iverilog": os.path.join(cand_bin, "iverilog.exe"),
-                "vvp": os.path.join(cand_bin, "vvp.exe"),
+                "iverilog": os.path.join(ThuMucChay, "iverilog.exe"),
+                "vvp": os.path.join(ThuMucChay, "vvp.exe"),
                 "type": "iverilog"
             }
     return None
 
 def find_quartus_map():
-    """Locates quartus_map.exe binary for Quartus II analysis & synthesis."""
-    # 1. Check PATH
-    qmap = shutil.which("quartus_map")
-    if qmap:
-        return os.path.abspath(qmap)
+    """Tìm bộ biên dịch Quartus II (quartus_map.exe)."""
+    # 1. Kiểm tra trong PATH
+    FileQuartusMap = shutil.which("quartus_map")
+    if FileQuartusMap:
+        return os.path.abspath(FileQuartusMap)
 
-    # 2. Check environment variable
-    q_root = os.environ.get("QUARTUS_ROOTDIR")
-    if q_root:
-        for sub in ["bin64", "bin"]:
-            cand = os.path.join(q_root, sub, "quartus_map.exe")
-            if os.path.exists(cand):
-                return os.path.abspath(cand)
+    # 2. Kiểm tra biến môi trường
+    GocQuartus = os.environ.get("QUARTUS_ROOTDIR")
+    if GocQuartus:
+        for ThuMucCon in ["bin64", "bin"]:
+            FileTimThay = os.path.join(GocQuartus, ThuMucCon, "quartus_map.exe")
+            if os.path.exists(FileTimThay):
+                return os.path.abspath(FileTimThay)
 
-    # 3. Scan across drives
-    for drive in ["C", "D", "E", "F", "G", "H"]:
-        patterns = [
-            f"{drive}:/altera/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/altera/*/quartus/bin/quartus_map.exe",
-            f"{drive}:/Program Files/altera/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/Program Files/altera/*/quartus/bin/quartus_map.exe",
-            f"{drive}:/Program Files (x86)/altera/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/Program Files (x86)/altera/*/quartus/bin/quartus_map.exe",
-            f"{drive}:/intelFPGA/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/intelFPGA_lite/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/intelFPGA/*/quartus/bin/quartus_map.exe",
-            f"{drive}:/intelFPGA_lite/*/quartus/bin/quartus_map.exe",
-            f"{drive}:/intelFPGA_pro/*/quartus/bin64/quartus_map.exe",
-            f"{drive}:/intelFPGA_pro/*/quartus/bin/quartus_map.exe",
+    # 3. Quét tự động trên tất cả các ổ đĩa
+    for TenODia in ["C", "D", "E", "F", "G", "H"]:
+        MauTimKiem = [
+            f"{TenODia}:/altera/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/altera/*/quartus/bin/quartus_map.exe",
+            f"{TenODia}:/Program Files/altera/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/Program Files/altera/*/quartus/bin/quartus_map.exe",
+            f"{TenODia}:/Program Files (x86)/altera/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/Program Files (x86)/altera/*/quartus/bin/quartus_map.exe",
+            f"{TenODia}:/intelFPGA/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/intelFPGA_lite/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/intelFPGA/*/quartus/bin/quartus_map.exe",
+            f"{TenODia}:/intelFPGA_lite/*/quartus/bin/quartus_map.exe",
+            f"{TenODia}:/intelFPGA_pro/*/quartus/bin64/quartus_map.exe",
+            f"{TenODia}:/intelFPGA_pro/*/quartus/bin/quartus_map.exe",
         ]
-        for p in patterns:
-            for m in glob.glob(p):
-                if os.path.exists(m):
-                    return os.path.abspath(m)
+        for Mau in MauTimKiem:
+            for ThuMuc in glob.glob(Mau):
+                if os.path.exists(ThuMuc):
+                    return os.path.abspath(ThuMuc)
 
     return None

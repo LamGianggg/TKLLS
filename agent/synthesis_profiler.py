@@ -1,24 +1,22 @@
 """
 Module: synthesis_profiler.py
-Description: Hardware Resource Profiler & Logic Synthesis Metrics Extractor.
-Based on University of Florida VerilogDB (arXiv:2507.13369) Benchmarking Standard.
-Extracts Logic Elements (LEs), Registers, LUTs, and I/O Pin footprints from Quartus II synthesis reports
-or computes accurate static AST-based resource estimates.
+Mô tả: Đo đạc và ước lượng tài nguyên phần cứng (LE, Register, LUT, chân I/O).
+Đọc báo cáo tổng hợp từ Quartus II hoặc tự động ước lượng tĩnh từ mã Verilog RTL.
 """
 
 import os
 import re
 
 class SynthesisProfiler:
-    """Profiles hardware resource utilization for synthesized Verilog modules."""
+    """Đo đạc mức độ tiêu thụ tài nguyên phần cứng của vi mạch."""
 
     @staticmethod
-    def parse_quartus_map_summary(q_dir, project_name):
-        """Extracts synthesis resource metrics from Quartus .map.summary and .map.rpt files."""
-        summary_file = os.path.join(q_dir, f"{project_name}.map.summary")
-        rpt_file = os.path.join(q_dir, f"{project_name}.map.rpt")
+    def parse_quartus_map_summary(ThuMucQuartus, TenDuAn):
+        """Trích xuất thông số tài nguyên từ file báo cáo .map.summary của Quartus."""
+        FileTomTat = os.path.join(ThuMucQuartus, f"{TenDuAn}.map.summary")
+        FileBaoCao = os.path.join(ThuMucQuartus, f"{TenDuAn}.map.rpt")
 
-        metrics = {
+        ThongSo = {
             "source": "Quartus II Analysis & Synthesis",
             "family": "Cyclone II",
             "logic_elements": None,
@@ -31,116 +29,116 @@ class SynthesisProfiler:
             "dsp_blocks": 0
         }
 
-        if os.path.exists(summary_file):
-            with open(summary_file, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+        if os.path.exists(FileTomTat):
+            with open(FileTomTat, "r", encoding="utf-8", errors="replace") as TepTin:
+                NoiDung = TepTin.read()
 
-            m_fam = re.search(r"Family\s*:\s*([^\n\r]+)", content)
-            if m_fam: metrics["family"] = m_fam.group(1).strip()
+            MauHoChip = re.search(r"Family\s*:\s*([^\n\r]+)", NoiDung)
+            if MauHoChip: ThongSo["family"] = MauHoChip.group(1).strip()
 
-            m_le = re.search(r"Total logic elements\s*:\s*(\d+)", content)
-            if m_le: metrics["logic_elements"] = int(m_le.group(1))
+            MauLe = re.search(r"Total logic elements\s*:\s*(\d+)", NoiDung)
+            if MauLe: ThongSo["logic_elements"] = int(MauLe.group(1))
 
-            m_comb = re.search(r"Total combinational functions\s*:\s*(\d+)", content)
-            if m_comb: metrics["combinational_functions"] = int(m_comb.group(1))
+            MauToHop = re.search(r"Total combinational functions\s*:\s*(\d+)", NoiDung)
+            if MauToHop: ThongSo["combinational_functions"] = int(MauToHop.group(1))
 
-            m_dreg = re.search(r"Dedicated logic registers\s*:\s*(\d+)", content)
-            if m_dreg: metrics["dedicated_registers"] = int(m_dreg.group(1))
+            MauThanhGhiRieng = re.search(r"Dedicated logic registers\s*:\s*(\d+)", NoiDung)
+            if MauThanhGhiRieng: ThongSo["dedicated_registers"] = int(MauThanhGhiRieng.group(1))
 
-            m_treg = re.search(r"Total registers\s*:\s*(\d+)", content)
-            if m_treg: metrics["total_registers"] = int(m_treg.group(1))
+            MauTongThanhGhi = re.search(r"Total registers\s*:\s*(\d+)", NoiDung)
+            if MauTongThanhGhi: ThongSo["total_registers"] = int(MauTongThanhGhi.group(1))
 
-            m_pins = re.search(r"Total pins\s*:\s*(\d+)", content)
-            if m_pins: metrics["total_pins"] = int(m_pins.group(1))
+            MauChan = re.search(r"Total pins\s*:\s*(\d+)", NoiDung)
+            if MauChan: ThongSo["total_pins"] = int(MauChan.group(1))
 
-            m_mem = re.search(r"Total memory bits\s*:\s*(\d+)", content)
-            if m_mem: metrics["memory_bits"] = int(m_mem.group(1))
+            MauBoNho = re.search(r"Total memory bits\s*:\s*(\d+)", NoiDung)
+            if MauBoNho: ThongSo["memory_bits"] = int(MauBoNho.group(1))
 
-            m_dsp = re.search(r"Embedded Multiplier 9-bit elements\s*:\s*(\d+)", content)
-            if m_dsp: metrics["dsp_blocks"] = int(m_dsp.group(1))
+            MauDsp = re.search(r"Embedded Multiplier 9-bit elements\s*:\s*(\d+)", NoiDung)
+            if MauDsp: ThongSo["dsp_blocks"] = int(MauDsp.group(1))
 
-        return metrics
+        return ThongSo
 
     @staticmethod
-    def estimate_static_resources(rtl_file):
-        """Computes accurate AST-based hardware resource estimates when EDA CLI is not available."""
-        if not os.path.exists(rtl_file):
+    def estimate_static_resources(FileRtl):
+        """Ước lượng tĩnh tài nguyên phần cứng từ cây cú pháp RTL khi không có Quartus CLI."""
+        if not os.path.exists(FileRtl):
             return {}
 
-        with open(rtl_file, "r", encoding="utf-8", errors="replace") as f:
-            code = f.read()
+        with open(FileRtl, "r", encoding="utf-8", errors="replace") as TepTin:
+            MaRtl = TepTin.read()
 
-        # Count registers
-        reg_bits = 0
-        reg_matches = re.finditer(r"\breg\s+(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_,\s]+);", code)
-        for m in reg_matches:
-            msb, lsb, names = m.groups()
-            width = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
-            var_count = len([v.strip() for v in names.split(",") if v.strip()])
-            reg_bits += width * var_count
+        # Đếm số bit thanh ghi reg
+        SoBitThanhGhi = 0
+        KhopThanhGhi = re.finditer(r"\breg\s+(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_,\s]+);", MaRtl)
+        for Khop in KhopThanhGhi:
+            Msb, Lsb, DanhSachBien = Khop.groups()
+            DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
+            SoLuongBien = len([Ten.strip() for Ten in DanhSachBien.split(",") if Ten.strip()])
+            SoBitThanhGhi += DoRong * SoLuongBien
 
-        # Count I/O pins
-        pin_bits = 0
-        port_matches = re.finditer(r"\b(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", code)
-        for m in port_matches:
-            _, msb, lsb, _ = m.groups()
-            width = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
-            pin_bits += width
+        # Đếm số chân I/O
+        SoChanVaoRa = 0
+        KhopCong = re.finditer(r"\b(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", MaRtl)
+        for Khop in KhopCong:
+            _, Msb, Lsb, _ = Khop.groups()
+            DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
+            SoChanVaoRa += DoRong
 
-        # Estimate logic elements from operators and registers
-        operator_count = len(re.findall(r"(\+|\-|\*|<<|>>|&|\||\^|==|!=|<|>|<=|>=|\?)", code))
-        estimated_les = max(reg_bits + (operator_count * 2), 4)
+        # Ước lượng Logic Elements dựa trên toán tử logic và thanh ghi
+        SoToanTu = len(re.findall(r"(\+|\-|\*|<<|>>|&|\||\^|==|!=|<|>|<=|>=|\?)", MaRtl))
+        UocLuongLe = max(SoBitThanhGhi + (SoToanTu * 2), 4)
 
         return {
             "source": "VerilogDB Static Structural Estimation",
             "family": "Altera FPGA (Cyclone II Equivalent)",
-            "logic_elements": estimated_les,
-            "combinational_functions": max(operator_count * 2, 2),
-            "dedicated_registers": reg_bits,
-            "total_registers": reg_bits,
-            "total_pins": pin_bits,
+            "logic_elements": UocLuongLe,
+            "combinational_functions": max(SoToanTu * 2, 2),
+            "dedicated_registers": SoBitThanhGhi,
+            "total_registers": SoBitThanhGhi,
+            "total_pins": SoChanVaoRa,
             "virtual_pins": 0,
             "memory_bits": 0,
             "dsp_blocks": 0
         }
 
     @staticmethod
-    def profile_module(q_dir, project_name, primary_rtl):
-        """Unified profiling method combining Quartus report parser with static fallback."""
-        metrics = SynthesisProfiler.parse_quartus_map_summary(q_dir, project_name)
-        if metrics["logic_elements"] is None:
-            metrics = SynthesisProfiler.estimate_static_resources(primary_rtl)
-        return metrics
+    def profile_module(ThuMucQuartus, TenDuAn, FileRtlChinh):
+        """Phương thức đo đạc tổng hợp: ưu tiên báo cáo Quartus, dự phòng ước lượng tĩnh."""
+        ThongSo = SynthesisProfiler.parse_quartus_map_summary(ThuMucQuartus, TenDuAn)
+        if ThongSo["logic_elements"] is None:
+            ThongSo = SynthesisProfiler.estimate_static_resources(FileRtlChinh)
+        return ThongSo
 
     @staticmethod
-    def format_profiler_card(metrics, module_name):
-        """Formats an executive summary card matching VerilogDB (arXiv:2507.13369) standards."""
-        le = metrics.get("logic_elements", 0)
-        ff = metrics.get("total_registers", 0)
-        pins = metrics.get("total_pins", 0)
-        fam = metrics.get("family", "Cyclone II")
-        src = metrics.get("source", "Quartus II Synthesis")
+    def format_profiler_card(ThongSo, TenMach):
+        """Định dạng bảng tổng kết tài nguyên phần cứng."""
+        SoLe = ThongSo.get("logic_elements", 0)
+        SoFf = ThongSo.get("total_registers", 0)
+        SoChan = ThongSo.get("total_pins", 0)
+        HoChip = ThongSo.get("family", "Cyclone II")
+        NguonDo = ThongSo.get("source", "Quartus II Synthesis")
 
-        card = []
-        card.append("+----------------------------------------------------------------------------+")
-        card.append(f"|    HARDWARE SYNTHESIS & RESOURCE UTILIZATION (VerilogDB Standard)         |")
-        card.append("+----------------------------------------------------------------------------+")
-        card.append(f"| Module Entity Name         : {module_name:<45} |")
-        card.append(f"| FPGA Target Device Family  : {fam:<45} |")
-        card.append(f"| Synthesis Metric Source    : {src:<45} |")
-        card.append(f"| Total Logic Elements (LEs) : {str(le) + ' LEs':<45} |")
-        card.append(f"| Total Dedicated Registers  : {str(ff) + ' Flip-Flops (Registers)':<45} |")
-        card.append(f"| Total User I/O Pins        : {str(pins) + ' Pins':<45} |")
-        card.append(f"| Logic Synthesis Status     : {'100% SYNTHESIZABLE (Clean Netlist)':<45} |")
-        card.append("+----------------------------------------------------------------------------+")
-        return "\n".join(card)
+        BangThongTin = []
+        BangThongTin.append("+----------------------------------------------------------------------------+")
+        BangThongTin.append(f"|    THỐNG KÊ TÀI NGUYÊN PHẦN CỨNG VI MẠCH (SYNTHESIS RESOURCE UTILIZATION)  |")
+        BangThongTin.append("+----------------------------------------------------------------------------+")
+        BangThongTin.append(f"| Tên mạch (Module Entity)   : {TenMach:<45} |")
+        BangThongTin.append(f"| Dòng chip FPGA mục tiêu    : {HoChip:<45} |")
+        BangThongTin.append(f"| Nguồn dữ liệu đo đạc       : {NguonDo:<45} |")
+        BangThongTin.append(f"| Tổng phần tử Logic (LEs)   : {str(SoLe) + ' LEs':<45} |")
+        BangThongTin.append(f"| Tổng Flip-Flop (Registers) : {str(SoFf) + ' Flip-Flops (Registers)':<45} |")
+        BangThongTin.append(f"| Tổng chân I/O sử dụng      : {str(SoChan) + ' Pins':<45} |")
+        BangThongTin.append(f"| Khả năng tổng hợp mạch     : {'100% TỔNG HỢP THÀNH CÔNG (Clean Netlist)':<45} |")
+        BangThongTin.append("+----------------------------------------------------------------------------+")
+        return "\n".join(BangThongTin)
 
 if __name__ == "__main__":
-    test_metrics = {
+    ThongSoThu = {
         "logic_elements": 12,
         "total_registers": 3,
         "total_pins": 12,
         "family": "Cyclone II (EP2C35F672C6)",
         "source": "Quartus II Analysis & Synthesis"
     }
-    print(SynthesisProfiler.format_profiler_card(test_metrics, "vending_machine"))
+    print(SynthesisProfiler.format_profiler_card(ThongSoThu, "vending_machine"))

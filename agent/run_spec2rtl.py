@@ -1,13 +1,13 @@
 """
 Module: run_spec2rtl.py
-Description: Master CLI Orchestrator for Spec2RTL & Prompt2Silicon Framework.
-Complete End-to-End Pipeline:
-  1. Natural Language Spec Ingestion (specs/*.txt, specs/*.md)
-  2. Synthesizable Verilog RTL Auto-Generation (src/*.v)
-  3. Automated Self-Checking Testbench Generation (sim/*.v)
-  4. Industrial EDA Simulation & Verification (ModelSim batch flow)
-  5. Quartus Symbol (.bsf) & Schematic (.bdf) Auto-Generation
-  6. Quartus II Project (.qpf/.qsf) Synthesis for RTL Viewer
+Mô tả: Chương trình điều phối tự động quy trình Spec2RTL & Prompt2Silicon.
+Quy trình thực thi hoàn chỉnh:
+  1. Đọc và phân tích yêu cầu đặc tả (specs/*.txt, specs/*.md)
+  2. Tự động sinh mã nguồn Verilog RTL (src/*.v)
+  3. Tự động sinh Testbench tự kiểm tra lỗi (sim/*.v)
+  4. Mô phỏng và phản hồi tự sửa lỗi qua ModelSim / Icarus
+  5. Tự động tạo file Symbol (.bsf) và sơ đồ nguyên lý (.bdf) cho Quartus II
+  6. Tạo dự án Quartus II (.qpf/.qsf) và trích xuất tài nguyên (LE, Flip-Flop, Pin)
 """
 
 import os
@@ -18,7 +18,7 @@ import argparse
 import subprocess
 import shutil
 
-# Force UTF-8 output on Windows consoles to prevent charmap crashes
+# Cấu hình UTF-8 cho console Windows để tránh lỗi hiển thị tiếng Việt
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 if hasattr(sys.stderr, 'reconfigure'):
@@ -40,572 +40,536 @@ from vwf_generator import VWFGenerator
 from waveform_visualizer import WaveformVisualizer
 
 def get_base_dir():
-    """Auto-detects the repository root folder dynamically based on this script's location.
-    Guaranteed to work regardless of clone path, drive letter (C:, D:, E:...), or working directory."""
+    """Tự động xác định thư mục gốc của dự án trên mọi máy tính và hệ điều hành."""
     return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-def get_circuit_quartus_dir(base_dir, top_entity):
-    """Dynamically creates and returns the isolated Quartus directory for the circuit.
-    Sanitizes entity name, ensures all parent directories exist, and is 100% portable across machines."""
-    if not base_dir:
-        base_dir = get_base_dir()
-    clean_name = re.sub(r'[^A-Za-z0-9_]', '_', str(top_entity)).strip('_') or "circuit"
-    quartus_root = os.path.join(os.path.abspath(base_dir), "quartus")
-    os.makedirs(quartus_root, exist_ok=True)
-    q_dir = os.path.join(quartus_root, clean_name)
-    os.makedirs(q_dir, exist_ok=True)
-    return q_dir
+def get_circuit_quartus_dir(ThuMucGoc, TenMach):
+    """Tự động tạo và trả về thư mục riêng cho từng mạch trong quartus/."""
+    if not ThuMucGoc:
+        ThuMucGoc = get_base_dir()
+    TenSach = re.sub(r'[^A-Za-z0-9_]', '_', str(TenMach)).strip('_') or "circuit"
+    GocQuartus = os.path.join(os.path.abspath(ThuMucGoc), "quartus")
+    os.makedirs(GocQuartus, exist_ok=True)
+    ThuMucQuartus = os.path.join(GocQuartus, TenSach)
+    os.makedirs(ThuMucQuartus, exist_ok=True)
+    return ThuMucQuartus
 
-def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
-    """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
-    Ensures BDF can be opened, edited, and synthesized without duplicate declaration errors."""
-    os.makedirs(q_dir, exist_ok=True)
-    qmap_exe = find_quartus_map()
+def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachRtl):
+    """Tự động tạo dự án Quartus, biểu tượng BSF và sơ đồ nguyên lý BDF."""
+    os.makedirs(ThuMucQuartus, exist_ok=True)
+    FileQuartusMap = find_quartus_map()
 
-    # Schematic top entity:
-    # Always isolate schematic top entity with sch_ prefix to prevent Quartus Error 12049 duplicate entity collision
-    schematic_top = f"sch_{top_entity}"
+    TenSoDoTop = f"sch_{TenMach}"
 
-    # Remove any colliding old bdf files if they match top_entity
-    old_colliding_bdf = os.path.join(q_dir, f"{top_entity}.bdf")
-    if os.path.exists(old_colliding_bdf):
-        try: os.remove(old_colliding_bdf)
+    # Xóa file BDF cũ nếu trùng tên để tránh lỗi Quartus 12049
+    FileBdfCu = os.path.join(ThuMucQuartus, f"{TenMach}.bdf")
+    if os.path.exists(FileBdfCu):
+        try: os.remove(FileBdfCu)
         except Exception: pass
 
-    qpf_path = os.path.join(q_dir, f"{project_name}.qpf")
-    qsf_path = os.path.join(q_dir, f"{project_name}.qsf")
-    bsf_path = os.path.join(q_dir, f"{top_entity}.bsf")
-    bdf_path = os.path.join(q_dir, f"{schematic_top}.bdf")
+    FileQpf = os.path.join(ThuMucQuartus, f"{TenDuAn}.qpf")
+    FileQsf = os.path.join(ThuMucQuartus, f"{TenDuAn}.qsf")
+    FileBsf = os.path.join(ThuMucQuartus, f"{TenMach}.bsf")
+    FileBdf = os.path.join(ThuMucQuartus, f"{TenSoDoTop}.bdf")
 
-    # 1. Write Initial QPF & QSF with relative search paths and BDF file registration
-    with open(qpf_path, "w", encoding="utf-8") as f:
-        f.write(f'PROJECT_REVISION = "{project_name}"\n')
+    # 1. Tạo file cấu hình QPF & QSF với đường dẫn tương đối
+    with open(FileQpf, "w", encoding="utf-8") as TepTin:
+        TepTin.write(f'PROJECT_REVISION = "{TenDuAn}"\n')
 
-    qsf_lines = [
+    DongCauHinhQsf = [
         'set_global_assignment -name FAMILY "Cyclone II"',
         'set_global_assignment -name DEVICE EP2C35F672C6',
-        f'set_global_assignment -name TOP_LEVEL_ENTITY "{schematic_top}"',
+        f'set_global_assignment -name TOP_LEVEL_ENTITY "{TenSoDoTop}"',
         'set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"',
         'set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"',
         'set_global_assignment -name SEARCH_PATH "../../src"',
         'set_global_assignment -name SEARCH_PATH "../src"',
         'set_global_assignment -name SEARCH_PATH "."',
-        f'set_global_assignment -name BDF_FILE "{schematic_top}.bdf"',
+        f'set_global_assignment -name BDF_FILE "{TenSoDoTop}.bdf"',
     ]
-    for vf in all_rtl_files:
-        if not os.path.basename(vf).startswith("tb_"):
-            target_v = os.path.join(q_dir, os.path.basename(vf))
-            if os.path.abspath(vf) != os.path.abspath(target_v) and os.path.exists(vf):
-                try: shutil.copy2(vf, target_v)
+    for FileRtl in DanhSachRtl:
+        if not os.path.basename(FileRtl).startswith("tb_"):
+            FileRtlDich = os.path.join(ThuMucQuartus, os.path.basename(FileRtl))
+            if os.path.abspath(FileRtl) != os.path.abspath(FileRtlDich) and os.path.exists(FileRtl):
+                try: shutil.copy2(FileRtl, FileRtlDich)
                 except Exception: pass
-            rel_vf = os.path.basename(vf)
-            qsf_lines.append(f'set_global_assignment -name VERILOG_FILE "{rel_vf}"')
+            TenRtlTuongDoi = os.path.basename(FileRtl)
+            DongCauHinhQsf.append(f'set_global_assignment -name VERILOG_FILE "{TenRtlTuongDoi}"')
 
-    with open(qsf_path, "w", encoding="utf-8") as f:
-        f.write('\n'.join(qsf_lines) + '\n')
+    with open(FileQsf, "w", encoding="utf-8") as TepTin:
+        TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
 
-    # 2. Generate BSF Symbol directly from RTL ports
-    bdf_gen = BDFGenerator()
-    if os.path.exists(primary_rtl):
-        bdf_gen.generate_bsf_from_rtl(primary_rtl, bsf_path)
+    # 2. Sinh Symbol BSF từ cổng RTL
+    BoTaoBdf = BDFGenerator()
+    if os.path.exists(FileRtlChinh):
+        BoTaoBdf.generate_bsf_from_rtl(FileRtlChinh, FileBsf)
 
-    # 3. Generate BDF Diagram from BSF
-    bdf_created = False
-    if os.path.exists(bsf_path):
-        bdf_gen.generate_bdf_from_bsf(bsf_path, bdf_path)
-        bdf_created = True
+    # 3. Sinh sơ đồ nguyên lý BDF từ BSF
+    DaTaoBdf = False
+    if os.path.exists(FileBsf):
+        BoTaoBdf.generate_bdf_from_bsf(FileBsf, FileBdf)
+        DaTaoBdf = True
 
-    # 3.5. Generate Quartus II Vector Waveform File (.vwf)
-    vwf_path = os.path.join(q_dir, "Waveform.vwf")
-    vwf_entity_path = os.path.join(q_dir, f"Waveform_{top_entity}.vwf")
-    vwf_gen = VWFGenerator()
-    if os.path.exists(primary_rtl):
-        vwf_gen.generate_vwf_from_rtl(primary_rtl, vwf_path)
-        try: shutil.copy2(vwf_path, vwf_entity_path)
+    # 3.5. Sinh dạng sóng Quartus VWF
+    FileVwf = os.path.join(ThuMucQuartus, "Waveform.vwf")
+    FileVwfMach = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
+    BoTaoVwf = VWFGenerator()
+    if os.path.exists(FileRtlChinh):
+        BoTaoVwf.generate_vwf_from_rtl(FileRtlChinh, FileVwf)
+        try: shutil.copy2(FileVwf, FileVwfMach)
         except Exception: pass
-        vwf_rel = f"Waveform_{top_entity}.vwf"
-        if not any(f"VECTOR_WAVEFORM_FILE" in l and vwf_rel in l for l in qsf_lines):
-            qsf_lines.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{vwf_rel}"')
-            with open(qsf_path, "w", encoding="utf-8") as f:
-                f.write('\n'.join(qsf_lines) + '\n')
+        TenVwfTuongDoi = f"Waveform_{TenMach}.vwf"
+        if not any(f"VECTOR_WAVEFORM_FILE" in Dong and TenVwfTuongDoi in Dong for Dong in DongCauHinhQsf):
+            DongCauHinhQsf.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{TenVwfTuongDoi}"')
+            with open(FileQsf, "w", encoding="utf-8") as TepTin:
+                TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
 
-    # 4. Final Analysis & Synthesis (clean stale db caches to avoid megafunction port collisions)
-    if qmap_exe and os.path.exists(qmap_exe):
-        for temp_sub in ["db", "incremental_db"]:
-            td = os.path.join(q_dir, temp_sub)
-            if os.path.exists(td):
-                try: shutil.rmtree(td, ignore_errors=True)
+    # 4. Tổng hợp Quartus Map
+    if FileQuartusMap and os.path.exists(FileQuartusMap):
+        for ThuMucTam in ["db", "incremental_db"]:
+            DuongDanTam = os.path.join(ThuMucQuartus, ThuMucTam)
+            if os.path.exists(DuongDanTam):
+                try: shutil.rmtree(DuongDanTam, ignore_errors=True)
                 except Exception: pass
         try:
-            subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True, timeout=60)
+            subprocess.run([FileQuartusMap, TenDuAn, "-c", TenDuAn], cwd=ThuMucQuartus, capture_output=True, timeout=60)
         except Exception as e:
             print(f" -> [Lưu ý EDA]: Quá trình chạy quartus_map gặp cảnh báo: {e}")
-    elif not qmap_exe:
-        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf, sơ đồ {schematic_top}.bdf và sóng Waveform.vwf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")
+    elif not FileQuartusMap:
+        print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {TenDuAn}.qpf, sơ đồ {TenSoDoTop}.bdf và sóng Waveform.vwf đã sẵn sàng để mở trực tiếp trong Quartus II GUI.")
 
-    return qpf_path, bsf_path, bdf_path if bdf_created else None, vwf_path
+    return FileQpf, FileBsf, FileBdf if DaTaoBdf else None, FileVwf
 
-def run_single_spec(spec_path, base_dir=None, open_gui=False, use_harness=False, open_web=False):
-    """Executes the full Spec2RTL pipeline for a single specification file."""
-    if not base_dir:
-        base_dir = get_base_dir()
-    base_dir = os.path.abspath(base_dir)
-    src_dir = os.path.join(base_dir, "src")
-    sim_dir = os.path.join(base_dir, "sim")
-    quartus_root = os.path.join(base_dir, "quartus")
-    os.makedirs(src_dir, exist_ok=True)
-    os.makedirs(sim_dir, exist_ok=True)
-    os.makedirs(quartus_root, exist_ok=True)
-    q_dir = quartus_root
+def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=False, MoTrangWeb=False):
+    """Thực thi toàn bộ quy trình Spec2RTL cho một bài toán đặc tả."""
+    if not ThuMucGoc:
+        ThuMucGoc = get_base_dir()
+    ThuMucGoc = os.path.abspath(ThuMucGoc)
+    ThuMucSrc = os.path.join(ThuMucGoc, "src")
+    ThuMucSim = os.path.join(ThuMucGoc, "sim")
+    ThuMucQuartusGoc = os.path.join(ThuMucGoc, "quartus")
+    os.makedirs(ThuMucSrc, exist_ok=True)
+    os.makedirs(ThuMucSim, exist_ok=True)
+    os.makedirs(ThuMucQuartusGoc, exist_ok=True)
+    ThuMucQuartus = ThuMucQuartusGoc
 
     print("\n" + "=" * 80)
-    print(f"   [PROCESSING SPEC]: {os.path.basename(spec_path)}")
+    print(f"   [XỬ LÝ BÀI TOÁN]: {os.path.basename(DuongDanSpec)}")
     print("=" * 80)
 
-    # Step 1: Read Spec
-    print(f"[Step 1] Ingesting and Parsing Specification...")
-    with open(spec_path, "r", encoding="utf-8", errors="replace") as f:
-        spec_text = f.read()
+    # Bước 1: Đọc và phân tích đặc tả
+    print(f"[Bước 1] Đang đọc và phân tích văn bản đặc tả...")
+    with open(DuongDanSpec, "r", encoding="utf-8", errors="replace") as TepTin:
+        NoiDungSpec = TepTin.read()
     print("-" * 80)
-    print(spec_text.strip()[:350] + ("..." if len(spec_text) > 350 else ""))
+    print(NoiDungSpec.strip()[:350] + ("..." if len(NoiDungSpec) > 350 else ""))
     print("-" * 80)
 
-    # Step 1.5: Hardware Knowledge Base Query & Intent Matching (RAG Engine)
-    print(f"[Step 1.5] Hardware Knowledge Base Query & Intent Matching (RAG Engine)...")
-    kb_matcher = KnowledgeMatcher()
-    matched_entry, match_type, conf, exemplars = kb_matcher.search(spec_text, top_k=3)
-    if matched_entry:
-        print(f" -> Knowledge Base Status: [{match_type}] Match (Confidence: {conf*100:.1f}%)")
-        print(f" -> Source Benchmark    : {matched_entry.get('source', 'Hardware KB')}")
-        print(f" -> Matched Design ID   : {matched_entry.get('id')} ({matched_entry.get('name')})")
-        print(f" -> Circuit Category    : {matched_entry.get('category')}")
-        if exemplars:
-            ex_names = [e.get('name') for e in exemplars if e.get('name') != matched_entry.get('name')]
-            if ex_names:
-                print(f" -> In-Context Exemplars: {', '.join(ex_names[:3])}")
+    # Bước 1.5: Truy vấn cơ sở tri thức phần cứng (RAG)
+    print(f"[Bước 1.5] Truy vấn cơ sở tri thức phần cứng (RAG Engine)...")
+    BoTraCuuKb = KnowledgeMatcher()
+    MucKhop, LoaiKhop, DoTinCay, ViDuTuongDong = BoTraCuuKb.search(NoiDungSpec, top_k=3)
+    if MucKhop:
+        print(f" -> Trạng thái tri thức: [{LoaiKhop}] Khớp (Độ tin cậy: {DoTinCay*100:.1f}%)")
+        print(f" -> Nguồn thiết kế     : {MucKhop.get('source', 'Hardware KB')}")
+        print(f" -> Mã nhận diện       : {MucKhop.get('id')} ({MucKhop.get('name')})")
+        print(f" -> Phân loại vi mạch  : {MucKhop.get('category')}")
+        if ViDuTuongDong:
+            DanhSachViDu = [v.get('name') for v in ViDuTuongDong if v.get('name') != MucKhop.get('name')]
+            if DanhSachViDu:
+                print(f" -> Mẫu thiết kế tương đồng: {', '.join(DanhSachViDu[:3])}")
     else:
-        print(f" -> Knowledge Base Status: [NOVEL SPECIFICATION] - Dynamic Synthesis Mode Active")
+        print(f" -> Trạng thái tri thức: [ĐẶC TẢ MỚI] - Kích hoạt chế độ sinh vi mạch động")
     print("-" * 80)
 
-    # Step 2: Auto-generate RTL and TB if missing
-    print(f"\n[Step 2] Resolving and Generating Synthesizable Verilog & Testbench...")
-    rtl_gen = RTLGenerator(src_dir)
-    tb_gen  = TBGenerator(sim_dir)
+    # Bước 2: Tự động sinh mã RTL và Testbench
+    print(f"\n[Bước 2] Tự động sinh mã nguồn Verilog RTL & Testbench...")
+    BoSinhRtl = RTLGenerator(ThuMucSrc)
+    BoSinhTb  = TBGenerator(ThuMucSim)
 
-    analyzer = SpecAnalyzer(spec_path)
-    cat = analyzer.classify_system()
-    mod_name = analyzer.extract_module_name()
+    BoPhanTich = SpecAnalyzer(DuongDanSpec)
+    PhanLoai = BoPhanTich.classify_system()
+    TenModule = BoPhanTich.extract_module_name()
 
-    # Known system dispatch table (ponytail: eliminates 50 lines of duplicate boilerplate)
-    KNOWN_SYSTEMS = {
-        "VENDING":  ("vending_machine", "Vending_Machine", rtl_gen.generate_vending_machine, tb_gen.generate_vending_tb),
-        "ELEVATOR": ("elevator_controller", "Elevator_Controller", rtl_gen.generate_elevator_controller, tb_gen.generate_elevator_tb),
-        "TRAFFIC":  ("traffic_light", "Traffic_Light", rtl_gen.generate_traffic_light, tb_gen.generate_traffic_tb),
+    BangMachMau = {
+        "VENDING":  ("vending_machine", "Vending_Machine", BoSinhRtl.generate_vending_machine, BoSinhTb.generate_vending_tb),
+        "ELEVATOR": ("elevator_controller", "Elevator_Controller", BoSinhRtl.generate_elevator_controller, BoSinhTb.generate_elevator_tb),
+        "TRAFFIC":  ("traffic_light", "Traffic_Light", BoSinhRtl.generate_traffic_light, BoSinhTb.generate_traffic_tb),
     }
 
-    if cat == "SOC_AI" or analyzer.is_30_percent_architecture():
+    if PhanLoai == "SOC_AI" or BoPhanTich.is_30_percent_architecture():
         print("\n" + "=" * 80)
         print("   [CHIẾN LƯỢC PHÂN TÁCH KIẾN TRÚC]: BÁO HIỆU GIỚI HẠN KIẾN TRÚC PHẦN CỨNG")
-        print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
         print("=" * 80)
         print(" -> [TRẠNG THÁI: TỪ CHỐI TỔNG HỢP NGUYÊN KHỐI / ARCHITECTURAL BOUNDARY]")
-        print(f" -> Phân loại vi mạch: NHÓM VI KIẾN TRÚC CỐT LÕI ({mod_name.upper()} / SOC COMPLEX)")
+        print(f" -> Phân loại vi mạch: NHÓM VI KIẾN TRÚC CỐT LÕI ({TenModule.upper()} / SOC COMPLEX)")
         print("\n[LÝ DO BÁO THẤT BẠI TỰ ĐỘNG]:")
-        print("  1. Theo quy chuẩn công nghiệp vi mạch và Chiến lược phân tách kiến trúc:")
-        print("     Các hệ thống phức tạp (SoC đa phân hệ, AI Accelerator Core, Systolic Array NPU, DMA)")
+        print("  1. Các hệ thống phức tạp (SoC đa phân hệ, AI Accelerator Core, Systolic Array NPU, DMA)")
         print("     tuyệt đối KHÔNG ĐƯỢC sinh nguyên khối (monolithic) chỉ bằng 1 câu prompt.")
-        print("  2. Việc ép sinh nguyên khối sẽ phá vỡ tính phân cấp vi kiến trúc, gây ảo giác timing")
-        print("     và không thể tối ưu hóa vật lý trên FPGA Altera Cyclone II.")
-        print("\n[HƯỚNG DẪN GIẢI PHÁP CHUẨN CÔNG NGHIỆP]:")
-        print("  * Bước 1: Hãy phân tách hệ thống thành các khối linh kiện phổ thông độc lập:")
-        print("            - Khối tính toán: MAC Unit (nhân dồn), ReLU (kích hoạt phi tuyến)")
-        print("            - Khối điều khiển: FSM trạng thái, Vector Counter (bộ đếm vector)")
-        print("            - Khối bộ nhớ & bus: Thanh ghi đệm, RAM 16x4, TriState buffer")
-        print("  * Bước 2: Dùng Spec2RTL tự động sinh từng khối con (xuất file Symbol .bsf).")
-        print("  * Bước 3: Kỹ sư ghép nối các symbol .bsf vào Sơ đồ nguyên lý phân cấp (Quartus BDF).")
+        print("  2. Cần phân tách thành các khối linh kiện phổ thông độc lập (MAC, ReLU, FSM, RAM).")
         print("=" * 80)
         print(">>> [SPEC2RTL STATUS: FAILED (REJECTED BY ARCHITECTURAL BOUNDARY GUARD)] <<<\n")
-        return False, 0.0, mod_name, None, {}
+        return False, 0.0, TenModule, None, {}
 
-    elif cat in KNOWN_SYSTEMS:
-        top_entity, project_name, gen_rtl, gen_tb = KNOWN_SYSTEMS[cat]
-        q_dir = get_circuit_quartus_dir(base_dir, top_entity)
-        top_name = f"tb_{top_entity}"
-        v_file = os.path.join(src_dir, f"{top_entity}.v")
-        tb_file = os.path.join(sim_dir, f"{top_name}.v")
-        if not os.path.exists(v_file):
-            gen_rtl(spec_text)
-            print(f" -> [Auto-Gen] Synthesized: src/{top_entity}.v")
-        if not os.path.exists(tb_file):
-            gen_tb()
-            print(f" -> [Auto-Gen] Synthesized: sim/{top_name}.v")
-        verilog_files, rtl_files, primary_rtl = [v_file, tb_file], [v_file], v_file
+    elif PhanLoai in BangMachMau:
+        TenMach, TenDuAn, HamSinhRtl, HamSinhTb = BangMachMau[PhanLoai]
+        ThuMucQuartus = get_circuit_quartus_dir(ThuMucGoc, TenMach)
+        TenModuleTb = f"tb_{TenMach}"
+        FileRtl = os.path.join(ThuMucSrc, f"{TenMach}.v")
+        FileTb = os.path.join(ThuMucSim, f"{TenModuleTb}.v")
+        if not os.path.exists(FileRtl):
+            HamSinhRtl(NoiDungSpec)
+            print(f" -> [Auto-Gen] Đã sinh RTL: src/{TenMach}.v")
+        if not os.path.exists(FileTb):
+            HamSinhTb()
+            print(f" -> [Auto-Gen] Đã sinh TB : sim/{TenModuleTb}.v")
+        DanhSachVerilog, DanhSachFileRtl, FileRtlChinh = [FileRtl, FileTb], [FileRtl], FileRtl
 
     else:
-        # AUTONOMOUS GENERAL SPEC2RTL SYNTHESIS FOR ANY CUSTOM / RANDOM SPEC
-        top_entity = mod_name
-        top_name = f"tb_{top_entity}"
-        project_name = "".join(part.capitalize() for part in top_entity.split("_"))
-        q_dir = get_circuit_quartus_dir(base_dir, top_entity)
-        v_file = os.path.join(src_dir, f"{top_entity}.v")
-        tb_file = os.path.join(sim_dir, f"{top_name}.v")
+        # Tự động sinh mã cho bài toán tùy ý
+        TenMach = TenModule
+        TenModuleTb = f"tb_{TenMach}"
+        TenDuAn = "".join(Tu.capitalize() for Tu in TenMach.split("_"))
+        ThuMucQuartus = get_circuit_quartus_dir(ThuMucGoc, TenMach)
+        FileRtl = os.path.join(ThuMucSrc, f"{TenMach}.v")
+        FileTb = os.path.join(ThuMucSim, f"{TenModuleTb}.v")
 
-        # Clean any stale artifacts and force fresh synthesis
-        for stale_f in [os.path.join(q_dir, f"{top_entity}.bsf"), os.path.join(q_dir, f"{top_entity}.bdf"), os.path.join(q_dir, f"top_{top_entity}.bdf"), os.path.join(q_dir, f"sch_{top_entity}.bdf")]:
-            if os.path.exists(stale_f):
-                try: os.remove(stale_f)
+        # Xóa các file cũ nếu có
+        for FileCu in [os.path.join(ThuMucQuartus, f"{TenMach}.bsf"), os.path.join(ThuMucQuartus, f"{TenMach}.bdf"), os.path.join(ThuMucQuartus, f"top_{TenMach}.bdf"), os.path.join(ThuMucQuartus, f"sch_{TenMach}.bdf")]:
+            if os.path.exists(FileCu):
+                try: os.remove(FileCu)
                 except Exception: pass
 
-        # Always synthesize fresh RTL from spec
-        _, v_file = rtl_gen.generate_from_spec(spec_text, spec_path)
-        print(f" -> [Auto-Gen Dynamic RTL] Synthesized: src/{os.path.basename(v_file)}")
+        _, FileRtl = BoSinhRtl.generate_from_spec(NoiDungSpec, DuongDanSpec)
+        print(f" -> [Auto-Gen Dynamic RTL] Đã sinh: src/{os.path.basename(FileRtl)}")
 
-        # Always synthesize fresh Testbench
-        _, tb_file = tb_gen.generate_tb_from_spec(spec_text, v_file, spec_path)
-        print(f" -> [Auto-Gen Dynamic TB] Synthesized: sim/{os.path.basename(tb_file)}")
+        _, FileTb = BoSinhTb.generate_tb_from_spec(NoiDungSpec, FileRtl, DuongDanSpec)
+        print(f" -> [Auto-Gen Dynamic TB] Đã sinh: sim/{os.path.basename(FileTb)}")
 
-        # Auto-generate Standardized Verilog Hardware Test Harness (Option A)
-        h_file = None
+        FileHarness = None
         try:
-            harness_gen = HarnessGenerator(sim_dir)
-            h_name, h_file = harness_gen.generate_harness(v_file)
-            print(f" -> [Auto-Gen Option A Harness] Synthesized: sim/{os.path.basename(h_file)}")
+            BoSinhHarness = HarnessGenerator(ThuMucSim)
+            TenHarness, FileHarness = BoSinhHarness.generate_harness(FileRtl)
+            print(f" -> [Auto-Gen Option A Harness] Đã sinh: sim/{os.path.basename(FileHarness)}")
         except Exception as e:
             print(f" -> [Harness Notice]: {e}")
 
-        if use_harness and h_file and os.path.exists(h_file):
-            verilog_files = [v_file, h_file]
-            print(f" -> [Test Harness Mode Active]: Simulating target with '{h_name}'")
+        if DungHarness and FileHarness and os.path.exists(FileHarness):
+            DanhSachVerilog = [FileRtl, FileHarness]
+            print(f" -> [Chế độ Test Harness]: Mô phỏng với '{TenHarness}'")
         else:
-            verilog_files = [v_file, tb_file]
+            DanhSachVerilog = [FileRtl, FileTb]
 
-        rtl_files = [v_file]
-        primary_rtl = v_file
+        DanhSachFileRtl = [FileRtl]
+        FileRtlChinh = FileRtl
 
-    # Ensure top_entity and top_name match the actual declarations in Verilog files
-    if primary_rtl and os.path.exists(primary_rtl):
-        with open(primary_rtl, "r", encoding="utf-8", errors="replace") as f:
-            m_ent = re.search(r"module\s+([A-Za-z0-9_]+)", f.read())
-            if m_ent and not m_ent.group(1).startswith("tb_") and not m_ent.group(1).startswith("harness_"):
-                top_entity = m_ent.group(1)
-                project_name = "".join(part.capitalize() for part in top_entity.split("_"))
-                q_dir = get_circuit_quartus_dir(base_dir, top_entity)
+    # Đảm bảo TenMach và TenModuleTb khớp chính xác với khai báo module Verilog
+    if FileRtlChinh and os.path.exists(FileRtlChinh):
+        with open(FileRtlChinh, "r", encoding="utf-8", errors="replace") as TepTin:
+            NoiDungRtl = re.sub(r"//.*", "", TepTin.read())
+            NoiDungRtl = re.sub(r"/\*.*?\*/", "", NoiDungRtl, flags=re.DOTALL)
+            KhopModule = re.search(r"\bmodule\s+([A-Za-z0-9_]+)", NoiDungRtl)
+            if KhopModule and not KhopModule.group(1).startswith("tb_") and not KhopModule.group(1).startswith("harness_"):
+                TenMach = KhopModule.group(1)
+                TenDuAn = "".join(Tu.capitalize() for Tu in TenMach.split("_"))
+                ThuMucQuartus = get_circuit_quartus_dir(ThuMucGoc, TenMach)
 
-    for vf in verilog_files:
-        if (os.path.basename(vf).startswith("tb_") or os.path.basename(vf).startswith("harness_")) and os.path.exists(vf):
-            with open(vf, "r", encoding="utf-8", errors="replace") as f:
-                m_tb = re.search(r"module\s+([A-Za-z0-9_]+)", f.read())
-                if m_tb:
-                    top_name = m_tb.group(1)
+    for FileV in DanhSachVerilog:
+        if (os.path.basename(FileV).startswith("tb_") or os.path.basename(FileV).startswith("harness_")) and os.path.exists(FileV):
+            with open(FileV, "r", encoding="utf-8", errors="replace") as TepTin:
+                NoiDungTb = re.sub(r"//.*", "", TepTin.read())
+                NoiDungTb = re.sub(r"/\*.*?\*/", "", NoiDungTb, flags=re.DOTALL)
+                KhopTb = re.search(r"\bmodule\s+([A-Za-z0-9_]+)", NoiDungTb)
+                if KhopTb:
+                    TenModuleTb = KhopTb.group(1)
 
-    print(f" -> Active design files ({len(verilog_files)}):")
-    for f in verilog_files:
-        print(f"    * {os.path.basename(f)}")
+    print(f" -> Danh sách file thiết kế ({len(DanhSachVerilog)}):")
+    for FileV in DanhSachVerilog:
+        print(f"    * {os.path.basename(FileV)}")
 
-    # Step 2.5: VerilogDB Static Pre-Synthesis Analysis & Linting
-    print(f"\n[Step 2.5] Executing VerilogDB Static Linting & Syntax Pre-Validation...")
-    for vf in verilog_files:
-        VerilogLinter.sanitize_file(vf)
-    print(f" -> [VerilogDB Linter]: All {len(verilog_files)} design files verified and sanitized.")
+    # Bước 2.5: Kiểm tra và dọn dẹp cú pháp Verilog
+    print(f"\n[Bước 2.5] Kiểm tra và dọn dẹp cú pháp Verilog (VerilogLinter)...")
+    for FileV in DanhSachVerilog:
+        VerilogLinter.sanitize_file(FileV)
+    print(f" -> [VerilogLinter]: Toàn bộ {len(DanhSachVerilog)} file đã được kiểm tra và chuẩn hóa.")
 
-    # Step 3: Simulation & Verification with VeriPrefer Closed-Loop Reflection
-    print(f"\n[Step 3] Invoking EDA Simulation with Closed-Loop Reflection (VeriPrefer Framework)...")
-    sim = EDASimulator(sim_dir)
-    reflector = ReflectionAgent(sim)
+    # Bước 3: Mô phỏng và phản hồi tự sửa lỗi (Reflection Loop)
+    print(f"\n[Bước 3] Chạy mô phỏng EDA với vòng lặp tự phản hồi (Reflection Loop)...")
+    BoMoPhong = EDASimulator(ThuMucSim)
+    BoPhanHoi = ReflectionAgent(BoMoPhong)
 
-    start_t = time.time()
-    result = reflector.execute_closed_loop_flow(verilog_files, top_module=top_name, max_retries=3)
-    elapsed = time.time() - start_t
+    ThoiGianBatDau = time.time()
+    KetQuaMoPhong = BoPhanHoi.execute_closed_loop_flow(DanhSachVerilog, top_module=TenModuleTb, max_retries=3)
+    ThoiGianChay = time.time() - ThoiGianBatDau
 
     print("\n" + "-" * 80)
-    print("   SIMULATION TRANSCRIPT OUTPUT")
+    print("   KẾT QUẢ MÔ PHỎNG (SIMULATION LOG)")
     print("-" * 80)
-    print(result.get("log", "").strip())
+    print(KetQuaMoPhong.get("log", "").strip())
     print("-" * 80)
 
-    # Step 4: Auto-generate BSF, BDF, VWF, and Quartus Project
-    print(f"\n[Step 4] Auto-generating Schematic BSF, BDF, Waveform VWF & Quartus Project...")
-    qpf_path, bsf_path, bdf_path, vwf_path = setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, rtl_files)
-    print(f" -> Quartus Project created: {qpf_path}")
-    print(f" -> Symbol File (.bsf):      {bsf_path}")
-    if bdf_path:
-        print(f" -> Schematic Diagram (.bdf): {bdf_path}")
-    if vwf_path and os.path.exists(vwf_path):
-        print(f" -> Quartus Waveform (.vwf):  {vwf_path}")
+    # Bước 4: Tự động sinh Symbol BSF, sơ đồ BDF, sóng VWF và Dự án Quartus
+    print(f"\n[Bước 4] Tự động tạo Symbol BSF, Sơ đồ BDF, Sóng VWF & Dự án Quartus...")
+    FileQpf, FileBsf, FileBdf, FileVwf = setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachFileRtl)
+    print(f" -> Dự án Quartus (.qpf) : {FileQpf}")
+    print(f" -> Ký hiệu Symbol (.bsf): {FileBsf}")
+    if FileBdf:
+        print(f" -> Sơ đồ mạch (.bdf)    : {FileBdf}")
+    if FileVwf and os.path.exists(FileVwf):
+        print(f" -> Dạng sóng (.vwf)     : {FileVwf}")
 
-    # Step 4.2: RTL & Schematic Port Integrity Audit (Zero-Defect Invariant)
-    print(f"\n[Step 4.2] Executing EDA Schematic & Port Integrity Audit...")
-    spec_ports = analyzer.extract_ports()
-    PortAuditor.audit(spec_ports, primary_rtl, bsf_path, bdf_path)
+    # Bước 4.2: Đối soát cổng tín hiệu
+    print(f"\n[Bước 4.2] Đối soát tính toàn vẹn cổng tín hiệu...")
+    DanhSachCongSpec = BoPhanTich.extract_ports()
+    PortAuditor.audit(DanhSachCongSpec, FileRtlChinh, FileBsf, FileBdf)
 
-    # Simulation waveform trace
-    vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
+    FileVcd = os.path.join(ThuMucSim, f"{TenMach}.vcd")
 
-    modelsim_info = find_modelsim()
-    m_bin = modelsim_info.get("bin_dir") if modelsim_info else ""
+    ThongTinModelSim = find_modelsim()
+    ThuMucBinModelSim = ThongTinModelSim.get("bin_dir") if ThongTinModelSim else ""
 
-    if open_gui and m_bin:
-        print(f"\n[ModelSim GUI]: Đang khởi động cửa sổ sóng đồ họa trên màn hình...")
-        vsim_exe = os.path.join(m_bin, "vsim.exe")
-        subprocess.Popen([vsim_exe, "-novopt", f"work.{top_name}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=sim_dir)
+    if MoGiaoDien and ThuMucBinModelSim:
+        print(f"\n[ModelSim GUI]: Đang khởi động giao diện sóng ModelSim...")
+        FileVsimExe = os.path.join(ThuMucBinModelSim, "vsim.exe")
+        subprocess.Popen([FileVsimExe, "-novopt", f"work.{TenModuleTb}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=ThuMucSim)
 
-    # Step 4.5: VerilogDB Hardware Synthesis & Resource Utilization Profiling
-    print(f"\n[Step 4.5] Profiling Hardware Synthesis Resource Footprint (VerilogDB Standard)...")
-    metrics = SynthesisProfiler.profile_module(q_dir, project_name, primary_rtl)
-    print(SynthesisProfiler.format_profiler_card(metrics, top_entity))
+    # Bước 4.5: Đo đạc tài nguyên phần cứng
+    print(f"\n[Bước 4.5] Đo đạc mức độ tiêu thụ tài nguyên phần cứng...")
+    ThongSoTaiNguyen = SynthesisProfiler.profile_module(ThuMucQuartus, TenDuAn, FileRtlChinh)
+    print(SynthesisProfiler.format_profiler_card(ThongSoTaiNguyen, TenMach))
 
-    # Step 5: Verification Judgment
-    if result["success"]:
-        print(f"\n>>> [SPEC2RTL STATUS: SUCCESS (100% PASS)] <<<")
-        print(f"Execution Time: {elapsed:.2f} seconds")
-        print(f"Simulation waveform dumped in: {sim_dir}")
-        print("\n[Available Visual Inspection Formats]:")
-        if bdf_path:
-            print(f" 1. BDF Schematic : Open Quartus II -> {bdf_path}")
-        if vwf_path and os.path.exists(vwf_path):
-            vwf_entity = os.path.join(q_dir, f"Waveform_{top_entity}.vwf")
-            print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_entity} (hoặc {vwf_path})")
-        print(f" 3. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
-        print(f" 4. Raw VCD Data  : {vcd_path}")
-        return True, elapsed, top_entity, bdf_path, metrics
+    # Bước 5: Đánh giá kết quả
+    if KetQuaMoPhong["success"]:
+        print(f"\n>>> [SPEC2RTL STATUS: THÀNH CÔNG (100% PASS)] <<<")
+        print(f"Thời gian thực thi: {ThoiGianChay:.2f} giây")
+        print(f"Thư mục dạng sóng mô phỏng: {ThuMucSim}")
+        print("\n[Các định dạng trực quan sẵn có]:")
+        if FileBdf:
+            print(f" 1. Sơ đồ BDF   : Mở Quartus II -> {FileBdf}")
+        if FileVwf and os.path.exists(FileVwf):
+            FileVwfMachRieng = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
+            print(f" 2. Dạng sóng VWF: Mở Quartus II -> {FileVwfMachRieng} (hoặc {FileVwf})")
+        print(f" 3. RTL Viewer  : Mở Quartus II -> {FileQpf} -> Tools -> Netlist Viewers -> RTL Viewer")
+        print(f" 4. Dữ liệu VCD : {FileVcd}")
+        return True, ThoiGianChay, TenMach, FileBdf, ThongSoTaiNguyen
     else:
-        print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")
-        diagnosis = reflector.diagnose_error(result)
-        print(f"Failure Stage: {diagnosis['stage']}")
-        print(f"Category: {diagnosis['category']}")
-        print(f"Root Cause: {diagnosis['root_cause']}")
-        print(f"Suggested Fix: {diagnosis['suggested_fix']}")
-        # VeriPrefer Reflection Self-Healing Guidance
-        refl_guidance = kb_matcher.get_reflection_guidance(result.get("log", ""))
-        if refl_guidance:
-            print("\n" + "=" * 80)
-            print("   [VeriPrefer Reflection Guidance (arXiv:2504.15804)]")
-            print("=" * 80)
-            for r in refl_guidance:
-                print(f" * Error Pattern: {r['error_type']}")
-                print(f"   Diagnosis    : {r['diagnosis']}")
-                print(f"   Remedy       : {r['remedy']}")
-            print("=" * 80)
-        return False, elapsed, top_entity, None, metrics
+        print(f"\n>>> [SPEC2RTL STATUS: THẤT BẠI] <<<")
+        ChanDoan = BoPhanHoi.diagnose_error(KetQuaMoPhong)
+        print(f"Giai đoạn lỗi: {ChanDoan['stage']}")
+        print(f"Phân loại lỗi: {ChanDoan['category']}")
+        print(f"Nguyên nhân  : {ChanDoan['root_cause']}")
+        print(f"Hướng xử lý  : {ChanDoan['suggested_fix']}")
+        return False, ThoiGianChay, TenMach, None, ThongSoTaiNguyen
 
-def get_spec_description(filename, specs_dir=None):
-    """Returns friendly description for available specs (delegates to SpecAnalyzer)."""
-    full_path = os.path.join(specs_dir, filename) if specs_dir else filename
+def get_spec_description(TenFile, ThuMucSpecs=None):
+    """Lấy mô tả ngắn gọn dễ hiểu cho bài toán."""
+    DuongDanDayDu = os.path.join(ThuMucSpecs, TenFile) if ThuMucSpecs else TenFile
     try:
-        return SpecAnalyzer(full_path).get_friendly_description()
+        return SpecAnalyzer(DuongDanDayDu).get_friendly_description()
     except Exception:
-        return "Custom Hardware Specification"
+        return "Bài toán thiết kế vi mạch tùy chỉnh"
 
-def get_benchmark_suites(base_dir):
-    """Discovers and organizes available benchmark specs across the 3 datasets."""
-    bm_root = os.path.join(base_dir, "benchmarks")
-    suites = {
+def get_benchmark_suites(ThuMucGoc):
+    """Tìm kiếm các bộ kiểm thử benchmark trong thư mục benchmarks/."""
+    ThuMucBenchmark = os.path.join(ThuMucGoc, "benchmarks")
+    BoKiemThu = {
         "verilog_eval": {"name": "VerilogEval (NVIDIA Research)", "specs": []},
         "rtllm":        {"name": "RTLLM (HKUST Benchmark)", "specs": []},
-        "veriprefer":   {"name": "VeriPrefer (CityU HK - arXiv:2504.15804)", "specs": []}
+        "veriprefer":   {"name": "VeriPrefer (CityU HK)", "specs": []}
     }
-    if os.path.exists(bm_root):
-        for s_key in suites.keys():
-            s_dir = os.path.join(bm_root, s_key)
-            if os.path.exists(s_dir):
-                files = sorted([os.path.join(s_dir, f) for f in os.listdir(s_dir) if f.endswith(".md") or f.endswith(".txt")])
-                suites[s_key]["specs"] = files
-    return suites
+    if os.path.exists(ThuMucBenchmark):
+        for Khoa in BoKiemThu.keys():
+            ThuMucBo = os.path.join(ThuMucBenchmark, Khoa)
+            if os.path.exists(ThuMucBo):
+                DanhSachFile = sorted([os.path.join(ThuMucBo, f) for f in os.listdir(ThuMucBo) if f.endswith(".md") or f.endswith(".txt")])
+                BoKiemThu[Khoa]["specs"] = DanhSachFile
+    return BoKiemThu
 
-def run_benchmark_suite(target_suite, base_dir):
-    """Executes benchmarks across specified suites and outputs a grouped academic report."""
-    suites = get_benchmark_suites(base_dir)
-    to_run = []
-    if target_suite in ["all", "benchmark", "b"]:
-        for k, v in suites.items():
-            for sp in v["specs"]:
-                to_run.append((k, v["name"], sp))
-    elif target_suite in suites:
-        for sp in suites[target_suite]["specs"]:
-            to_run.append((target_suite, suites[target_suite]["name"], sp))
+def run_benchmark_suite(TenBoKiemThu, ThuMucGoc):
+    """Chạy toàn bộ bài toán kiểm thử trong bộ benchmark."""
+    BoKiemThu = get_benchmark_suites(ThuMucGoc)
+    DanhSachChay = []
+    if TenBoKiemThu in ["all", "benchmark", "b"]:
+        for Khoa, GiaTri in BoKiemThu.items():
+            for DuongDan in GiaTri["specs"]:
+                DanhSachChay.append((Khoa, GiaTri["name"], DuongDan))
+    elif TenBoKiemThu in BoKiemThu:
+        for DuongDan in BoKiemThu[TenBoKiemThu]["specs"]:
+            DanhSachChay.append((TenBoKiemThu, BoKiemThu[TenBoKiemThu]["name"], DuongDan))
     else:
-        print(f"[ERROR] Unknown benchmark suite: '{target_suite}'. Available: 'all', 'verilog_eval', 'rtllm', 'veriprefer'.")
+        print(f"[ERROR] Không tìm thấy bộ benchmark: '{TenBoKiemThu}'.")
         return False
 
     print("\n" + "=" * 110)
-    print(f"   STARTING MULTI-DATASET HARDWARE BENCHMARK EXECUTION ({len(to_run)} DESIGNS)")
-    print("   Datasets: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer")
+    print(f"   BẮT ĐẦU CHẠY KIỂM THỬ BENCHMARK ({len(DanhSachChay)} THIẾT KẾ)")
     print("=" * 110 + "\n")
 
-    results = []
-    total_passed = 0
-    for s_key, s_name, sp in to_run:
-        success, elapsed, entity, bdf, metrics = run_single_spec(sp, base_dir)
-        results.append((s_key, os.path.basename(sp), entity, success, elapsed, metrics))
-        if success:
-            total_passed += 1
+    BangKetQua = []
+    TongSoPass = 0
+    for Khoa, TenBo, DuongDan in DanhSachChay:
+        ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDan, ThuMucGoc)
+        BangKetQua.append((Khoa, os.path.basename(DuongDan), ThucThe, ThanhCong, ThoiGian, ChiSo))
+        if ThanhCong:
+            TongSoPass += 1
 
-    # Print Grouped Summary Table
     print("\n" + "=" * 115)
-    print("                  MULTI-DATASET ACADEMIC HARDWARE BENCHMARK & SYNTHESIS REPORT")
-    print("                  Datasets: NVIDIA VerilogEval, HKUST RTLLM, CityU HK VeriPrefer")
+    print("                  BẢNG TỔNG KẾT KẾT QUẢ ĐO ĐẠC BENCHMARK")
     print("=" * 115)
-    print(f"{'Dataset / Suite':<18} | {'Specification File':<26} | {'Top Entity':<22} | {'Logic (LEs)':<12} | {'Regs (FF)':<11} | {'Status':<10}")
+    print(f"{'Bộ Benchmark':<18} | {'File bài toán':<26} | {'Tên Entity':<22} | {'Logic (LEs)':<12} | {'Regs (FF)':<11} | {'Trạng thái':<10}")
     print("-" * 115)
 
-    curr_suite = None
-    for s_key, fname, ent, succ, elap, m in results:
-        if s_key != curr_suite:
-            curr_suite = s_key
-            print(f"--- [SUITE: {suites[s_key]['name']}] ---")
-        status_str = "100% PASS" if succ else "FAILED"
-        les_str = f"{m.get('logic_elements', '-')} LEs"
-        ff_str  = f"{m.get('total_registers', '-')} FFs"
-        print(f"{s_key:<18} | {fname:<26} | {ent:<22} | {les_str:<12} | {ff_str:<11} | {status_str:<10}")
+    BoHienTai = None
+    for Khoa, TenFile, ThucThe, ThanhCong, ThoiGian, ChiSo in BangKetQua:
+        if Khoa != BoHienTai:
+            BoHienTai = Khoa
+            print(f"--- [BỘ: {BoKiemThu[Khoa]['name']}] ---")
+        ChuoiTrangThai = "100% PASS" if ThanhCong else "FAILED"
+        ChuoiLe = f"{ChiSo.get('logic_elements', '-')} LEs"
+        ChuoiFf  = f"{ChiSo.get('total_registers', '-')} FFs"
+        print(f"{Khoa:<18} | {TenFile:<26} | {ThucThe:<22} | {ChuoiLe:<12} | {ChuoiFf:<11} | {ChuoiTrangThai:<10}")
 
     print("=" * 115)
-    pass_pct = (total_passed * 100.0) / len(to_run) if to_run else 0.0
-    print(f"BENCHMARK OUTCOME: {total_passed}/{len(to_run)} PASSED ({pass_pct:.1f}% SUCCESS RATE)")
+    TiLePass = (TongSoPass * 100.0) / len(DanhSachChay) if DanhSachChay else 0.0
+    print(f"KẾT QUẢ: {TongSoPass}/{len(DanhSachChay)} BÀI ĐẠT CHUẨN ({TiLePass:.1f}% THÀNH CÔNG)")
     print("=" * 115)
-    return total_passed == len(to_run)
+    return TongSoPass == len(DanhSachChay)
 
 def main():
-    base_dir  = get_base_dir()
-    specs_dir = os.path.join(base_dir, "specs")
+    ThuMucGoc = get_base_dir()
+    ThuMucSpecs = os.path.join(ThuMucGoc, "specs")
 
     print("=" * 80)
-    print("   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline")
-    print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
-    print("   Pipeline Flow: SPEC -> GENERATE -> REVIEW -> SHIP")
+    print("   HỆ THỐNG TỰ ĐỘNG THIẾT KẾ VI MẠCH SPEC2RTL & PROMPT2SILICON")
+    print("   Quy trình: YÊU CẦU -> SINH MÃ -> MÔ PHỎNG -> XUẤT SƠ ĐỒ QUARTUS")
     print("=" * 80)
 
-    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".txt") or f.endswith(".md")])
-    bm_suites = get_benchmark_suites(base_dir)
+    DanhSachSpecs = sorted([f for f in os.listdir(ThuMucSpecs) if f.endswith(".txt") or f.endswith(".md")])
+    BoTienIch = get_benchmark_suites(ThuMucGoc)
 
-    # Parse arguments: support positional ('python run_spec2rtl.py benchmark', 'all', '1') and flags
-    parser = argparse.ArgumentParser(description="Spec2RTL & Prompt2Silicon Autonomous Pipeline")
-    parser.add_argument("spec_pos", nargs="?", default=None, help="Spec name, number, 'all', or 'benchmark'")
-    parser.add_argument("--spec", dest="spec_flag", default=None, help="Name, number, or 'all'")
-    parser.add_argument("--all", action="store_true", help="Run all available core specifications")
-    parser.add_argument("--gui", action="store_true", help="Automatically launch ModelSim Graphical Waveform Viewer on completion")
-    parser.add_argument("--web", action="store_true", help="Automatically open interactive HTML waveform in browser on completion")
-    parser.add_argument("--harness", action="store_true", help="Execute simulation using the standardized Option A Verilog Hardware Test Harness")
-    parser.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Run benchmark suite: 'all', 'verilog_eval', 'rtllm', 'veriprefer'")
-    args = parser.parse_args()
+    BoPhanTichThamSo = argparse.ArgumentParser(description="Hệ thống tự động Spec2RTL")
+    BoPhanTichThamSo.add_argument("spec_pos", nargs="?", default=None, help="Tên spec, số thứ tự hoặc 'all'")
+    BoPhanTichThamSo.add_argument("--spec", dest="spec_flag", default=None, help="Tên spec hoặc số")
+    BoPhanTichThamSo.add_argument("--all", action="store_true", help="Chạy tất cả bài toán trong specs/")
+    BoPhanTichThamSo.add_argument("--gui", action="store_true", help="Mở giao diện sóng đồ họa ModelSim")
+    BoPhanTichThamSo.add_argument("--web", action="store_true", help="Mở dạng sóng trên trình duyệt")
+    BoPhanTichThamSo.add_argument("--harness", action="store_true", help="Sử dụng Test Harness")
+    BoPhanTichThamSo.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Chạy bộ benchmark")
+    ThamSo = BoPhanTichThamSo.parse_args()
 
-    user_input = args.spec_flag or args.spec_pos
+    LuaChonDauVao = ThamSo.spec_flag or ThamSo.spec_pos
 
-    SUITE_MAP = {
+    BangChon = {
         "benchmark": "all", "benchmarks": "all", "bm": "all",
         "b1": "verilog_eval", "verilog_eval": "verilog_eval",
         "b2": "rtllm", "rtllm": "rtllm",
         "b3": "veriprefer", "veriprefer": "veriprefer",
     }
 
-    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
-    has_spec_b = any(s.lower() in ["b", "b.txt", "b.md"] for s in available_specs)
+    CoSpecA = any(s.lower() in ["a", "a.txt", "a.md"] for s in DanhSachSpecs)
 
-    # Check for benchmark execution (CLI flags or arguments)
-    target_bm = args.benchmark_suite
-    if not target_bm and user_input:
-        u_low = user_input.lower()
-        if u_low in SUITE_MAP:
-            target_bm = user_input
+    BoBenchmarkChon = ThamSo.benchmark_suite
+    if not BoBenchmarkChon and LuaChonDauVao:
+        ChuThuong = LuaChonDauVao.lower()
+        if ChuThuong in BangChon:
+            BoBenchmarkChon = LuaChonDauVao
 
-    if target_bm:
-        suite_id = SUITE_MAP.get(target_bm.lower(), target_bm.lower())
-        sys.exit(0 if run_benchmark_suite(suite_id, base_dir) else 1)
-    if user_input and user_input.lower() == "all":
-        run_all_mode = True
-    elif user_input and user_input.lower() == "a" and not has_spec_a:
-        run_all_mode = True
-    elif args.all:
-        run_all_mode = True
+    if BoBenchmarkChon:
+        MaBo = BangChon.get(BoBenchmarkChon.lower(), BoBenchmarkChon.lower())
+        sys.exit(0 if run_benchmark_suite(MaBo, ThuMucGoc) else 1)
+    if LuaChonDauVao and LuaChonDauVao.lower() == "all":
+        CheDoChayTatCa = True
+    elif LuaChonDauVao and LuaChonDauVao.lower() == "a" and not CoSpecA:
+        CheDoChayTatCa = True
+    elif ThamSo.all:
+        CheDoChayTatCa = True
     else:
-        run_all_mode = False
+        CheDoChayTatCa = False
 
-    if not user_input and not args.all:
+    if not LuaChonDauVao and not ThamSo.all:
         print("\n[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:")
-        for idx, s in enumerate(available_specs):
-            desc = get_spec_description(s, specs_dir)
-            print(f"  [{idx+1}] {s:<22} -> {desc}")
-        print(f"  [ALL] Chạy TẤT CẢ ({len(available_specs)} bài toán lần lượt)")
+        for ChiSo, TenTep in enumerate(DanhSachSpecs):
+            MoTa = get_spec_description(TenTep, ThuMucSpecs)
+            print(f"  [{ChiSo+1}] {TenTep:<22} -> {MoTa}")
+        print(f"  [ALL] Chạy TẤT CẢ ({len(DanhSachSpecs)} bài toán lần lượt)")
 
-        # Interactive selection
         try:
-            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, ALL, mặc định: ALL]: ").strip()
+            LuaChon = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(DanhSachSpecs)}, ALL, mặc định: ALL]: ").strip()
         except (EOFError, KeyboardInterrupt):
-            choice = "ALL"
+            LuaChon = "ALL"
 
-        if choice == "" or choice.lower() == "all" or (choice.lower() == "a" and not has_spec_a):
-            run_all_mode = True
-        elif choice.lower() in SUITE_MAP:
-            sys.exit(0 if run_benchmark_suite(SUITE_MAP[choice.lower()], base_dir) else 1)
+        if LuaChon == "" or LuaChon.lower() == "all" or (LuaChon.lower() == "a" and not CoSpecA):
+            CheDoChayTatCa = True
+        elif LuaChon.lower() in BangChon:
+            sys.exit(0 if run_benchmark_suite(BangChon[LuaChon.lower()], ThuMucGoc) else 1)
         else:
-            user_input = choice
+            LuaChonDauVao = LuaChon
 
-    # Case 1: Run ALL specs
-    if run_all_mode:
-        print(f"\n>>> [CHẾ ĐỘ TỰ ĐỘNG]: TIẾN HÀNH CHẠY TẤT CẢ {len(available_specs)} BÀI TOÁN <<<\n")
-        summary_results = []
-        for s in available_specs:
-            spec_file_path = os.path.join(specs_dir, s)
-            success, elapsed, entity, bdf, metrics = run_single_spec(spec_file_path, base_dir, open_gui=args.gui, use_harness=args.harness, open_web=args.web)
-            summary_results.append((s, entity, success, elapsed, bdf, metrics))
+    # Trường hợp 1: Chạy TẤT CẢ các bài toán
+    if CheDoChayTatCa:
+        print(f"\n>>> [CHẾ ĐỘ TỰ ĐỘNG]: TIẾN HÀNH CHẠY TẤT CẢ {len(DanhSachSpecs)} BÀI TOÁN <<<\n")
+        DanhSachKetQuaTongHop = []
+        for TenTep in DanhSachSpecs:
+            DuongDanTep = os.path.join(ThuMucSpecs, TenTep)
+            ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanTep, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web)
+            DanhSachKetQuaTongHop.append((TenTep, ThucThe, ThanhCong, ThoiGian, SodoBdf, ChiSo))
 
         print("\n" + "=" * 96)
-        print("    BẢNG TỔNG KẾT ĐO ĐẠC TÀI NGUYÊN & ĐỘ CHÍNH XÁC CHỨC NĂNG (VERIPREFER & VERILOGDB)")
-        print("    Chuẩn đo lường: CityU VeriPrefer (arXiv:2504.15804) & Univ. Florida VerilogDB (arXiv:2507.13369)")
+        print("    BẢNG TỔNG KẾT ĐO ĐẠC TÀI NGUYÊN & ĐỘ CHÍNH XÁC CHỨC NĂNG")
         print("=" * 96)
         print(f"{'STT':<4} | {'Tên Spec':<22} | {'Entity':<20} | {'Logic (LEs)':<12} | {'Registers (FF)':<15} | {'Trạng Thái':<10}")
         print("-" * 96)
-        for i, (spec_n, ent, succ, elap, bdf, m) in enumerate(summary_results):
-            status_str = "100% PASS" if succ else "FAILED"
-            les_str = f"{m.get('logic_elements', '-')} LEs"
-            ff_str  = f"{m.get('total_registers', '-')} FFs"
-            print(f"[{i+1}]  | {spec_n:<22} | {ent:<20} | {les_str:<12} | {ff_str:<15} | {status_str:<10}")
+        for i, (TenSpec, ThucThe, ThanhCong, ThoiGian, SodoBdf, ChiSo) in enumerate(DanhSachKetQuaTongHop):
+            ChuoiTrangThai = "100% PASS" if ThanhCong else "FAILED"
+            ChuoiLe = f"{ChiSo.get('logic_elements', '-')} LEs"
+            ChuoiFf  = f"{ChiSo.get('total_registers', '-')} FFs"
+            print(f"[{i+1}]  | {TenSpec:<22} | {ThucThe:<20} | {ChuoiLe:<12} | {ChuoiFf:<15} | {ChuoiTrangThai:<10}")
         print("=" * 96)
         print("\n[Tất cả các sơ đồ BDF và Project Quartus đều đã sẵn sàng trong thư mục quartus/!]")
         sys.exit(0)
 
-    # Case 2: Run a SPECIFIC spec
-    spec_target = user_input
-    if spec_target.isdigit():
-        idx = int(spec_target) - 1
-        if 0 <= idx < len(available_specs):
-            spec_target = available_specs[idx]
+    # Trường hợp 2: Chạy MỘT bài toán cụ thể
+    MucTieuSpec = LuaChonDauVao
+    if MucTieuSpec.isdigit():
+        ChiSo = int(MucTieuSpec) - 1
+        if 0 <= ChiSo < len(DanhSachSpecs):
+            MucTieuSpec = DanhSachSpecs[ChiSo]
         else:
-            print(f"[ERROR] Chỉ số không hợp lệ. Vui lòng chọn từ 1 đến {len(available_specs)}.")
+            print(f"[ERROR] Chỉ số không hợp lệ. Vui lòng chọn từ 1 đến {len(DanhSachSpecs)}.")
             sys.exit(1)
 
-    if os.path.isabs(spec_target) and os.path.exists(spec_target):
-        target_path = spec_target
-    elif os.path.exists(os.path.join(base_dir, spec_target)):
-        target_path = os.path.abspath(os.path.join(base_dir, spec_target))
-    elif os.path.exists(spec_target):
-        target_path = os.path.abspath(spec_target)
+    if os.path.isabs(MucTieuSpec) and os.path.exists(MucTieuSpec):
+        DuongDanMucTieu = MucTieuSpec
+    elif os.path.exists(os.path.join(ThuMucGoc, MucTieuSpec)):
+        DuongDanMucTieu = os.path.abspath(os.path.join(ThuMucGoc, MucTieuSpec))
+    elif os.path.exists(MucTieuSpec):
+        DuongDanMucTieu = os.path.abspath(MucTieuSpec)
     else:
-        matched = None
-        for s in available_specs:
-            if s.lower() == spec_target.lower() or s.lower() == f"{spec_target.lower()}.txt" or s.lower() == f"{spec_target.lower()}.md":
-                matched = s
+        KhopTen = None
+        for TenTep in DanhSachSpecs:
+            if TenTep.lower() == MucTieuSpec.lower() or TenTep.lower() == f"{MucTieuSpec.lower()}.txt" or TenTep.lower() == f"{MucTieuSpec.lower()}.md":
+                KhopTen = TenTep
                 break
-        if not matched:
-            for s in available_specs:
-                if spec_target.lower() in s.lower():
-                    matched = s
+        if not KhopTen:
+            for TenTep in DanhSachSpecs:
+                if MucTieuSpec.lower() in TenTep.lower():
+                    KhopTen = TenTep
                     break
 
-        if matched:
-            target_path = os.path.join(specs_dir, matched)
-        elif os.path.exists(os.path.join(specs_dir, f"{spec_target}.txt")):
-            target_path = os.path.join(specs_dir, f"{spec_target}.txt")
-        elif os.path.exists(os.path.join(specs_dir, f"{spec_target}.md")):
-            target_path = os.path.join(specs_dir, f"{spec_target}.md")
+        if KhopTen:
+            DuongDanMucTieu = os.path.join(ThuMucSpecs, KhopTen)
+        elif os.path.exists(os.path.join(ThuMucSpecs, f"{MucTieuSpec}.txt")):
+            DuongDanMucTieu = os.path.join(ThuMucSpecs, f"{MucTieuSpec}.txt")
+        elif os.path.exists(os.path.join(ThuMucSpecs, f"{MucTieuSpec}.md")):
+            DuongDanMucTieu = os.path.join(ThuMucSpecs, f"{MucTieuSpec}.md")
         else:
-            target_path = os.path.join(specs_dir, spec_target)
+            DuongDanMucTieu = os.path.join(ThuMucSpecs, MucTieuSpec)
 
-    if not os.path.exists(target_path):
-        print(f"[ERROR] Specification file not found: {target_path}")
+    if not os.path.exists(DuongDanMucTieu):
+        print(f"[ERROR] Không tìm thấy file đặc tả: {DuongDanMucTieu}")
         sys.exit(1)
 
-    success, elapsed, entity, bdf, metrics = run_single_spec(target_path, base_dir, open_gui=args.gui, use_harness=args.harness, open_web=args.web)
-    sys.exit(0 if success else 1)
+    ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanMucTieu, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web)
+    sys.exit(0 if ThanhCong else 1)
 
 if __name__ == "__main__":
     main()

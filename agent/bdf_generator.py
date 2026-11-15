@@ -1,8 +1,7 @@
 """
 Module: bdf_generator.py
-Description: Automated BDF (Block Design File) and BSF (Block Symbol File) Generator.
-Produces 100% compliant, editable, synthesizable Altera / Intel Quartus II 13.0sp1
-schematic diagrams with proper pin ordering, bus line widths, and grid alignment.
+Mô tả: Tự động tạo sơ đồ nguyên lý BDF (Block Design File) và Symbol BSF.
+Tạo sơ đồ mạch chuẩn Quartus II 13.0sp1 có thể mở, chỉnh sửa và tổng hợp trực tiếp.
 """
 
 import os
@@ -12,201 +11,188 @@ class BDFGenerator:
     def __init__(self):
         pass
 
-    def generate_bsf_from_rtl(self, rtl_path, bsf_path):
-        """Generates a valid Quartus .bsf symbol file directly from Verilog RTL.
-        Used as a cross-platform fallback when quartus_map CLI is not available."""
-        with open(rtl_path, "r", encoding="utf-8", errors="replace") as f:
-            code = f.read()
+    def generate_bsf_from_rtl(self, DuongDanRtl, DuongDanBsf):
+        """Tự động tạo file Symbol .bsf của Quartus từ mã nguồn Verilog RTL."""
+        with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
+            MaNguon = TepTin.read()
 
-        # Strip comments
-        clean_code = re.sub(r"//.*", "", code)
-        clean_code = re.sub(r"/\*.*?\*/", "", clean_code, flags=re.DOTALL)
+        # Dọn dẹp chú thích
+        MaSach = re.sub(r"//.*", "", MaNguon)
+        MaSach = re.sub(r"/\*.*?\*/", "", MaSach, flags=re.DOTALL)
 
-        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", clean_code, re.DOTALL)
-        if not m_mod:
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaSach, re.DOTALL)
+        if not KhopModule:
             return None
 
-        mod_name = m_mod.group(1)
-        port_block = m_mod.group(2)
+        TenModule = KhopModule.group(1)
+        KhoiCong = KhopModule.group(2)
 
-        inputs = []
-        outputs = []
-        curr_dir = "input"
-        curr_msb, curr_lsb = None, None
-        verilog_reserved = {"input", "output", "inout", "wire", "reg", "logic", "module", "endmodule"}
+        DanhSachVao = []
+        DanhSachRa = []
+        HuongHienTai = "input"
+        MsbHienTai, LsbHienTai = None, None
+        TuKhoaVerilog = {"input", "output", "inout", "wire", "reg", "logic", "module", "endmodule"}
 
-        for line in port_block.split(","):
-            line = line.strip()
-            if not line:
+        for Dong in KhoiCong.split(","):
+            Dong = Dong.strip()
+            if not Dong:
                 continue
-            m_dir = re.search(r"\b(input|output)\b", line)
-            if m_dir:
-                curr_dir = m_dir.group(1)
-                m_w = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", line)
-                if m_w:
-                    curr_msb, curr_lsb = m_w.group(1), m_w.group(2)
+            KhopHuong = re.search(r"\b(input|output)\b", Dong)
+            if KhopHuong:
+                HuongHienTai = KhopHuong.group(1)
+                KhopRong = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", Dong)
+                if KhopRong:
+                    MsbHienTai, LsbHienTai = KhopRong.group(1), KhopRong.group(2)
                 else:
-                    curr_msb, curr_lsb = None, None
+                    MsbHienTai, LsbHienTai = None, None
 
-            m_name = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", line)
-            if m_name:
-                p_name = m_name.group(1)
-                if p_name.lower() in verilog_reserved:
+            KhopTen = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", Dong)
+            if KhopTen:
+                TenCong = KhopTen.group(1)
+                if TenCong.lower() in TuKhoaVerilog:
                     continue
-                w = (int(curr_msb) - int(curr_lsb) + 1) if (curr_msb and curr_lsb) else 1
-                p_info = {
-                    "name": p_name,
-                    "direction": curr_dir,
-                    "width": w,
-                    "msb": curr_msb,
-                    "lsb": curr_lsb,
-                    "is_bus": w > 1
+                DoRong = (int(MsbHienTai) - int(LsbHienTai) + 1) if (MsbHienTai and LsbHienTai) else 1
+                ThongTinCong = {
+                    "name": TenCong,
+                    "direction": HuongHienTai,
+                    "width": DoRong,
+                    "msb": MsbHienTai,
+                    "lsb": LsbHienTai,
+                    "is_bus": DoRong > 1
                 }
-                if curr_dir == "input":
-                    inputs.append(p_info)
+                if HuongHienTai == "input":
+                    DanhSachVao.append(ThongTinCong)
                 else:
-                    outputs.append(p_info)
+                    DanhSachRa.append(ThongTinCong)
 
-        max_ports = max(len(inputs), len(outputs), 2)
-        sym_h = max(112, (max_ports + 2) * 24)
-        sym_h = (sym_h // 16) * 16
-        sym_w = 192
+        SoCongToiDa = max(len(DanhSachVao), len(DanhSachRa), 2)
+        ChieuCaoSymbol = max(112, (SoCongToiDa + 2) * 24)
+        ChieuCaoSymbol = (ChieuCaoSymbol // 16) * 16
+        ChieuRongSymbol = 192
 
-        port_lines = []
-        # Inputs at left (x = 0)
-        y_step = sym_h // (len(inputs) + 1)
-        for idx, inp in enumerate(inputs):
-            py = ((idx + 1) * y_step // 8) * 8
-            w_str = f"[{inp['msb']}..{inp['lsb']}]" if inp["is_bus"] else ""
-            full_name = f"{inp['name']}{w_str}"
-            lw = 3 if inp["is_bus"] else 1
-            port_lines.append(f"""\t(port
-\t\t(pt 0 {py})
+        DongCong = []
+        # Cổng vào bên trái (x = 0)
+        BuocYVao = ChieuCaoSymbol // (len(DanhSachVao) + 1)
+        for ChiSo, CongVao in enumerate(DanhSachVao):
+            ToaDoY = ((ChiSo + 1) * BuocYVao // 8) * 8
+            ChuoiRong = f"[{CongVao['msb']}..{CongVao['lsb']}]" if CongVao["is_bus"] else ""
+            TenDayDu = f"{CongVao['name']}{ChuoiRong}"
+            DoDayNet = 3 if CongVao["is_bus"] else 1
+            DongCong.append(f"""\t(port
+\t\t(pt 0 {ToaDoY})
 \t\t(input)
-\t\t(text "{full_name}" (rect 0 0 {len(full_name)*7} 12)(font "Arial" ))
-\t\t(text "{full_name}" (rect 21 {py-5} {21 + len(full_name)*7} {py+7})(font "Arial" ))
-\t\t(line (pt 0 {py})(pt 16 {py})(line_width {lw}))
+\t\t(text "{TenDayDu}" (rect 0 0 {len(TenDayDu)*7} 12)(font "Arial" ))
+\t\t(text "{TenDayDu}" (rect 21 {ToaDoY-5} {21 + len(TenDayDu)*7} {ToaDoY+7})(font "Arial" ))
+\t\t(line (pt 0 {ToaDoY})(pt 16 {ToaDoY})(line_width {DoDayNet}))
 \t)""")
 
-        # Outputs at right (x = sym_w)
-        y_step_out = sym_h // (len(outputs) + 1)
-        for idx, out in enumerate(outputs):
-            py = ((idx + 1) * y_step_out // 8) * 8
-            w_str = f"[{out['msb']}..{out['lsb']}]" if out["is_bus"] else ""
-            full_name = f"{out['name']}{w_str}"
-            lw = 3 if out["is_bus"] else 1
-            text_x = sym_w - 21 - len(full_name)*7
-            port_lines.append(f"""\t(port
-\t\t(pt {sym_w} {py})
+        # Cổng ra bên phải (x = ChieuRongSymbol)
+        BuocYRa = ChieuCaoSymbol // (len(DanhSachRa) + 1)
+        for ChiSo, CongRa in enumerate(DanhSachRa):
+            ToaDoY = ((ChiSo + 1) * BuocYRa // 8) * 8
+            ChuoiRong = f"[{CongRa['msb']}..{CongRa['lsb']}]" if CongRa["is_bus"] else ""
+            TenDayDu = f"{CongRa['name']}{ChuoiRong}"
+            DoDayNet = 3 if CongRa["is_bus"] else 1
+            ToaDoXChu = ChieuRongSymbol - 21 - len(TenDayDu)*7
+            DongCong.append(f"""\t(port
+\t\t(pt {ChieuRongSymbol} {ToaDoY})
 \t\t(output)
-\t\t(text "{full_name}" (rect 0 0 {len(full_name)*7} 12)(font "Arial" ))
-\t\t(text "{full_name}" (rect {text_x} {py-5} {text_x + len(full_name)*7} {py+7})(font "Arial" ))
-\t\t(line (pt {sym_w} {py})(pt {sym_w - 16} {py})(line_width {lw}))
+\t\t(text "{TenDayDu}" (rect 0 0 {len(TenDayDu)*7} 12)(font "Arial" ))
+\t\t(text "{TenDayDu}" (rect {ToaDoXChu} {ToaDoY-5} {ToaDoXChu + len(TenDayDu)*7} {ToaDoY+7})(font "Arial" ))
+\t\t(line (pt {ChieuRongSymbol} {ToaDoY})(pt {ChieuRongSymbol - 16} {ToaDoY})(line_width {DoDayNet}))
 \t)""")
 
-        bsf_code = f"""/*
+        MaBsf = f"""/*
 WARNING: Do NOT edit the input and output ports in this file in a text
 editor if you plan to continue editing the block that represents it in
 the Block Editor! File corruption is VERY likely to occur.
 */
 (header "symbol" (version "1.1"))
 (symbol
-\t(rect 16 16 {16 + sym_w} {16 + sym_h})
-\t(text "{mod_name}" (rect 5 0 {5 + len(mod_name)*7} 12)(font "Arial" ))
-\t(text "inst" (rect 8 {sym_h - 16} 20 {sym_h - 4})(font "Arial" ))
-""" + "\n".join(port_lines) + f"""
+\t(rect 16 16 {16 + ChieuRongSymbol} {16 + ChieuCaoSymbol})
+\t(text "{TenModule}" (rect 5 0 {5 + len(TenModule)*7} 12)(font "Arial" ))
+\t(text "inst" (rect 8 {ChieuCaoSymbol - 16} 20 {ChieuCaoSymbol - 4})(font "Arial" ))
+""" + "\n".join(DongCong) + f"""
 \t(drawing
-\t\t(rectangle (rect 16 16 {sym_w - 16} {sym_h - 16})(line_width 1))
+\t\t(rectangle (rect 16 16 {ChieuRongSymbol - 16} {ChieuCaoSymbol - 16})(line_width 1))
 \t)
 )
 """
-        with open(bsf_path, "w", encoding="utf-8") as f:
-            f.write(bsf_code)
-        return bsf_path
+        with open(DuongDanBsf, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaBsf)
+        return DuongDanBsf
 
-    def generate_bdf_from_bsf(self, bsf_path, bdf_path, sym_x=368, sym_y=176):
-        """Reads a .bsf symbol and creates a 100% compliant, editable Quartus .bdf schematic.
-        Adheres strictly to Quartus II syntax:
-          1. Header
-          2. All Pins (with line_width 3 for bus pins)
-          3. Symbol block
-          4. All Connectors (with '(bus)' tag for buses)
-        """
-        with open(bsf_path, "r", encoding="utf-8", errors="replace") as f:
-            bsf_text = f.read()
+    def generate_bdf_from_bsf(self, DuongDanBsf, DuongDanBdf, ToaDoX=368, ToaDoY=176):
+        """Đọc file Symbol .bsf và tạo sơ đồ nguyên lý .bdf chuẩn Quartus II."""
+        with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
+            NoiDungBsf = TepTin.read()
 
-        # Parse symbol rect
-        m_rect = re.search(r'\(symbol\s*\n\s*\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', bsf_text)
-        if not m_rect:
-            raise ValueError(f"Invalid BSF file: {bsf_path}")
+        KhopKichThuoc = re.search(r'\(symbol\s*\n\s*\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)
+        if not KhopKichThuoc:
+            raise ValueError(f"File BSF không hợp lệ: {DuongDanBsf}")
 
-        orig_w = int(m_rect.group(3)) - int(m_rect.group(1))
-        orig_h = int(m_rect.group(4)) - int(m_rect.group(2))
+        RongGoc = int(KhopKichThuoc.group(3)) - int(KhopKichThuoc.group(1))
+        CaoGoc = int(KhopKichThuoc.group(4)) - int(KhopKichThuoc.group(2))
 
-        # Round sym_x and sym_y to 8px grid
-        sym_x = (sym_x // 8) * 8
-        sym_y = (sym_y // 8) * 8
-        sym_x2 = sym_x + orig_w
-        sym_y2 = sym_y + orig_h
+        # Căn chỉnh tọa độ theo lưới 8px
+        ToaDoX = (ToaDoX // 8) * 8
+        ToaDoY = (ToaDoY // 8) * 8
+        ToaDoX2 = ToaDoX + RongGoc
+        ToaDoY2 = ToaDoY + CaoGoc
 
-        # Extract port definitions
-        port_blocks = re.findall(
+        DanhSachKhoiCong = re.findall(
             r'(\(port\s*\n\s*\(pt\s+(\d+)\s+(\d+)\)\s*\n\s*\((input|output)\)\s*\n\s*\(text\s+"([^"]+)".*?\n\t\))',
-            bsf_text, re.DOTALL
+            NoiDungBsf, re.DOTALL
         )
 
-        # Extract inner symbol from BSF
-        inner_symbol = bsf_text[bsf_text.find('(symbol'):]
-        inner_symbol = re.sub(r'\(rect\s+\d+\s+\d+\s+\d+\s+\d+\)', f'(rect {sym_x} {sym_y} {sym_x2} {sym_y2})', inner_symbol, count=1)
+        SymbolBenTrong = NoiDungBsf[NoiDungBsf.find('(symbol'):]
+        SymbolBenTrong = re.sub(r'\(rect\s+\d+\s+\d+\s+\d+\s+\d+\)', f'(rect {ToaDoX} {ToaDoY} {ToaDoX2} {ToaDoY2})', SymbolBenTrong, count=1)
 
-        pins_code = []
-        connectors_code = []
+        MaChanPin = []
+        MaDayNoi = []
 
-        in_pin_x = sym_x - 208
-        out_pin_x = sym_x2 + 80
+        ChanVaoX = ToaDoX - 208
+        ChanRaX = ToaDoX2 + 80
 
-        for full_block, pt_x, pt_y, direction, port_name in port_blocks:
-            px = int(pt_x)
-            py = int(pt_y)
-            abs_port_y = sym_y + py
+        for KhoiDayDu, DiemX, DiemY, Huong, TenCong in DanhSachKhoiCong:
+            ToaDoCongY = ToaDoY + int(DiemY)
 
-            is_bus = ('[' in port_name and '..' in port_name) or ('[' in port_name and ':' in port_name)
-            # Normalize [M:L] to [M..L] for Quartus BDF syntax
-            bdf_port_name = re.sub(r'\[(\d+):(\d+)\]', r'[\1..\2]', port_name)
+            LaBus = ('[' in TenCong and '..' in TenCong) or ('[' in TenCong and ':' in TenCong)
+            TenCongBdf = re.sub(r'\[(\d+):(\d+)\]', r'[\1..\2]', TenCong)
 
-            if direction == "input":
-                pin_y = abs_port_y - 8
-                bus_line = "\t\t(line (pt 113 8)(pt 168 8)(line_width 3))\n" if is_bus else "\t\t(line (pt 113 8)(pt 168 8))\n"
-                p_box = f"""(pin
+            if Huong == "input":
+                ChanY = ToaDoCongY - 8
+                NetBus = "\t\t(line (pt 113 8)(pt 168 8)(line_width 3))\n" if LaBus else "\t\t(line (pt 113 8)(pt 168 8))\n"
+                HopChan = f"""(pin
 \t(input)
-\t(rect {in_pin_x} {pin_y} {in_pin_x + 168} {pin_y + 16})
+\t(rect {ChanVaoX} {ChanY} {ChanVaoX + 168} {ChanY + 16})
 \t(text "INPUT" (rect 125 0 153 10)(font "Arial" (font_size 6)))
-\t(text "{bdf_port_name}" (rect 5 0 {5 + len(bdf_port_name)*7} 12)(font "Arial" ))
+\t(text "{TenCongBdf}" (rect 5 0 {5 + len(TenCongBdf)*7} 12)(font "Arial" ))
 \t(pt 168 8)
 \t(drawing
 \t\t(line (pt 84 12)(pt 109 12))
 \t\t(line (pt 84 4)(pt 109 4))
-{bus_line}\t\t(line (pt 84 12)(pt 84 4))
+{NetBus}\t\t(line (pt 84 12)(pt 84 4))
 \t\t(line (pt 109 4)(pt 113 8))
 \t\t(line (pt 109 12)(pt 113 8))
 \t)
 \t(text "VCC" (rect 128 7 148 17)(font "Arial" (font_size 6)))
 )"""
-                pins_code.append(p_box)
-                bus_tag = " (bus)" if is_bus else ""
-                connectors_code.append(f"(connector (pt {in_pin_x + 168} {abs_port_y}) (pt {sym_x} {abs_port_y}){bus_tag})")
+                MaChanPin.append(HopChan)
+                TheBus = " (bus)" if LaBus else ""
+                MaDayNoi.append(f"(connector (pt {ChanVaoX + 168} {ToaDoCongY}) (pt {ToaDoX} {ToaDoCongY}){TheBus})")
 
-            elif direction == "output":
-                pin_y = abs_port_y - 8
-                bus_line = "\t\t(line (pt 0 8)(pt 52 8)(line_width 3))\n" if is_bus else "\t\t(line (pt 0 8)(pt 52 8))\n"
-                p_box = f"""(pin
+            elif Huong == "output":
+                ChanY = ToaDoCongY - 8
+                NetBus = "\t\t(line (pt 0 8)(pt 52 8)(line_width 3))\n" if LaBus else "\t\t(line (pt 0 8)(pt 52 8))\n"
+                HopChan = f"""(pin
 \t(output)
-\t(rect {out_pin_x} {pin_y} {out_pin_x + 176} {pin_y + 16})
+\t(rect {ChanRaX} {ChanY} {ChanRaX + 176} {ChanY + 16})
 \t(text "OUTPUT" (rect 1 0 39 10)(font "Arial" (font_size 6)))
-\t(text "{bdf_port_name}" (rect 90 0 {90 + len(bdf_port_name)*7} 12)(font "Arial" ))
+\t(text "{TenCongBdf}" (rect 90 0 {90 + len(TenCongBdf)*7} 12)(font "Arial" ))
 \t(pt 0 8)
 \t(drawing
-{bus_line}\t\t(line (pt 52 4)(pt 78 4))
+{NetBus}\t\t(line (pt 52 4)(pt 78 4))
 \t\t(line (pt 52 12)(pt 78 12))
 \t\t(line (pt 52 12)(pt 52 4))
 \t\t(line (pt 78 4)(pt 82 8))
@@ -214,28 +200,28 @@ the Block Editor! File corruption is VERY likely to occur.
 \t\t(line (pt 78 12)(pt 82 8))
 \t)
 )"""
-                pins_code.append(p_box)
-                bus_tag = " (bus)" if is_bus else ""
-                connectors_code.append(f"(connector (pt {sym_x2} {abs_port_y}) (pt {out_pin_x} {abs_port_y}){bus_tag})")
+                MaChanPin.append(HopChan)
+                TheBus = " (bus)" if LaBus else ""
+                MaDayNoi.append(f"(connector (pt {ToaDoX2} {ToaDoCongY}) (pt {ChanRaX} {ToaDoCongY}){TheBus})")
 
-        # Combine strictly in Quartus official BDF order: Header -> Pins -> Symbol -> Connectors
-        bdf_lines = [
-            '/* Auto-generated by Spec2RTL & Prompt2Silicon */',
+        # Ghép nối file BDF: Header -> Chân Pin -> Symbol -> Dây nối Connectors
+        DanhSachDongBdf = [
+            '/* Tu dong tao boi Spec2RTL & Prompt2Silicon */',
             '(header "graphic" (version "1.4"))'
         ]
-        bdf_lines.extend(pins_code)
-        bdf_lines.append(inner_symbol.strip())
-        bdf_lines.extend(connectors_code)
+        DanhSachDongBdf.extend(MaChanPin)
+        DanhSachDongBdf.append(SymbolBenTrong.strip())
+        DanhSachDongBdf.extend(MaDayNoi)
 
-        with open(bdf_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(bdf_lines) + "\n")
-        return bdf_path
+        with open(DuongDanBdf, "w", encoding="utf-8") as TepTin:
+            TepTin.write("\n".join(DanhSachDongBdf) + "\n")
+        return DuongDanBdf
 
 if __name__ == "__main__":
-    gen = BDFGenerator()
-    base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    bsf = os.path.join(base, "quartus", "vending_machine.bsf")
-    bdf = os.path.join(base, "quartus", "top_vending_machine.bdf")
-    if os.path.exists(bsf):
-        gen.generate_bdf_from_bsf(bsf, bdf)
-        print("Generated compliant BDF at:", bdf)
+    BoTaoBdf = BDFGenerator()
+    ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    FileBsf = os.path.join(ThuMucGoc, "quartus", "vending_machine.bsf")
+    FileBdf = os.path.join(ThuMucGoc, "quartus", "top_vending_machine.bdf")
+    if os.path.exists(FileBsf):
+        BoTaoBdf.generate_bdf_from_bsf(FileBsf, FileBdf)
+        print("Đã tạo file BDF tại:", FileBdf)

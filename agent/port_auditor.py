@@ -1,8 +1,7 @@
 """
 Module: port_auditor.py
-Description: Mathematical Invariant Checker & Verification Auditor for Hardware Ports.
-Guarantees zero port mismatches, zero phantom pins, and zero dropped signals between
-Natural Language Spec, Verilog RTL, Quartus BSF Symbols, and Quartus BDF Schematics.
+Mô tả: Kiểm tra tính toàn vẹn của các cổng tín hiệu (Ports).
+Đảm bảo khớp 100% giữa đặc tả spec, mã Verilog RTL, file Symbol BSF và sơ đồ BDF.
 """
 
 import os
@@ -10,75 +9,74 @@ import re
 
 class PortAuditor:
     @staticmethod
-    def audit(spec_ports, rtl_path, bsf_path, bdf_path):
-        """Audits and mathematically proves 100% port consistency across all EDA artifacts."""
-        if not spec_ports or not os.path.exists(rtl_path):
+    def audit(CongSpec, DuongDanRtl, DuongDanBsf, DuongDanBdf):
+        """Kiểm tra và đối soát tín hiệu giữa Spec, RTL, BSF và BDF."""
+        if not CongSpec or not os.path.exists(DuongDanRtl):
             return True
 
-        # 1. Parse RTL declared ports
-        with open(rtl_path, "r", encoding="utf-8", errors="replace") as f:
-            rtl_code = f.read()
-        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", rtl_code, re.DOTALL)
-        rtl_ports = {}
-        if m_mod:
-            clean_pb = re.sub(r"//.*", "", m_mod.group(2))
-            clean_pb = re.sub(r"/\*.*?\*/", "", clean_pb, flags=re.DOTALL)
-            for line in clean_pb.split(","):
-                m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", line.strip())
-                if m_p:
-                    d, msb, lsb, n = m_p.groups()
-                    w = abs(int(msb) - int(lsb)) + 1 if (msb and lsb) else 1
-                    rtl_ports[n.lower()] = {"name": n, "dir": d, "width": w}
+        # 1. Trích xuất cổng từ mã RTL Verilog
+        with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
+            MaRtl = TepTin.read()
+        MauModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaRtl, re.DOTALL)
+        CongRtl = {}
+        if MauModule:
+            ChuoiCong = re.sub(r"//.*", "", MauModule.group(2))
+            ChuoiCong = re.sub(r"/\*.*?\*/", "", ChuoiCong, flags=re.DOTALL)
+            for Dong in ChuoiCong.split(","):
+                MauCong = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", Dong.strip())
+                if MauCong:
+                    Huong, Msb, Lsb, TenCong = MauCong.groups()
+                    DoRong = abs(int(Msb) - int(Lsb)) + 1 if (Msb and Lsb) else 1
+                    CongRtl[TenCong.lower()] = {"name": TenCong, "dir": Huong, "width": DoRong}
 
-        # 2. Parse BSF Symbol ports
-        bsf_ports = set()
-        if os.path.exists(bsf_path):
-            with open(bsf_path, "r", encoding="utf-8", errors="replace") as f:
-                bsf_text = f.read()
-            for p in re.findall(r'\(text\s+"([A-Za-z0-9_]+)(?:\[.*?\])?"', bsf_text):
-                bsf_ports.add(p.lower())
+        # 2. Trích xuất cổng từ file Symbol BSF của Quartus
+        CongBsf = set()
+        if os.path.exists(DuongDanBsf):
+            with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
+                NoiDungBsf = TepTin.read()
+            for Ten in re.findall(r'\(text\s+"([A-Za-z0-9_]+)(?:\[.*?\])?"', NoiDungBsf):
+                CongBsf.add(Ten.lower())
 
-        # 3. Parse BDF Schematic pins
-        bdf_pins = set()
-        if os.path.exists(bdf_path):
-            with open(bdf_path, "r", encoding="utf-8", errors="replace") as f:
-                bdf_text = f.read()
-            # Match pin definitions
-            for m in re.finditer(r'\(pin\s*\n\s*\((?:input|output)\)\s*.*?\n\s*\(text\s+"(?:INPUT|OUTPUT)".*?\n\s*\(text\s+"([A-Za-z0-9_]+)', bdf_text, re.DOTALL):
-                bdf_pins.add(m.group(1).lower())
+        # 3. Trích xuất chân tín hiệu từ sơ đồ BDF
+        ChanBdf = set()
+        if os.path.exists(DuongDanBdf):
+            with open(DuongDanBdf, "r", encoding="utf-8", errors="replace") as TepTin:
+                NoiDungBdf = TepTin.read()
+            for KhopChan in re.finditer(r'\(pin\s*\n\s*\((?:input|output)\)\s*.*?\n\s*\(text\s+"(?:INPUT|OUTPUT)".*?\n\s*\(text\s+"([A-Za-z0-9_]+)', NoiDungBdf, re.DOTALL):
+                ChanBdf.add(KhopChan.group(1).lower())
 
-        lines = []
-        lines.append("+-------------------------------------------------------------------------------+")
-        lines.append("|         EDA SCHEMATIC & PORT INTEGRITY AUDIT (Zero-Defect Invariant)          |")
-        lines.append("+-------------------------------------------------------------------------------+")
-        lines.append(f"| {'Port Identifier':<18} | {'Dir':<6} | {'Bits':<4} | {'RTL':<6} | {'BSF':<6} | {'BDF':<6} | {'Compliance':<10} |")
-        lines.append("+--------------------+--------+------+--------+--------+--------+------------+")
+        DanhSachDong = []
+        DanhSachDong.append("+-------------------------------------------------------------------------------+")
+        DanhSachDong.append("|           KIỂM TRA TÍNH TOÀN VẸN CỔNG TÍN HIỆU (PORT AUDIT)                   |")
+        DanhSachDong.append("+-------------------------------------------------------------------------------+")
+        DanhSachDong.append(f"| {'Tên cổng':<18} | {'Hướng':<6} | {'Bit':<4} | {'RTL':<6} | {'BSF':<6} | {'BDF':<6} | {'Kết quả':<10} |")
+        DanhSachDong.append("+--------------------+--------+------+--------+--------+--------+------------+")
 
-        all_pass = True
-        for sp in spec_ports:
-            name = sp["name"]
-            nl = name.lower()
-            has_rtl = nl in rtl_ports
-            has_bsf = nl in bsf_ports
-            has_bdf = nl in bdf_pins
-            match = has_rtl and has_bsf and has_bdf
-            if not match:
-                all_pass = False
+        DatChuan = True
+        for Cong in CongSpec:
+            Ten = Cong["name"]
+            TenThuong = Ten.lower()
+            CoRtl = TenThuong in CongRtl
+            CoBsf = TenThuong in CongBsf
+            CoBdf = TenThuong in ChanBdf
+            Khop = CoRtl and CoBsf and CoBdf
+            if not Khop:
+                DatChuan = False
 
-            r_str = "[OK]" if has_rtl else "[MISS]"
-            s_str = "[OK]" if has_bsf else "[MISS]"
-            d_str = "[OK]" if has_bdf else "[MISS]"
-            status = "PASS" if match else "FAIL"
-            w_str = f"[{sp['width']-1}:0]" if sp["width"] > 1 else "1"
-            lines.append(f"| {name:<18} | {sp['direction']:6} | {w_str:<4} | {r_str:<6} | {s_str:<6} | {d_str:<6} | {status:<10} |")
+            ChuoiRtl = "[OK]" if CoRtl else "[MISS]"
+            ChuoiBsf = "[OK]" if CoBsf else "[MISS]"
+            ChuoiBdf = "[OK]" if CoBdf else "[MISS]"
+            TrangThai = "PASS" if Khop else "FAIL"
+            ChuoiRong = f"[{Cong['width']-1}:0]" if Cong["width"] > 1 else "1"
+            DanhSachDong.append(f"| {Ten:<18} | {Cong['direction']:6} | {ChuoiRong:<4} | {ChuoiRtl:<6} | {ChuoiBsf:<6} | {ChuoiBdf:<6} | {TrangThai:<10} |")
 
-        lines.append("+-------------------------------------------------------------------------------+")
-        if all_pass:
-            lines.append(f"| Status: ALL {len(spec_ports)} PORTS PRESERVED WITH 0 PHANTOM / 0 MISSING SIGNALS (PASS)    |")
+        DanhSachDong.append("+-------------------------------------------------------------------------------+")
+        if DatChuan:
+            DanhSachDong.append(f"| Trạng thái: TOÀN BỘ {len(CongSpec)} CỔNG ĐỀU KHỚP VÀ CHÍNH XÁC 100% (PASS)                  |")
         else:
-            lines.append(f"| Status: [WARNING] PORT DISCREPANCY DETECTED BETWEEN SPEC AND EDA ARTIFACTS   |")
-        lines.append("+-------------------------------------------------------------------------------+")
+            DanhSachDong.append(f"| Trạng thái: [CẢNH BÁO] PHÁT HIỆN LỆCH CỔNG GIỮA SPEC VÀ SƠ ĐỒ THIẾT KẾ          |")
+        DanhSachDong.append("+-------------------------------------------------------------------------------+")
 
-        audit_card = "\n".join(lines)
-        print(audit_card)
-        return all_pass
+        BangKiemTra = "\n".join(DanhSachDong)
+        print(BangKiemTra)
+        return DatChuan

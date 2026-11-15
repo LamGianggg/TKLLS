@@ -1,10 +1,10 @@
 """
 Module: simulator.py
-Description: Automated EDA Simulation Driver for Spec2RTL / Prompt2Silicon.
-Supports:
+Mô tả: Tự động điều phối mô phỏng vi mạch EDA cho Spec2RTL.
+Hỗ trợ:
   1. ModelSim-Altera batch mode (vlog, vsim -c)
   2. Icarus Verilog (iverilog, vvp)
-  3. Portable Built-in Python Logic Verifier (Zero-dependency fallback for new machines)
+  3. Bộ kiểm thử Python dự phòng độc lập
 """
 
 import os
@@ -14,116 +14,119 @@ import shutil
 from eda_finder import find_modelsim, find_iverilog
 
 class EDASimulator:
-    def __init__(self, sim_dir=None):
-        self.sim_dir = sim_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sim"))
+    def __init__(self, ThuMucMoPhong=None):
+        self.sim_dir = ThuMucMoPhong or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sim"))
         os.makedirs(self.sim_dir, exist_ok=True)
         
-        # 1. Probe for ModelSim
+        # 1. Dò tìm phần mềm ModelSim
         self.modelsim = find_modelsim()
         self.iverilog = None
         if not self.modelsim:
-            # 2. Probe for Icarus Verilog
+            # 2. Dò tìm Icarus Verilog dự phòng
             self.iverilog = find_iverilog()
 
-    def run_builtin_python_verifier(self, top_module):
-        """Zero-dependency simulation fallback: informs user that real EDA simulation requires ModelSim or Icarus."""
-        err_msg = "ModelSim or Icarus Verilog is required for genuine hardware simulation."
+    def run_builtin_python_verifier(self, ModuleDau):
+        """Mô phỏng dự phòng: thông báo người dùng cài đặt ModelSim hoặc Icarus."""
+        ThongBaoLoi = "Cần cài đặt ModelSim hoặc Icarus Verilog để chạy mô phỏng phần cứng thực tế."
         return {
             "stage": "simulate",
             "success": False,
             "passed": False,
-            "errors": [err_msg],
-            "log": f"[SIMULATOR NOTICE]: Neither ModelSim nor Icarus Verilog found. {err_msg}"
+            "errors": [ThongBaoLoi],
+            "log": f"[THÔNG BÁO EDA]: Không tìm thấy ModelSim hoặc Icarus Verilog. {ThongBaoLoi}"
         }
 
-    def run_iverilog_flow(self, verilog_files, top_module):
-        """Compiles and executes using Icarus Verilog."""
-        out_vvp = os.path.join(self.sim_dir, f"{top_module}.vvp")
-        abs_files = [os.path.abspath(f) for f in verilog_files]
-        # Compile
-        c_cmd = [self.iverilog["iverilog"], "-o", out_vvp] + abs_files
-        c_res = subprocess.run(c_cmd, cwd=self.sim_dir, capture_output=True)
-        if c_res.returncode != 0:
+    def run_iverilog_flow(self, DanhSachFileVerilog, ModuleDau):
+        """Biên dịch và chạy mô phỏng bằng Icarus Verilog."""
+        FileVvpDauRa = os.path.join(self.sim_dir, f"{ModuleDau}.vvp")
+        DuongDanTuyetDoi = [os.path.abspath(File) for File in DanhSachFileVerilog]
+
+        # 1. Biên dịch
+        LenhBienDich = [self.iverilog["iverilog"], "-o", FileVvpDauRa] + DuongDanTuyetDoi
+        KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, capture_output=True)
+        if KetQuaBienDich.returncode != 0:
             return {
                 "stage": "compile",
                 "success": False,
-                "errors": [c_res.stderr.decode('utf-8', errors='replace')],
-                "log": c_res.stderr.decode('utf-8', errors='replace')
+                "errors": [KetQuaBienDich.stderr.decode('utf-8', errors='replace')],
+                "log": KetQuaBienDich.stderr.decode('utf-8', errors='replace')
             }
 
-        # Simulate with vvp
-        s_cmd = [self.iverilog["vvp"], out_vvp]
-        s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
-        stdout = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
-        has_errors = any(kw in stdout for kw in ["ERROR", "Error", "FAIL", "Fatal", "assert failed", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
-        has_success = any(marker in stdout for marker in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED", "[HARNESS PASS]"])
-        has_clean_finish = s_res.returncode == 0 and ("$finish" in stdout or has_success) and not has_errors
-        passed = (has_success or has_clean_finish) and not has_errors
-        errors = [l.strip() for l in stdout.splitlines() if any(kw in l for kw in ["ERROR", "Error", "FAIL", "Fatal", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
+        # 2. Chạy mô phỏng bằng vvp
+        LenhMoPhong = [self.iverilog["vvp"], FileVvpDauRa]
+        KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, capture_output=True)
+        KetQuaXuat = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
+        CoLoi = any(TuKhoa in KetQuaXuat for TuKhoa in ["ERROR", "Error", "FAIL", "Fatal", "assert failed", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
+        ThanhCong = any(DauHieu in KetQuaXuat for DauHieu in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED", "[HARNESS PASS]"])
+        KetThucSach = KetQuaMoPhong.returncode == 0 and ("$finish" in KetQuaXuat or ThanhCong) and not CoLoi
+        DatChuan = (ThanhCong or KetThucSach) and not CoLoi
+        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuat.splitlines() if any(TuKhoa in Dong for TuKhoa in ["ERROR", "Error", "FAIL", "Fatal", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
 
         return {
             "stage": "simulate",
-            "success": passed,
-            "passed": passed,
-            "errors": errors,
-            "log": stdout
+            "success": DatChuan,
+            "passed": DatChuan,
+            "errors": DanhSachLoi,
+            "log": KetQuaXuat
         }
 
     def init_work_library(self):
-        work_path = os.path.join(self.sim_dir, "work")
-        if not os.path.exists(work_path):
-            vlib = self.modelsim["vlib"]
-            subprocess.run([vlib, "work"], cwd=self.sim_dir, capture_output=True, check=True)
+        """Khởi tạo thư viện work cho ModelSim nếu chưa có."""
+        ThuMucWork = os.path.join(self.sim_dir, "work")
+        if not os.path.exists(ThuMucWork):
+            LenhVlib = self.modelsim["vlib"]
+            subprocess.run([LenhVlib, "work"], cwd=self.sim_dir, capture_output=True, check=True)
 
-    def run_modelsim_flow(self, verilog_files, top_module):
-        """Compiles and executes using ModelSim."""
+    def run_modelsim_flow(self, DanhSachFileVerilog, ModuleDau):
+        """Biên dịch và chạy mô phỏng bằng ModelSim."""
         self.init_work_library()
-        abs_files = [os.path.abspath(f) for f in verilog_files]
+        DuongDanTuyetDoi = [os.path.abspath(File) for File in DanhSachFileVerilog]
         
-        # 1. Compile
-        vlog = self.modelsim["vlog"]
-        cmd = [vlog, "-work", "work"] + abs_files
-        res = subprocess.run(cmd, cwd=self.sim_dir, capture_output=True)
-        stdout = res.stdout.decode('utf-8', errors='replace') if res.stdout else ""
-        if res.returncode != 0:
-            errors = [l.strip() for l in stdout.splitlines() if "** Error:" in l or "** Fatal:" in l]
+        # 1. Biên dịch vlog
+        LenhVlog = self.modelsim["vlog"]
+        LenhBienDich = [LenhVlog, "-work", "work"] + DuongDanTuyetDoi
+        KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, capture_output=True)
+        KetQuaXuatVlog = KetQuaBienDich.stdout.decode('utf-8', errors='replace') if KetQuaBienDich.stdout else ""
+        if KetQuaBienDich.returncode != 0:
+            DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVlog.splitlines() if "** Error:" in Dong or "** Fatal:" in Dong]
             return {
                 "stage": "compile",
                 "success": False,
-                "errors": errors,
-                "log": stdout
+                "errors": DanhSachLoi,
+                "log": KetQuaXuatVlog
             }
 
-        # 2. Simulate (logs all signals recursively into vsim.wlf waveform database)
-        vsim = self.modelsim["vsim"]
-        s_cmd = [vsim, "-c", "-do", "log -r /*; run -all; quit", f"work.{top_module}"]
-        s_res = subprocess.run(s_cmd, cwd=self.sim_dir, capture_output=True)
-        s_out = s_res.stdout.decode('utf-8', errors='replace') if s_res.stdout else ""
+        # 2. Chạy mô phỏng vsim
+        LenhVsim = self.modelsim["vsim"]
+        LenhMoPhong = [LenhVsim, "-c", "-do", "log -r /*; run -all; quit", f"work.{ModuleDau}"]
+        KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, capture_output=True)
+        KetQuaXuatVsim = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
 
-        has_errors = any(kw in s_out for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
-        m_failed = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", s_out)
-        if m_failed:
-            has_errors = True
+        CoLoi = any(TuKhoa in KetQuaXuatVsim for TuKhoa in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
+        KhopThatBai = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", KetQuaXuatVsim)
+        if KhopThatBai:
+            CoLoi = True
 
-        has_success = any(tok in s_out for tok in ["[SUCCESS]", "PASSED", "Passed", "passed", "TEST PASSED", "All tests passed", "[HARNESS PASS]"])
-        has_clean_finish = ("$finish" in s_out or "Simulation complete" in s_out or s_res.returncode == 0) and not has_errors and ("$finish" in s_out or has_success)
+        ThanhCong = any(DauHieu in KetQuaXuatVsim for DauHieu in ["[SUCCESS]", "PASSED", "Passed", "passed", "TEST PASSED", "All tests passed", "[HARNESS PASS]"])
+        KetThucSach = ("$finish" in KetQuaXuatVsim or "Simulation complete" in KetQuaXuatVsim or KetQuaMoPhong.returncode == 0) and not CoLoi and ("$finish" in KetQuaXuatVsim or ThanhCong)
 
-        passed = (has_success or has_clean_finish) and not has_errors
-        errors = [l.strip() for l in s_out.splitlines() if any(kw in l for kw in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
+        DatChuan = (ThanhCong or KetThucSach) and not CoLoi
+        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVsim.splitlines() if any(TuKhoa in Dong for TuKhoa in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
 
         return {
             "stage": "simulate",
-            "success": passed,
-            "passed": passed,
-            "errors": errors,
-            "log": s_out
+            "success": DatChuan,
+            "passed": DatChuan,
+            "errors": DanhSachLoi,
+            "log": KetQuaXuatVsim
         }
 
-    def run_flow(self, verilog_files, top_module="tb_top_soc"):
-        """Dispatches simulation to ModelSim, Icarus Verilog, or Built-in Python fallback."""
+    def run_flow(self, DanhSachFileVerilog, ModuleDau=None, top_module=None):
+        """Điều phối mô phỏng tự động chọn ModelSim, Icarus hoặc Python dự phòng."""
+        ModuleDau = ModuleDau or top_module or "tb_top_soc"
         if self.modelsim:
-            return self.run_modelsim_flow(verilog_files, top_module)
+            return self.run_modelsim_flow(DanhSachFileVerilog, ModuleDau)
         elif self.iverilog:
-            return self.run_iverilog_flow(verilog_files, top_module)
+            return self.run_iverilog_flow(DanhSachFileVerilog, ModuleDau)
         else:
-            return self.run_builtin_python_verifier(top_module)
+            return self.run_builtin_python_verifier(ModuleDau)

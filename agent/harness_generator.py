@@ -1,237 +1,228 @@
 # -*- coding: utf-8 -*-
 """
 Module: harness_generator.py
-Description: Automated Verilog Hardware Test Harness Wrapper Generator (Option A).
-Implements the Standardized Verilog Hardware Test Harness Architecture:
-  1. System Infrastructure Engine (Parametric Clock & Synchronized Reset)
-  2. Watchdog Safety Timer Guard (Deadlock & Infinite Hang Prevention)
-  3. Golden Oracle & Standardized Assertion Tasks (harness_assert_eq, harness_assert_valid)
-  4. Plug-and-Play Device Under Test (DUT) Socket Wrapper
-  5. VeriPrefer & IEEE 1800 Telemetry Scoreboard
+Mô tả: Tự động sinh khung kiểm thử phần cứng Verilog Test Harness Wrapper (Option A).
+Cấu trúc chuẩn:
+  1. Bộ tạo xung nhịp đồng hồ và reset đồng bộ
+  2. Watchdog Timer chống lặp vô tận / treo mô phỏng
+  3. Tự động kiểm tra assertion và tính hợp lệ của tín hiệu
+  4. Ghép nối DUT tự động
 """
 
 import os
 import re
 import sys
 
-# Ensure UTF-8 console output
+# Đảm bảo console xuất tiếng Việt UTF-8
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from verilog_linter import VerilogLinter
 
 class HarnessGenerator:
-    """Generates standardized, portable Verilog Hardware Test Harness Wrappers (Option A)."""
+    """Tự động sinh Test Harness Verilog chuẩn công nghiệp."""
 
-    def __init__(self, sim_dir=None):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.sim_dir = sim_dir or os.path.join(base_dir, "sim")
+    def __init__(self, ThuMucSim=None):
+        ThuMucGoc = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.sim_dir = ThuMucSim or os.path.join(ThuMucGoc, "sim")
         os.makedirs(self.sim_dir, exist_ok=True)
 
-    def extract_ports(self, rtl_code):
-        """Extracts ports and signal specifications from synthesizable Verilog code."""
-        # Strip comments
-        clean_code = re.sub(r"//.*", "", rtl_code)
-        clean_code = re.sub(r"/\*.*?\*/", "", clean_code, flags=re.DOTALL)
+    def extract_ports(self, MaRtl):
+        """Trích xuất danh sách cổng và thông số tín hiệu từ mã Verilog RTL."""
+        MaSach = re.sub(r"//.*", "", MaRtl)
+        MaSach = re.sub(r"/\*.*?\*/", "", MaSach, flags=re.DOTALL)
 
-        # Match module declaration (handling optional parameters)
-        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\(.*?\)\s*)?\((.*?)\);", clean_code, re.DOTALL)
-        if not m_mod:
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\(.*?\)\s*)?\((.*?)\);", MaSach, re.DOTALL)
+        if not KhopModule:
             return None, []
 
-        mod_name = m_mod.group(1)
-        port_block = m_mod.group(2)
+        TenModule = KhopModule.group(1)
+        KhoiCong = KhopModule.group(2)
 
-        verilog_reserved = {
+        TuKhoaVerilog = {
             "input", "output", "inout", "wire", "reg", "for", "while",
             "case", "default", "assign", "begin", "end", "integer", "genvar"
         }
 
-        ports = []
-        for line in port_block.split(","):
-            line = line.strip()
-            if not line:
+        DanhSachCong = []
+        for Dong in KhoiCong.split(","):
+            Dong = Dong.strip()
+            if not Dong:
                 continue
-            # Match direction, optional signed/wire/reg, optional [MSB:LSB], identifier
-            m_p = re.search(
+            KhopCong = re.search(
                 r"(input|output|inout)\s+(?:wire|reg)?\s*(?:signed\s*)?(?:\[\s*([^:]+)\s*:\s*([^\]]+)\s*\])?\s*([A-Za-z0-9_]+)",
-                line
+                Dong
             )
-            if m_p:
-                direction, msb_str, lsb_str, port_name = m_p.groups()
-                if port_name.lower() in verilog_reserved:
+            if KhopCong:
+                Huong, ChuoiMsb, ChuoiLsb, TenCong = KhopCong.groups()
+                if TenCong.lower() in TuKhoaVerilog:
                     continue
 
-                width = 1
-                if msb_str is not None and lsb_str is not None:
+                DoRong = 1
+                if ChuoiMsb is not None and ChuoiLsb is not None:
                     try:
-                        width = abs(int(msb_str.strip()) - int(lsb_str.strip())) + 1
+                        DoRong = abs(int(ChuoiMsb.strip()) - int(ChuoiLsb.strip())) + 1
                     except ValueError:
-                        width = 8 # Fallback for parameterized width expressions
+                        DoRong = 8
 
-                p_lower = port_name.lower()
-                is_clk = any(k in p_lower for k in ["clk", "clock"])
-                is_rst = any(k in p_lower for k in ["rst", "clr", "reset", "clear"])
-                is_active_low = p_lower.endswith("_n") or p_lower.startswith("rst_n") or p_lower == "rst_n"
+                TenThuong = TenCong.lower()
+                LaClk = any(TuKhoa in TenThuong for TuKhoa in ["clk", "clock"])
+                LaRst = any(TuKhoa in TenThuong for TuKhoa in ["rst", "clr", "reset", "clear"])
+                TichCucThap = TenThuong.endswith("_n") or TenThuong.startswith("rst_n") or TenThuong == "rst_n"
 
-                ports.append({
-                    "name": port_name,
-                    "direction": direction,
-                    "width": width,
-                    "msb": msb_str,
-                    "lsb": lsb_str,
-                    "is_clk": is_clk,
-                    "is_rst": is_rst,
-                    "is_active_low": is_active_low
+                DanhSachCong.append({
+                    "name": TenCong,
+                    "direction": Huong,
+                    "width": DoRong,
+                    "msb": ChuoiMsb,
+                    "lsb": ChuoiLsb,
+                    "is_clk": LaClk,
+                    "is_rst": LaRst,
+                    "is_active_low": TichCucThap
                 })
 
-        return mod_name, ports
+        return TenModule, DanhSachCong
 
-    def generate_harness(self, rtl_path, output_dir=None):
-        """Synthesizes a standardized Option A Verilog Hardware Test Harness for an RTL file."""
-        if not os.path.exists(rtl_path):
-            raise FileNotFoundError(f"RTL file not found: {rtl_path}")
+    def generate_harness(self, DuongDanRtl, ThuMucXuat=None):
+        """Sinh mã Verilog Test Harness bao đóng module RTL."""
+        if not os.path.exists(DuongDanRtl):
+            raise FileNotFoundError(f"Không tìm thấy file RTL: {DuongDanRtl}")
 
-        out_dir = output_dir or self.sim_dir
-        os.makedirs(out_dir, exist_ok=True)
+        ThuMucDich = ThuMucXuat or self.sim_dir
+        os.makedirs(ThuMucDich, exist_ok=True)
 
-        with open(rtl_path, "r", encoding="utf-8", errors="replace") as f:
-            rtl_code = f.read()
+        with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
+            MaRtl = TepTin.read()
 
-        mod_name, ports = self.extract_ports(rtl_code)
-        if not mod_name:
-            mod_name = os.path.splitext(os.path.basename(rtl_path))[0]
+        TenModule, DanhSachCong = self.extract_ports(MaRtl)
+        if not TenModule:
+            TenModule = os.path.splitext(os.path.basename(DuongDanRtl))[0]
 
-        harness_module_name = f"harness_{mod_name}"
+        TenModuleHarness = f"harness_{TenModule}"
 
-        # 1. Signal Declarations & DUT socket wiring
-        decls = []
-        dut_connections = []
-        has_clk = False
-        clk_name = "clk"
-        has_rst = False
-        rst_name = "rst_n"
-        rst_active_low = True
+        # 1. Khai báo tín hiệu và ghép cổng DUT
+        DanhSachKhaiBao = []
+        KetNoiDut = []
+        CoClk = False
+        TenClk = "clk"
+        CoRst = False
+        TenRst = "rst_n"
+        RstTichCucThap = True
 
-        for p in ports:
-            p_name = p["name"]
-            w_str = f"[{p['width']-1}:0] " if p["width"] > 1 else ""
-            dut_connections.append(f"        .{p_name}({p_name})")
+        for Cong in DanhSachCong:
+            Ten = Cong["name"]
+            ChuoiRong = f"[{Cong['width']-1}:0] " if Cong["width"] > 1 else ""
+            KetNoiDut.append(f"        .{Ten}({Ten})")
 
-            if p["direction"] == "input":
-                decls.append(f"    reg  {w_str:<8} {p_name};")
-                if p["is_clk"] and not has_clk:
-                    has_clk = True
-                    clk_name = p_name
-                if p["is_rst"] and not has_rst:
-                    has_rst = True
-                    rst_name = p_name
-                    rst_active_low = p["is_active_low"]
+            if Cong["direction"] == "input":
+                DanhSachKhaiBao.append(f"    reg  {ChuoiRong:<8} {Ten};")
+                if Cong["is_clk"] and not CoClk:
+                    CoClk = True
+                    TenClk = Ten
+                if Cong["is_rst"] and not CoRst:
+                    CoRst = True
+                    TenRst = Ten
+                    RstTichCucThap = Cong["is_active_low"]
             else:
-                decls.append(f"    wire {w_str:<8} {p_name};")
+                DanhSachKhaiBao.append(f"    wire {ChuoiRong:<8} {Ten};")
 
-        # If no clock in ports, provide a default harness clock for synchronous evaluation
-        if not has_clk:
-            decls.append("    reg           clk;")
-            clk_name = "clk"
+        # Cung cấp clock mặc định nếu mạch không có sẵn
+        if not CoClk:
+            DanhSachKhaiBao.append("    reg           clk;")
+            TenClk = "clk"
 
-        decls_block = "\n".join(decls)
-        dut_conn_block = ",\n".join(dut_connections) if dut_connections else "        // No external ports"
+        KhoiKhaiBao = "\n".join(DanhSachKhaiBao)
+        KhoiKetNoiDut = ",\n".join(KetNoiDut) if KetNoiDut else "        // Không có cổng ngoại vi"
 
-        # 2. Stimulus Generation
-        stimulus_lines = []
-        input_data_ports = [p for p in ports if p["direction"] == "input" and not p["is_clk"] and not p["is_rst"]]
-        output_ports = [p for p in ports if p["direction"] == "output"]
+        # 2. Sinh kích thích kiểm thử
+        DanhSachKichThich = []
+        CongVaoDuLieu = [p for p in DanhSachCong if p["direction"] == "input" and not p["is_clk"] and not p["is_rst"]]
+        CongRaDuLieu = [p for p in DanhSachCong if p["direction"] == "output"]
 
-        # Initial default state
-        for p in ports:
-            if p["direction"] == "input":
-                if p["is_rst"]:
-                    # Assert reset initially
-                    val = "1'b0" if p["is_active_low"] else "1'b1"
-                    stimulus_lines.append(f"        {p['name']} = {val}; // Assert reset initially")
-                elif not p["is_clk"]:
-                    stimulus_lines.append(f"        {p['name']} = {p['width']}'d0;")
+        # Trạng thái ban đầu
+        for Cong in DanhSachCong:
+            if Cong["direction"] == "input":
+                if Cong["is_rst"]:
+                    GiaTri = "1'b0" if Cong["is_active_low"] else "1'b1"
+                    DanhSachKichThich.append(f"        {Cong['name']} = {GiaTri}; // Kích hoạt reset ban đầu")
+                elif not Cong["is_clk"]:
+                    DanhSachKichThich.append(f"        {Cong['name']} = {Cong['width']}'d0;")
 
-        # Release reset after 25ns
-        stimulus_lines.append("\n        #25;")
-        for p in ports:
-            if p["direction"] == "input" and p["is_rst"]:
-                val = "1'b1" if p["is_active_low"] else "1'b0"
-                stimulus_lines.append(f"        {p['name']} = {val}; // De-assert reset (release system)")
+        # Nhả reset sau 25ns
+        DanhSachKichThich.append("\n        #25;")
+        for Cong in DanhSachCong:
+            if Cong["direction"] == "input" and Cong["is_rst"]:
+                GiaTri = "1'b1" if Cong["is_active_low"] else "1'b0"
+                DanhSachKichThich.append(f"        {Cong['name']} = {GiaTri}; // Nhả reset để mạch hoạt động")
 
-        # Exercise 6 distinct test scenarios
-        stimulus_lines.append("\n        //====================================================================")
-        stimulus_lines.append("        // STIMULUS EXECUTION WITH HARNESS ASSERTION VERIFICATION")
-        stimulus_lines.append("        //====================================================================")
+        # Thực thi 6 kịch bản kiểm tra
+        DanhSachKichThich.append("\n        //====================================================================")
+        DanhSachKichThich.append("        // KỊCH BẢN KIỂM TRA ĐẦU VÀO VÀ ĐỐI SOÁT ĐẦU RA")
+        DanhSachKichThich.append("        //====================================================================")
 
-        for step in range(1, 7):
-            stimulus_lines.append(f"\n        // --- Test Vector Scenario {step} ---")
-            for idx, inp in enumerate(input_data_ports):
-                # Deterministic pseudo-random stimulus vector
-                mask = (1 << min(inp["width"], 16)) - 1
-                val = ((step * 17) + (idx * 23) + 7) & mask
-                stimulus_lines.append(f"        {inp['name']} = {inp['width']}'d{val};")
+        for Buoc in range(1, 7):
+            DanhSachKichThich.append(f"\n        // --- Kịch bản kiểm thử {Buoc} ---")
+            for ChiSo, CongVao in enumerate(CongVaoDuLieu):
+                MatNa = (1 << min(CongVao["width"], 16)) - 1
+                GiaTri = ((Buoc * 17) + (ChiSo * 23) + 7) & MatNa
+                DanhSachKichThich.append(f"        {CongVao['name']} = {CongVao['width']}'d{GiaTri};")
 
-            stimulus_lines.append("        #20;")
+            DanhSachKichThich.append("        #20;")
 
-            # Assert outputs valid and deterministic
-            for out in output_ports:
-                msg = f"Scenario {step} - Port {out['name']}"
-                stimulus_lines.append(f"        harness_assert_valid({out['name']}, \"{msg}\");")
+            for CongRa in CongRaDuLieu:
+                ThongDiep = f"Kịch bản {Buoc} - Cổng {CongRa['name']}"
+                DanhSachKichThich.append(f"        harness_assert_valid({CongRa['name']}, \"{ThongDiep}\");")
 
-        stimulus_lines.append("\n        #40;")
-        stimulus_block = "\n".join(stimulus_lines)
+        DanhSachKichThich.append("\n        #40;")
+        KhoiKichThich = "\n".join(DanhSachKichThich)
 
-        # 3. Assemble full Verilog Test Harness Wrapper
-        harness_code = f"""//==============================================================================
-// VERILOG HARDWARE TEST HARNESS WRAPPER (OPTION A)
-// Module: {harness_module_name}
-// Target DUT: {mod_name}
-// Standard: IEEE 1364-2001 Synthesizable/Verifiable Hardware Test Harness
-// Features:
-//   1. System Infrastructure Engine: 50 MHz Master Clock & Clean Reset Sync
-//   2. Watchdog Safety Guard: #100,000 Safety Timeout (Zero Hang / Deadlock)
-//   3. Assertion & Golden Oracle Tasks: harness_assert_eq, harness_assert_valid
-//   4. Device Under Test (DUT) Socket: Explicit Named Port Mapping
-//   5. VeriPrefer & IEEE 1800 Verification Telemetry Scoreboard
+        # 3. Lắp ráp toàn bộ file Verilog Test Harness
+        MaNguonHarness = f"""//==============================================================================
+// VERILOG HARDWARE TEST HARNESS WRAPPER
+// Module: {TenModuleHarness}
+// Mạch kiểm thử: {TenModule}
+// Chuẩn: IEEE 1364-2001 Test Fixture
+// Tính năng:
+//   1. Hệ thống tạo xung nhịp 50 MHz & Reset đồng bộ
+//   2. Watchdog an toàn: Tự ngắt sau 100,000 ps để tránh treo lặp vô tận
+//   3. Bộ task tự động kiểm tra assertion hợp lệ
+//   4. Ghép nối DUT socket tường minh
 //==============================================================================
 `timescale 1ns / 1ps
 
-module {harness_module_name};
+module {TenModuleHarness};
 
     // -------------------------------------------------------------------------
-    // 1. HARNESS TEST SIGNALS DECLARATION
+    // 1. KHAI BÁO TÍN HIỆU HARNESS
     // -------------------------------------------------------------------------
-{decls_block}
+{KhoiKhaiBao}
 
-    // Telemetry Statistics Counters
+    // Biến đếm thống kê kết quả
     integer total_tests  = 0;
     integer passed_tests = 0;
     integer failed_tests = 0;
 
     // -------------------------------------------------------------------------
-    // 2. SYSTEM INFRASTRUCTURE: CLOCK ENGINE (50 MHz, Period = 20ns)
+    // 2. BỘ PHÁT XUNG CLOCK (50 MHz, Chu kỳ = 20ns)
     // -------------------------------------------------------------------------
-    always #10 {clk_name} = ~{clk_name};
+    always #10 {TenClk} = ~{TenClk};
 
     // -------------------------------------------------------------------------
-    // 3. WATCHDOG SAFETY TIMER GUARD (OPTION A CRITICAL COMPONENT)
-    // Prevents infinite loops, deadlocks, or hung simulations in untested FSMs.
+    // 3. WATCHDOG TIMER AN TOÀN (Ngắt tự động nếu FSM bị treo)
     // -------------------------------------------------------------------------
     initial begin
-        #100000; // 100 microseconds safety cutoff
+        #100000;
         $display("\\n============================================================================");
-        $display("   [HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
-        $display("   Possible infinite loop or deadlock detected in module '{mod_name}'.");
-        $display("   Telemetry at Timeout -> Total: %0d | Passed: %0d | Failed: %0d",
+        $display("   [HARNESS WATCHDOG TIMEOUT] Quá thời gian mô phỏng an toàn (100 us)!");
+        $display("   Phát hiện nguy cơ lặp vô tận hoặc treo trạng thái trong mạch '{TenModule}'.");
+        $display("   Thống kê tại thời điểm ngắt -> Tổng: %0d | Đạt: %0d | Lỗi: %0d",
                  total_tests, passed_tests, failed_tests);
         $display("============================================================================");
         $finish;
     end
 
     // -------------------------------------------------------------------------
-    // 4. STANDARDIZED HARNESS ASSERTION & ORACLE TASKS
+    // 4. CÁC TASK KIỂM TRA ĐỐI SOÁT TÍN HIỆU
     // -------------------------------------------------------------------------
     task harness_assert_eq;
         input [31:0]  actual;
@@ -241,10 +232,10 @@ module {harness_module_name};
             total_tests = total_tests + 1;
             if (actual === expected) begin
                 passed_tests = passed_tests + 1;
-                $display("  [HARNESS PASS] %0s | Actual: %h == Expected: %h", test_name, actual, expected);
+                $display("  [HARNESS PASS] %0s | Thực tế: %h == Kỳ vọng: %h", test_name, actual, expected);
             end else begin
                 failed_tests = failed_tests + 1;
-                $display("  [HARNESS FAIL] %0s | Actual: %h != Expected: %h at time %0t ps",
+                $display("  [HARNESS FAIL] %0s | Thực tế: %h != Kỳ vọng: %h tại %0t ps",
                          test_name, actual, expected, $time);
             end
         end
@@ -257,56 +248,54 @@ module {harness_module_name};
             total_tests = total_tests + 1;
             if (^val !== 1'bx && ^val !== 1'bz) begin
                 passed_tests = passed_tests + 1;
-                $display("  [HARNESS PASS] %0s is valid (non-floating): %h", signal_name, val);
+                $display("  [HARNESS PASS] %0s hợp lệ (xác định): %h", signal_name, val);
             end else begin
                 failed_tests = failed_tests + 1;
-                $display("  [HARNESS FAIL] %0s contains X/Z floating bits: %h at time %0t ps",
+                $display("  [HARNESS FAIL] %0s chứa bit thả nổi X/Z: %h tại %0t ps",
                          signal_name, val, $time);
             end
         end
     endtask
 
     // -------------------------------------------------------------------------
-    // 5. DEVICE UNDER TEST (DUT) PLUG-AND-PLAY SOCKET
+    // 5. GHÉP NỐI LINH KIỆN MẠCH CẦN TEST (DUT)
     // -------------------------------------------------------------------------
-    {mod_name} dut (
-{dut_conn_block}
+    {TenModule} dut (
+{KhoiKetNoiDut}
     );
 
     // -------------------------------------------------------------------------
-    // 6. HARNESS STIMULUS SEQUENCE & VERIPREFER TELEMETRY SCOREBOARD
+    // 6. TRÌNH TỰ KÍCH THÍCH VÀ XUẤT DẠNG SÓNG
     // -------------------------------------------------------------------------
     initial begin
-        // Waveform Dump for ModelSim, Quartus & Web Visualizer
-        $dumpfile("{mod_name}.vcd");
-        $dumpvars(0, {harness_module_name});
+        $dumpfile("{TenModule}.vcd");
+        $dumpvars(0, {TenModuleHarness});
 
         $display("============================================================================");
-        $display("   VERILOG TEST HARNESS (OPTION A): {harness_module_name}");
-        $display("   Device Under Test: {mod_name}");
-        $display("   Architecture: Standardized Fixture (Clock, Reset, Watchdog, Assertions)");
+        $display("   VERILOG TEST HARNESS (OPTION A): {TenModuleHarness}");
+        $display("   Linh kiện kiểm thử: {TenModule}");
         $display("============================================================================");
 
-        // System Startup
-        {clk_name} = 0;
-{stimulus_block}
-        // Telemetry Scoreboard Summary
+        // Khởi động
+        {TenClk} = 0;
+{KhoiKichThich}
+        // Tổng kết
         $display("============================================================================");
-        $display("       HARNESS VERIFICATION SCOREBOARD (Option A / IEEE 1800 Standard)");
+        $display("       BẢNG TỔNG KẾT KẾT QUẢ KIỂM THỬ HARNESS");
         $display("============================================================================");
-        $display("  Target Module Under Test: {mod_name}");
-        $display("  Total Executed Tests    : %0d", total_tests);
-        $display("  Passed Assertions       : %0d", passed_tests);
-        $display("  Failed Assertions       : %0d", failed_tests);
+        $display("  Mạch kiểm thử           : {TenModule}");
+        $display("  Tổng số bài test đã chạy: %0d", total_tests);
+        $display("  Số phép kiểm tra đạt    : %0d", passed_tests);
+        $display("  Số phép kiểm tra lỗi    : %0d", failed_tests);
         if (total_tests > 0) begin
-            $display("  Functional Accuracy     : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+            $display("  Độ chính xác chức năng  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
         end
         $display("============================================================================");
 
         if (failed_tests == 0 && passed_tests == total_tests && total_tests > 0) begin
-            $display("  [SUCCESS] TEST HARNESS VERIFICATION FOR '{mod_name}' PASSED 100 PERCENT!");
+            $display("  [SUCCESS] KIỂM THỬ MẠCH '{TenModule}' ĐẠT 100 PERCENT!");
         end else begin
-            $display("  [ERROR] TEST HARNESS VERIFICATION FOR '{mod_name}' FAILED WITH %0d ERRORS!", failed_tests);
+            $display("  [ERROR] KIỂM THỬ MẠCH '{TenModule}' PHÁT HIỆN %0d LỖI!", failed_tests);
         end
         $display("============================================================================");
         $finish;
@@ -314,20 +303,15 @@ module {harness_module_name};
 
 endmodule
 """
-        harness_code = VerilogLinter.sanitize_verilog_code(harness_code)
-        out_file = os.path.join(out_dir, f"{harness_module_name}.v")
-        with open(out_file, "w", encoding="utf-8") as f:
-            f.write(harness_code)
+        MaNguonHarness = VerilogLinter.sanitize_verilog_code(MaNguonHarness)
+        FileDauRa = os.path.join(ThuMucDich, f"{TenModuleHarness}.v")
+        with open(FileDauRa, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguonHarness)
 
-        return harness_module_name, out_file
-
+        return TenModuleHarness, FileDauRa
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        target_path = sys.argv[1]
-    else:
-        target_path = os.path.join(os.path.dirname(__file__), "..", "src", "alu_4bit.v")
-
-    gen = HarnessGenerator()
-    name, path = gen.generate_harness(target_path)
-    print(f"[HarnessGenerator]: Successfully synthesized Test Harness '{name}': {path}")
+    DuongDanRtl = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "src", "alu_4bit.v")
+    BoSinh = HarnessGenerator()
+    TenHarness, DuongDan = BoSinh.generate_harness(DuongDanRtl)
+    print(f"[HarnessGenerator]: Đã sinh Test Harness '{TenHarness}': {DuongDan}")

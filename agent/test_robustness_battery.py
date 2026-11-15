@@ -1,11 +1,10 @@
 """
-Test Suite: test_robustness_battery.py
-Description: Exhaustive Automated Regression Test Battery for Spec2RTL & Prompt2Silicon.
-Validates 20 distinct hardware specifications across diverse domains and markdown syntaxes:
-  - 10 Canonical Hardware Families
-  - 4 Markdown/Prose Syntactic Variations (Bold, Tables, Numbered, Parens)
-  - 6 Novel / Custom Hardware Architectures
-Enforces zero missing ports, zero phantom ports, clean Verilog syntax, and valid Quartus BDFs.
+Module: test_robustness_battery.py
+Chuc nang: Bo kiem thu tu dong kiem tra do on dinh va toan ven cua Spec2RTL & Prompt2Silicon.
+Kiem tra 20 thiet ke phan cung khac nhau ve:
+  - Nhan dien day du cac cong, khong thua thieu cong.
+  - Cu phap Verilog chuan xac, khong chua ky tu loi.
+  - Tao file so do khoi BDF va bieu tuong BSF Quartus hop le.
 """
 
 import os
@@ -13,19 +12,19 @@ import sys
 import tempfile
 import shutil
 
-# Ensure agent directory is in Python path
-agent_dir = os.path.dirname(os.path.abspath(__file__))
-if agent_dir not in sys.path:
-    sys.path.insert(0, agent_dir)
+# Dam bao thu muc agent nam trong he thong sys.path
+ThuMucAgent = os.path.dirname(os.path.abspath(__file__))
+if ThuMucAgent not in sys.path:
+    sys.path.insert(0, ThuMucAgent)
 
 from spec_analyzer import SpecAnalyzer
-from rtl_generator import RTLGenerator, RTLPortEnforcer
+from rtl_generator import RTLGenerator
 from bdf_generator import BDFGenerator
 from port_auditor import PortAuditor
 from verilog_linter import VerilogLinter
 
-TEST_SPECS = [
-    # 1. Stopwatch 0-9 with 7-segment decoder
+DANH_SACH_SPEC_THU_NGHIEM = [
+    # 1. Dong ho bam gio 0-9 kem LED 7 doan
     {
         "id": "TC01_Stopwatch_7Seg",
         "spec": """# Đồng Hồ Bấm Giờ 0-9 Giây Kèm Giải Mã LED 7 Đoạn (Stopwatch)
@@ -40,7 +39,7 @@ TEST_SPECS = [
 - Đếm từ 0 đến 9 khi start_stop = 1."""
     },
 
-    # 2. Digital Lock FSM (Bold format)
+    # 2. Khoa ma so dien tu (Dang chu in dam)
     {
         "id": "TC02_Digital_Lock_Bold",
         "spec": """# Khóa Mã Số Điện Tử Bảo Mật (Digital Safe Lock)
@@ -57,7 +56,7 @@ TEST_SPECS = [
 - Mật khẩu 4 số: 4 -> 2 -> 7 -> 9."""
     },
 
-    # 3. Stepper Motor Controller (Table format)
+    # 3. Dieu khien dong co buoc (Dang bang Markdown)
     {
         "id": "TC03_Stepper_Motor_Table",
         "spec": """# Điều Khiển Động Cơ Bước 4 Pha (Stepper Motor)
@@ -71,7 +70,7 @@ TEST_SPECS = [
 - Kích cuộn dây lần lượt theo chuỗi."""
     },
 
-    # 4. UART TX Transmitter (Numbered list format)
+    # 4. Truyen du lieu noi tiep UART TX (Dang danh sach danh so)
     {
         "id": "TC04_UART_TX_Numbered",
         "spec": """# Truyền Dữ Liệu Nối Tiếp (UART TX)
@@ -87,7 +86,7 @@ TEST_SPECS = [
 - Khung truyền: 1 start bit, 8 data bit, 1 stop bit."""
     },
 
-    # 5. Automatic Washing Machine (Parens width format)
+    # 5. Dieu khien may giat tu dong (Dang do rong trong dau ngoac)
     {
         "id": "TC05_Washing_Machine_Parens",
         "spec": """# Điều Khiển Máy Giặt Tự Động (Washing Machine)
@@ -104,7 +103,7 @@ TEST_SPECS = [
 - [1:0] state_led (2 bit): LED báo giai đoạn giặt"""
     },
 
-    # 6. Smart Home Alarm System
+    # 6. He thong bao dong nha thong minh
     {
         "id": "TC06_Smart_Home_Alarm",
         "spec": """# Cảnh Báo Nhà Thông Minh (Smart Home Alarm)
@@ -120,7 +119,7 @@ TEST_SPECS = [
 - [1:0] status_code: Mã trạng thái an ninh"""
     },
 
-    # 7. PWM Pulse Width Modulator
+    # 7. Bo tao xung dieu che do rong PWM 8-bit
     {
         "id": "TC07_PWM_Generator",
         "spec": """# Bộ Tạo Xung Điều Chế PWM 8-bit (PWM Generator)
@@ -133,7 +132,7 @@ TEST_SPECS = [
 - [7:0] counter_val: Giá trị đếm nhị phân nội tại"""
     },
 
-    # 8. Sequence Detector 1011 (Non-Overlapping)
+    # 8. Mach do chuoi bit 1011
     {
         "id": "TC08_Sequence_Detector",
         "spec": """# Mạch Dò Chuỗi Bit 1011 (Sequence Detector)
@@ -146,7 +145,7 @@ TEST_SPECS = [
 - [2:0] state_out: Trạng thái hiện tại của máy FSM"""
     },
 
-    # 9. Synchronous FIFO Buffer 8x8
+    # 9. Bo dem hang doi FIFO dong bo
     {
         "id": "TC09_FIFO_Buffer",
         "spec": """# Bộ Đệm Hàng Đợi FIFO Đồng Bộ (FIFO Buffer)
@@ -162,7 +161,7 @@ TEST_SPECS = [
 - empty: Cờ báo rỗng bộ đệm (không có dữ liệu đọc)"""
     },
 
-    # 10. 4-bit Arithmetic Logic Unit (ALU)
+    # 10. Khoi so hoc va logic ALU 4-bit
     {
         "id": "TC10_ALU_4bit",
         "spec": """# Đơn Vị Số Học Và Logic 4-Bit (ALU)
@@ -175,7 +174,7 @@ TEST_SPECS = [
 - zero: Cờ báo kết quả bằng 0"""
     },
 
-    # 11. 8-bit Binary Multiplier
+    # 11. Mach nhan nhi phan 8-bit
     {
         "id": "TC11_Multiplier_8bit",
         "spec": """# Mạch Nhân Nhị Phân 8-bit (Multiplier)
@@ -188,7 +187,7 @@ TEST_SPECS = [
 - [15:0] product: Tích số 16-bit"""
     },
 
-    # 12. 16-bit Up/Down Binary Counter (Custom Pin Names)
+    # 12. Bo dem len xuong 16-bit voi ten cong tuy bien
     {
         "id": "TC12_Counter_16bit_Custom_Pins",
         "spec": """# Bộ Đếm Nhị Phân 16-Bit (Counter 16bit)
@@ -202,7 +201,7 @@ TEST_SPECS = [
 - roll_over: Xung tràn khi đạt cực trị"""
     },
 
-    # 13. 8-to-3 Priority Encoder
+    # 13. Bo ma hoa uu tien 8 sang 3
     {
         "id": "TC13_Priority_Encoder_8to3",
         "spec": """# Bộ Mã Hóa Ưu Tiên 8 Sang 3 (Priority Encoder)
@@ -214,7 +213,7 @@ TEST_SPECS = [
 - valid: Tín hiệu xác nhận có ít nhất 1 ngõ vào tích cực"""
     },
 
-    # 14. 4-bit Barrel Shifter
+    # 14. Bo dich xoay Barrel Shifter 4-bit
     {
         "id": "TC14_Barrel_Shifter_4bit",
         "spec": """# Bộ Dịch Xoay Barrel Shifter 4-bit (Barrel Shifter)
@@ -226,7 +225,7 @@ TEST_SPECS = [
 - [3:0] data_out: Dữ liệu sau khi dịch xoay"""
     },
 
-    # 15. Traffic Light Controller
+    # 15. Dieu khien den giao thong nga tu
     {
         "id": "TC15_Traffic_Light",
         "spec": """# Điều Khiển Đèn Giao Thông Ngã Tư (Traffic Light)
@@ -239,7 +238,7 @@ TEST_SPECS = [
 - [2:0] light_side: Đèn tuyến phụ (Đỏ, Vàng, Xanh)"""
     },
 
-    # 16. Novel Custom: BCD to Excess-3 Code Converter
+    # 16. Chuyen doi ma BCD sang ma Du 3
     {
         "id": "TC16_BCD_to_Excess3_Custom",
         "spec": """# Bộ Chuyển Đổi Mã BCD Sang Mã Dư 3 (BCD to Excess-3)
@@ -251,7 +250,7 @@ TEST_SPECS = [
 - error_code: Cờ báo lỗi nếu bcd_in vượt quá 9"""
     },
 
-    # 17. 4-bit Gray Code Counter
+    # 17. Bo dem ma Gray 4-bit
     {
         "id": "TC17_Gray_Counter_4bit",
         "spec": """# Bộ Đếm Mã Gray 4-Bit (Gray Counter)
@@ -264,7 +263,7 @@ TEST_SPECS = [
 - [3:0] bin_cnt: Giá trị đếm nhị phân tương ứng"""
     },
 
-    # 18. Pulse Width / Edge Detector
+    # 18. Mach phat hien canh xung
     {
         "id": "TC18_Edge_Detector",
         "spec": """# Mạch Phát Hiện Cạnh Xung Nhịp (Edge Detector)
@@ -277,7 +276,7 @@ TEST_SPECS = [
 - falling_edge: Xung 1 chu kỳ khi có cạnh xuống"""
     },
 
-    # 19. Novel Custom: SPI Slave Controller
+    # 19. Giao tiep SPI Slave
     {
         "id": "TC19_SPI_Slave_Interface",
         "spec": """# Giao Tiếp Ngoại Vi Nối Tiếp SPI Phụ (SPI Slave)
@@ -292,7 +291,7 @@ TEST_SPECS = [
 - rx_ready: Cờ báo đã nhận xong 1 byte"""
     },
 
-    # 20. Novel Custom: 8-bit CRC Generator
+    # 20. Bo tao ma CRC 8-bit
     {
         "id": "TC20_CRC8_Generator",
         "spec": """# Bộ Tạo Mã Kiểm Tra Dư Thừa CRC 8-Bit (CRC Generator)
@@ -307,85 +306,90 @@ TEST_SPECS = [
     }
 ]
 
-def run_battery():
+TEST_SPECS = DANH_SACH_SPEC_THU_NGHIEM
+
+def chay_kiem_thu_toan_dien():
+    """Chay 20 ca kiem thu kiem tra toan bo quy trinh tu Spec den RTL va BDF."""
     print("=" * 80)
-    print("   SPEC2RTL BULLETPROOF REGRESSION TEST BATTERY (20/20 TEST CASES)")
+    print("   BO KIEM THU TU DONG HOAT DONG TOAN VEN SPEC2RTL (20/20 CA KIEM THU)")
     print("=" * 80)
 
-    scratch_dir = tempfile.mkdtemp(prefix="spec2rtl_test_")
-    src_dir = os.path.join(scratch_dir, "src")
-    quartus_dir = os.path.join(scratch_dir, "quartus")
-    os.makedirs(src_dir, exist_ok=True)
-    os.makedirs(quartus_dir, exist_ok=True)
+    ThuMucTam = tempfile.mkdtemp(prefix="spec2rtl_test_")
+    ThuMucSrc = os.path.join(ThuMucTam, "src")
+    ThuMucQuartus = os.path.join(ThuMucTam, "quartus")
+    os.makedirs(ThuMucSrc, exist_ok=True)
+    os.makedirs(ThuMucQuartus, exist_ok=True)
 
-    passed_tests = 0
-    failed_tests = []
+    SoLuongDat = 0
+    DanhSachLoi = []
 
-    rtl_gen = RTLGenerator(src_dir)
-    bdf_gen = BDFGenerator()
+    BoTaoRtl = RTLGenerator(ThuMucSrc)
+    BoTaoBdf = BDFGenerator()
 
-    for idx, tc in enumerate(TEST_SPECS):
-        tc_id = tc["id"]
-        tc_spec = tc["spec"]
+    for ChiMuc, CaKiemThu in enumerate(DANH_SACH_SPEC_THU_NGHIEM):
+        MaKiemThu = CaKiemThu["id"]
+        NoiDungSpec = CaKiemThu["spec"]
 
-        print(f"\n[{idx+1:02d}/20] Testing: {tc_id}...")
+        print(f"\n[{ChiMuc + 1:02d}/20] Dang kiem tra: {MaKiemThu}...")
 
         try:
-            # Step 1: Spec Parsing
-            analyzer = SpecAnalyzer(tc_spec)
-            mod_name = analyzer.extract_module_name()
-            spec_ports = analyzer.extract_ports()
-            cat = analyzer.classify_system()
+            # Buoc 1: Trich xuat dac ta cong
+            BoPhanTich = SpecAnalyzer(NoiDungSpec)
+            TenModule = BoPhanTich.extract_module_name()
+            DanhSachCongSpec = BoPhanTich.extract_ports()
+            PhanLoai = BoPhanTich.classify_system()
 
-            if not spec_ports:
-                raise ValueError(f"No ports extracted from specification for {tc_id}")
+            if not DanhSachCongSpec:
+                raise ValueError(f"Khong the trich xuat cong tu dac ta: {MaKiemThu}")
 
-            # Step 2: RTL Synthesis
-            _, v_file = rtl_gen.generate_from_spec(tc_spec)
-            if not os.path.exists(v_file):
-                raise FileNotFoundError(f"Generated RTL file not found: {v_file}")
+            # Buoc 2: Sinh ma nguon RTL
+            _, TepVerilog = BoTaoRtl.generate_from_spec(NoiDungSpec)
+            if not os.path.exists(TepVerilog):
+                raise FileNotFoundError(f"Khong tim thay file RTL da tao: {TepVerilog}")
 
-            # Step 3: Linting & Syntax Verification
-            VerilogLinter.sanitize_file(v_file)
+            # Buoc 3: Kiem tra va don dep cu phap Verilog
+            VerilogLinter.sanitize_file(TepVerilog)
 
-            # Step 4: BSF and BDF Generation
-            bsf_path = os.path.join(quartus_dir, f"{mod_name}.bsf")
-            bdf_path = os.path.join(quartus_dir, f"sch_{mod_name}.bdf")
-            bdf_gen.generate_bsf_from_rtl(v_file, bsf_path)
-            bdf_gen.generate_bdf_from_bsf(bsf_path, bdf_path)
+            # Buoc 4: Tao bieu tuong BSF va so do khoi BDF
+            DuongDanBsf = os.path.join(ThuMucQuartus, f"{TenModule}.bsf")
+            DuongDanBdf = os.path.join(ThuMucQuartus, f"sch_{TenModule}.bdf")
+            BoTaoBdf.generate_bsf_from_rtl(TepVerilog, DuongDanBsf)
+            BoTaoBdf.generate_bdf_from_bsf(DuongDanBsf, DuongDanBdf)
 
-            # Step 5: Port Integrity Audit
-            audit_pass = PortAuditor.audit(spec_ports, v_file, bsf_path, bdf_path)
-            if not audit_pass:
-                raise AssertionError(f"Port integrity audit failed for {tc_id}")
+            # Buoc 5: Kiem toan toan ven cac cong
+            KiemTraHopLe = PortAuditor.audit(DanhSachCongSpec, TepVerilog, DuongDanBsf, DuongDanBdf)
+            if not KiemTraHopLe:
+                raise AssertionError(f"Kiem toan cong that bai cho {MaKiemThu}")
 
-            print(f"  -> [PASS]: {tc_id} | Entity: '{mod_name}' | Category: '{cat}' | Ports: {len(spec_ports)}")
-            passed_tests += 1
+            print(f"  -> [DAT]: {MaKiemThu} | Module: '{TenModule}' | Loai: '{PhanLoai}' | So cong: {len(DanhSachCongSpec)}")
+            SoLuongDat += 1
 
-        except Exception as e:
-            print(f"  -> [FAIL]: {tc_id} Error: {str(e)}")
-            failed_tests.append((tc_id, str(e)))
+        except Exception as Loi:
+            print(f"  -> [LOI]: {MaKiemThu} Chi tiet: {str(Loi)}")
+            DanhSachLoi.append((MaKiemThu, str(Loi)))
 
-    # Clean up temp test directory
-    shutil.rmtree(scratch_dir, ignore_errors=True)
+    # Xoa thu muc tam sau khi kiem thu
+    shutil.rmtree(ThuMucTam, ignore_errors=True)
 
     print("\n" + "=" * 80)
-    print("                    BATTERY EXECUTION SUMMARY SCOREBOARD")
+    print("                    TONG KET KET QUA KIEM THU")
     print("=" * 80)
-    print(f" Total Test Cases Run  : {len(TEST_SPECS)}")
-    print(f" Passed Test Cases     : {passed_tests} / {len(TEST_SPECS)} ({passed_tests/len(TEST_SPECS)*100:.1f}%)")
-    print(f" Failed Test Cases     : {len(failed_tests)}")
-    if failed_tests:
-        print("\n Failed Test Details:")
-        for fid, ferr in failed_tests:
-            print(f"  * {fid}: {ferr}")
+    print(f" Tong so ca kiem thu : {len(DANH_SACH_SPEC_THU_NGHIEM)}")
+    print(f" So ca thanh cong    : {SoLuongDat} / {len(DANH_SACH_SPEC_THU_NGHIEM)} ({SoLuongDat / len(DANH_SACH_SPEC_THU_NGHIEM) * 100:.1f}%)")
+    print(f" So ca that bai      : {len(DanhSachLoi)}")
+    if DanhSachLoi:
+        print("\n Chi tiet loi:")
+        for MaLoi, NoiDungLoi in DanhSachLoi:
+            print(f"  * {MaLoi}: {NoiDungLoi}")
         print("=" * 80)
         return False
     else:
-        print("\n >>> [ALL 20 TEST CASES PASSED WITH 100% PORT INTEGRITY & SYNTHESIS PASS] <<<")
+        print("\n >>> [TAT CA 20 CA KIEM THU DEU DAT 100% VE TINH DUNG DONG VA CU PHAP] <<<")
         print("=" * 80)
         return True
 
+run_battery = chay_kiem_thu_toan_dien
+
 if __name__ == "__main__":
-    success = run_battery()
-    sys.exit(0 if success else 1)
+    KetQuaChay = chay_kiem_thu_toan_dien()
+    sys.exit(0 if KetQuaChay else 1)

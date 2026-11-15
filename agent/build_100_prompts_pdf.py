@@ -1,8 +1,8 @@
 """
-Script: build_100_prompts_pdf.py
-Description: Generates a professional, beautifully-typeset PDF containing 100 structured
-digital circuit design prompts in Vietnamese, formatted as an enumerated copy-pasteable list.
-Target: docs/100_Prompt_Thiet_Ke_Mach.pdf
+Module: build_100_prompts_pdf.py
+Chuc nang: Tao file PDF chuyen nghiep chua 100 de bai dac ta thiet ke vi mach so
+bang tieng Viet, duoc dinh dang duoi dang danh sach liet ke de sao chep truc tiep.
+Dich den: docs/100_Prompt_Thiet_Ke_Mach.pdf
 """
 
 import os
@@ -18,58 +18,65 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-# 1. Register Vietnamese Unicode TrueType Fonts
-FONT_REGULAR = "Arial"
-FONT_BOLD = "Arial-Bold"
-FONT_ITALIC = "Arial-Italic"
+# 1. Dang ky phong chu Unicode TrueType tieng Viet
+PHONG_CHU_THUONG = "Arial"
+PHONG_CHU_DAM = "Arial-Bold"
+PHONG_CHU_NGHIENG = "Arial-Italic"
 
-font_dir = "C:/Windows/Fonts"
-if os.path.exists(os.path.join(font_dir, "arial.ttf")):
-    pdfmetrics.registerFont(TTFont("Arial", os.path.join(font_dir, "arial.ttf")))
-    pdfmetrics.registerFont(TTFont("Arial-Bold", os.path.join(font_dir, "arialbd.ttf")))
-    pdfmetrics.registerFont(TTFont("Arial-Italic", os.path.join(font_dir, "ariali.ttf")))
+FONT_REGULAR = PHONG_CHU_THUONG
+FONT_BOLD = PHONG_CHU_DAM
+FONT_ITALIC = PHONG_CHU_NGHIENG
+
+ThuMucFont = "C:/Windows/Fonts"
+if os.path.exists(os.path.join(ThuMucFont, "arial.ttf")):
+    pdfmetrics.registerFont(TTFont("Arial", os.path.join(ThuMucFont, "arial.ttf")))
+    pdfmetrics.registerFont(TTFont("Arial-Bold", os.path.join(ThuMucFont, "arialbd.ttf")))
+    pdfmetrics.registerFont(TTFont("Arial-Italic", os.path.join(ThuMucFont, "ariali.ttf")))
 else:
-    print("[WARNING] Arial font not found in C:/Windows/Fonts, using default font.")
-    FONT_REGULAR = "Helvetica"
-    FONT_BOLD = "Helvetica-Bold"
-    FONT_ITALIC = "Helvetica-Oblique"
+    print("[CANH BAO] Khong tim thay phong Arial trong C:/Windows/Fonts, dung phong mac dinh.")
+    PHONG_CHU_THUONG = "Helvetica"
+    PHONG_CHU_DAM = "Helvetica-Bold"
+    PHONG_CHU_NGHIENG = "Helvetica-Oblique"
+    FONT_REGULAR = PHONG_CHU_THUONG
+    FONT_BOLD = PHONG_CHU_DAM
+    FONT_ITALIC = PHONG_CHU_NGHIENG
 
-# 2. Numbered Canvas for Two-pass Page Numbering
+# 2. Canvas danh so trang hai luot (Two-pass Numbered Canvas)
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._saved_page_states = []
+        self._trang_thai_trang = []
 
     def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
+        self._trang_thai_trang.append(dict(self.__dict__))
         self._startPage()
 
     def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_decorations(num_pages)
+        TongSoTrang = len(self._trang_thai_trang)
+        for TrangThai in self._trang_thai_trang:
+            self.__dict__.update(TrangThai)
+            self.draw_page_decorations(TongSoTrang)
             super().showPage()
         super().save()
 
-    def draw_page_decorations(self, page_count):
+    def draw_page_decorations(self, TongSoTrang):
         if self._pageNumber == 1:
-            return  # Skip cover page
+            return  # Bo qua trang bia
         self.saveState()
-        self.setFont(FONT_REGULAR, 8)
+        self.setFont(PHONG_CHU_THUONG, 8)
         self.setFillColor(colors.HexColor("#555555"))
 
-        # Running header
+        # Header dau trang
         self.drawString(42, 810, "SPEC2RTL & PROMPT2SILICON: 100 ĐỀ BÀI ĐẶC TẢ THIẾT KẾ VI MẠCH SỐ")
         self.setStrokeColor(colors.HexColor("#D0D5DD"))
         self.setLineWidth(0.5)
         self.line(42, 804, 553, 804)
 
-        # Running footer
+        # Footer cuoi trang
         self.line(42, 45, 553, 45)
         self.drawString(42, 32, "Khoa Điện - Điện Tử | Đồ Án 3: Thiết Kế & Kiểm Thử Vi Mạch Tự Động")
-        page_text = f"Trang {self._pageNumber} / {page_count}"
-        self.drawRightString(553, 32, page_text)
+        ChuoiTrang = f"Trang {self._pageNumber} / {TongSoTrang}"
+        self.drawRightString(553, 32, ChuoiTrang)
         self.restoreState()
 
 
@@ -2126,12 +2133,13 @@ def get_all_100_prompts():
     return prompts
 
 
-def build_pdf(output_pdf_path):
-    """Compiles and generates the complete 100 Prompts PDF document."""
-    os.makedirs(os.path.dirname(output_pdf_path), exist_ok=True)
+def tao_tai_lieu_pdf(DuongDanPdfXuat=None, output_pdf_path=None):
+    """Bien tap va tao tai lieu PDF chua 100 de bai dac ta mach."""
+    DuongDanXuat = output_pdf_path if output_pdf_path is not None else DuongDanPdfXuat
+    os.makedirs(os.path.dirname(DuongDanXuat), exist_ok=True)
 
-    doc = SimpleDocTemplate(
-        output_pdf_path,
+    TaiLieu = SimpleDocTemplate(
+        DuongDanXuat,
         pagesize=A4,
         leftMargin=1.5 * cm,
         rightMargin=1.5 * cm,
@@ -2139,88 +2147,88 @@ def build_pdf(output_pdf_path):
         bottomMargin=2.0 * cm
     )
 
-    styles = getSampleStyleSheet()
+    TapKieu = getSampleStyleSheet()
 
-    # Custom typography styles
-    style_cover_title = ParagraphStyle(
+    # Dinh nghia cac phong cach van ban
+    KieuTieuDeBia = ParagraphStyle(
         "CoverTitle",
-        fontName=FONT_BOLD,
+        fontName=PHONG_CHU_DAM,
         fontSize=24,
         leading=30,
-        alignment=1,  # Center
+        alignment=1,
         textColor=colors.HexColor("#0F2942")
     )
-    style_cover_sub = ParagraphStyle(
+    KieuPhuBia = ParagraphStyle(
         "CoverSub",
-        fontName=FONT_REGULAR,
+        fontName=PHONG_CHU_THUONG,
         fontSize=12,
         leading=18,
         alignment=1,
         textColor=colors.HexColor("#334E68")
     )
-    style_group_header = ParagraphStyle(
+    KieuTieuDeNhom = ParagraphStyle(
         "GroupHeader",
-        fontName=FONT_BOLD,
+        fontName=PHONG_CHU_DAM,
         fontSize=14,
         leading=18,
         textColor=colors.HexColor("#0B69A3"),
         spaceBefore=14,
         spaceAfter=8
     )
-    style_prompt_title = ParagraphStyle(
+    KieuTieuDePrompt = ParagraphStyle(
         "PromptTitle",
-        fontName=FONT_BOLD,
+        fontName=PHONG_CHU_DAM,
         fontSize=10,
         leading=14,
         textColor=colors.HexColor("#1A202C")
     )
-    style_code_box = ParagraphStyle(
+    KieuKhungMa = ParagraphStyle(
         "CodeBox",
-        fontName=FONT_REGULAR,
+        fontName=PHONG_CHU_THUONG,
         fontSize=8.5,
         leading=11.5,
         textColor=colors.HexColor("#1F2937")
     )
-    style_note = ParagraphStyle(
+    KieuGhiChu = ParagraphStyle(
         "CopyNote",
-        fontName=FONT_ITALIC,
+        fontName=PHONG_CHU_NGHIENG,
         fontSize=7.5,
         leading=10,
         textColor=colors.HexColor("#6B7280")
     )
-    style_body = ParagraphStyle(
+    KieuNoiDung = ParagraphStyle(
         "Body",
-        fontName=FONT_REGULAR,
+        fontName=PHONG_CHU_THUONG,
         fontSize=9.5,
         leading=14,
         textColor=colors.HexColor("#2D3748")
     )
 
-    story = []
+    DanhSachNoiDung = []
 
     # =========================================================================
-    # COVER / INTRODUCTION PAGE
+    # TRANG BIA VA HUONG DAN
     # =========================================================================
-    story.append(Spacer(1, 1.5 * cm))
-    story.append(Paragraph("KHOA ĐIỆN - ĐIỆN TỬ | ĐỒ ÁN 3", style_cover_sub))
-    story.append(Spacer(1, 0.4 * cm))
-    story.append(Paragraph("TUYỂN TẬP 100 ĐỀ BÀI ĐẶC TẢ VI MẠCH SỐ", style_cover_title))
-    story.append(Spacer(1, 0.3 * cm))
-    story.append(Paragraph("Dành Cho Hệ Thống Tác Tử Tự Động Hóa Spec2RTL & Prompt2Silicon", style_cover_sub))
-    story.append(Spacer(1, 0.5 * cm))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0B69A3"), spaceBefore=5, spaceAfter=15))
+    DanhSachNoiDung.append(Spacer(1, 1.5 * cm))
+    DanhSachNoiDung.append(Paragraph("KHOA ĐIỆN - ĐIỆN TỬ | ĐỒ ÁN 3", KieuPhuBia))
+    DanhSachNoiDung.append(Spacer(1, 0.4 * cm))
+    DanhSachNoiDung.append(Paragraph("TUYỂN TẬP 100 ĐỀ BÀI ĐẶC TẢ VI MẠCH SỐ", KieuTieuDeBia))
+    DanhSachNoiDung.append(Spacer(1, 0.3 * cm))
+    DanhSachNoiDung.append(Paragraph("Dành Cho Hệ Thống Tác Tử Tự Động Hóa Spec2RTL & Prompt2Silicon", KieuPhuBia))
+    DanhSachNoiDung.append(Spacer(1, 0.5 * cm))
+    DanhSachNoiDung.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0B69A3"), spaceBefore=5, spaceAfter=15))
 
-    intro_p1 = (
+    LoiGioiThieu1 = (
         "<b>Mục đích tài liệu:</b> Tài liệu này cung cấp <b>100 đề bài đặc tả phần cứng chuẩn hóa</b> "
         "được phân loại theo 10 nhóm chức năng vi mạch số kinh điển từ cơ bản đến nâng cao. "
         "Toàn bộ đề bài được trình bày dưới dạng <b>danh sách liệt kê tuần tự (từ Bài 01 đến Bài 100)</b>, "
         "mỗi đề bài là một khối văn bản độc lập chứa đầy đủ 3 thành phần kỹ thuật: "
         "<b>Tên Mạch</b>, <b>1. Đầu vào (Inputs)</b>, <b>2. Đầu ra (Outputs)</b> và <b>3. Hoạt động / Logic mong muốn</b>."
     )
-    story.append(Paragraph(intro_p1, style_body))
-    story.append(Spacer(1, 0.4 * cm))
+    DanhSachNoiDung.append(Paragraph(LoiGioiThieu1, KieuNoiDung))
+    DanhSachNoiDung.append(Spacer(1, 0.4 * cm))
 
-    intro_p2 = (
+    LoiGioiThieu2 = (
         "<b>Hướng dẫn sử dụng và kiểm tra nhanh:</b><br/>"
         "1. <b>Sao chép (Copy):</b> Chọn và copy toàn bộ nội dung trong khung viền của bất kỳ Prompt nào bên dưới.<br/>"
         "2. <b>Dán vào file đặc tả (Paste):</b> Tạo file văn bản trong thư mục <code>specs/</code> (ví dụ: <code>specs/test_mach.txt</code>) và dán nội dung vào.<br/>"
@@ -2229,10 +2237,10 @@ def build_pdf(output_pdf_path):
         "4. <b>Kiểm tra kết quả:</b> Hệ thống sẽ tự động tổng hợp mã Verilog RTL trong <code>src/</code>, "
         "chạy mô phỏng ModelSim trong <code>sim/</code>, và tự động vẽ sơ đồ nguyên lý BDF cũng như dạng sóng VWF trong <code>quartus/</code>."
     )
-    story.append(Paragraph(intro_p2, style_body))
-    story.append(Spacer(1, 0.5 * cm))
+    DanhSachNoiDung.append(Paragraph(LoiGioiThieu2, KieuNoiDung))
+    DanhSachNoiDung.append(Spacer(1, 0.5 * cm))
 
-    table_data = [
+    DuLieuBang = [
         ["Nhóm", "Chủ Đề Chức Năng", "Số Lượng", "Phạm Vi Bài"],
         ["Nhóm 1", "Mạch Đếm & Định Thời (Counters & Timers)", "10 bài", "Bài 01 - Bài 10"],
         ["Nhóm 2", "Mạch Số Học & ALU (Arithmetic & ALU Units)", "10 bài", "Bài 11 - Bài 20"],
@@ -2245,12 +2253,12 @@ def build_pdf(output_pdf_path):
         ["Nhóm 9", "Hệ Thống Tự Động Hóa & Thiết Bị Thông Minh (IoT)", "10 bài", "Bài 81 - Bài 90"],
         ["Nhóm 10", "Mạch Hiển Thị, Trọng Tài Bus & Phân Hệ SoC", "10 bài", "Bài 91 - Bài 100"],
     ]
-    t = Table(table_data, colWidths=[1.8 * cm, 9.5 * cm, 2.2 * cm, 3.5 * cm])
-    t.setStyle(TableStyle([
+    BangTongHop = Table(DuLieuBang, colWidths=[1.8 * cm, 9.5 * cm, 2.2 * cm, 3.5 * cm])
+    BangTongHop.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0B69A3")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, -1), FONT_REGULAR),
-        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTNAME", (0, 0), (-1, -1), PHONG_CHU_THUONG),
+        ("FONTNAME", (0, 0), (-1, 0), PHONG_CHU_DAM),
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("ALIGN", (2, 0), (3, -1), "CENTER"),
@@ -2259,54 +2267,49 @@ def build_pdf(output_pdf_path):
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
-    story.append(t)
-    story.append(PageBreak())
+    DanhSachNoiDung.append(BangTongHop)
+    DanhSachNoiDung.append(PageBreak())
 
     # =========================================================================
-    # RENDER 100 PROMPTS
+    # XUAT DANH SACH 100 PROMPT
     # =========================================================================
-    prompts = get_all_100_prompts()
-    current_group = ""
+    DanhSachPrompt = get_all_100_prompts()
+    NhomHienTai = ""
 
-    for p in prompts:
-        flowables_item = []
+    for MucPrompt in DanhSachPrompt:
+        KhoiPhanTu = []
 
-        # New group heading
-        if p["group"] != current_group:
-            current_group = p["group"]
-            flowables_item.append(Spacer(1, 0.4 * cm))
-            flowables_item.append(Paragraph(current_group.upper(), style_group_header))
-            flowables_item.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#CBD5E1"), spaceBefore=2, spaceAfter=8))
+        if MucPrompt["group"] != NhomHienTai:
+            NhomHienTai = MucPrompt["group"]
+            KhoiPhanTu.append(Spacer(1, 0.4 * cm))
+            KhoiPhanTu.append(Paragraph(NhomHienTai.upper(), KieuTieuDeNhom))
+            KhoiPhanTu.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#CBD5E1"), spaceBefore=2, spaceAfter=8))
 
-        # Prompt card title
-        title_text = f"<b>[PROMPT #{p['id']:02d}] {p['name']}</b>"
-        flowables_item.append(Paragraph(title_text, style_prompt_title))
-        flowables_item.append(Spacer(1, 0.15 * cm))
+        TieuDeMuc = f"<b>[PROMPT #{MucPrompt['id']:02d}] {MucPrompt['name']}</b>"
+        KhoiPhanTu.append(Paragraph(TieuDeMuc, KieuTieuDePrompt))
+        KhoiPhanTu.append(Spacer(1, 0.15 * cm))
 
-        # Clean prompt text formatted in a clean box
-        # Convert markdown spec_text to clean HTML-like paragraph lines
-        spec_lines = p["spec_text"].splitlines()
-        formatted_spec_lines = []
-        for line in spec_lines:
-            s_line = line.strip()
-            if not s_line:
-                formatted_spec_lines.append("")
+        DanhSachDongSpec = MucPrompt["spec_text"].splitlines()
+        DongDinhDang = []
+        for Dong in DanhSachDongSpec:
+            DongSach = Dong.strip()
+            if not DongSach:
+                DongDinhDang.append("")
                 continue
-            if s_line.startswith("# "):
-                formatted_spec_lines.append(f"<b>{s_line}</b>")
-            elif s_line.startswith("## "):
-                formatted_spec_lines.append(f"<b>{s_line}</b>")
-            elif s_line.startswith("- "):
-                formatted_spec_lines.append(f"&nbsp;&nbsp;• {s_line[2:]}")
+            if DongSach.startswith("# "):
+                DongDinhDang.append(f"<b>{DongSach}</b>")
+            elif DongSach.startswith("## "):
+                DongDinhDang.append(f"<b>{DongSach}</b>")
+            elif DongSach.startswith("- "):
+                DongDinhDang.append(f"&nbsp;&nbsp;• {DongSach[2:]}")
             else:
-                formatted_spec_lines.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{s_line}")
+                DongDinhDang.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{DongSach}")
 
-        card_content = "<br/>".join(formatted_spec_lines)
-        p_card = Paragraph(card_content, style_code_box)
+        NoiDungThe = "<br/>".join(DongDinhDang)
+        TheDoanVan = Paragraph(NoiDungThe, KieuKhungMa)
 
-        # Enclose in a table box with border and light background
-        card_table = Table([[p_card]], colWidths=[17.0 * cm])
-        card_table.setStyle(TableStyle([
+        BangKhungThe = Table([[TheDoanVan]], colWidths=[17.0 * cm])
+        BangKhungThe.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F9FAFB")),
             ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#D1D5DB")),
             ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -2315,19 +2318,20 @@ def build_pdf(output_pdf_path):
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
         ]))
 
-        flowables_item.append(card_table)
-        flowables_item.append(Spacer(1, 0.1 * cm))
-        flowables_item.append(Paragraph(f"<i>👉 Sao chép khối nội dung trên và dán vào specs/*.txt để chạy thử nghiệm với Spec2RTL.</i>", style_note))
-        flowables_item.append(Spacer(1, 0.35 * cm))
+        KhoiPhanTu.append(BangKhungThe)
+        KhoiPhanTu.append(Spacer(1, 0.1 * cm))
+        KhoiPhanTu.append(Paragraph(f"<i>👉 Sao chép khối nội dung trên và dán vào specs/*.txt để chạy thử nghiệm với Spec2RTL.</i>", KieuGhiChu))
+        KhoiPhanTu.append(Spacer(1, 0.35 * cm))
 
-        story.append(KeepTogether(flowables_item))
+        DanhSachNoiDung.append(KeepTogether(KhoiPhanTu))
 
-    print(f"[PDF Builder]: Compiling document with {len(prompts)} prompts...")
-    doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"[PDF Builder]: Successfully built PDF -> {output_pdf_path}")
+    print(f"[PDF Builder]: Dang bien tap tai lieu voi {len(DanhSachPrompt)} de bai...")
+    TaiLieu.build(DanhSachNoiDung, canvasmaker=NumberedCanvas)
+    print(f"[PDF Builder]: Da xuat thanh cong PDF -> {DuongDanXuat}")
 
+build_pdf = tao_tai_lieu_pdf
 
 if __name__ == "__main__":
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    out_pdf = os.path.join(base_dir, "docs", "100_Prompt_Thiet_Ke_Mach.pdf")
-    build_pdf(out_pdf)
+    ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    TepPdfXuat = os.path.join(ThuMucGoc, "docs", "100_Prompt_Thiet_Ke_Mach.pdf")
+    tao_tai_lieu_pdf(TepPdfXuat)

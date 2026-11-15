@@ -1,177 +1,172 @@
 """
 Module: waveform_visualizer.py
-Description: Generates multi-platform visual waveforms from EDA simulation:
-1. 1-Click ModelSim GUI launcher (view_waveform.bat)
-2. Interactive standalone HTML5 Waveform Viewer (sim/waveform.html)
-3. Quartus II University Program Vector Waveform File (quartus/Waveform.vwf)
+Chuc nang: Tao dang song truc quan tu ket qua mo phong EDA:
+1. File khoi dong ModelSim GUI truc quan.
+2. Trinh xem dang song HTML5/SVG tuong tac doc lap.
+3. Xu ly du lieu tu tep tin VCD (Value Change Dump).
 """
 
 import os
 import re
-import json
 
 class WaveformVisualizer:
+    """Bo truc quan hoa dang song tin hieu mo phong."""
+
     def __init__(self):
         pass
 
     @staticmethod
-    def parse_vcd(vcd_path):
-        """Parses a standard Value Change Dump (.vcd) file into structured timing traces."""
-        if not os.path.exists(vcd_path):
+    def parse_vcd(DuongDanVcd=None, vcd_path=None):
+        """Phan tich file VCD thanh du lieu xung nhip theo thoi gian."""
+        TepVcd = vcd_path if vcd_path is not None else DuongDanVcd
+        if not TepVcd or not os.path.exists(TepVcd):
             return None
 
-        with open(vcd_path, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
+        with open(TepVcd, "r", encoding="utf-8", errors="replace") as TepTin:
+            DanhSachDong = TepTin.readlines()
 
-        var_map = {} # symbol -> {name, width, is_bus}
-        timescale_multiplier = 1.0 # normalize to ns
+        BangBien = {} # KyHieu -> {name, width, is_bus}
+        HeSoThoiGian = 1.0 # Quy ve nanosecond (ns)
 
-        in_header = True
-        idx = 0
-        while idx < len(lines):
-            line = lines[idx].strip()
-            if "$timescale" in line:
-                # check timescale
-                ts_str = lines[idx+1].strip() if idx+1 < len(lines) else "1ns"
-                if "ps" in ts_str:
-                    timescale_multiplier = 0.001
-                elif "ns" in ts_str:
-                    timescale_multiplier = 1.0
-                elif "us" in ts_str:
-                    timescale_multiplier = 1000.0
+        ChiSo = 0
+        while ChiSo < len(DanhSachDong):
+            Dong = DanhSachDong[ChiSo].strip()
+            if "$timescale" in Dong:
+                ChuoiThoiGian = DanhSachDong[ChiSo + 1].strip() if ChiSo + 1 < len(DanhSachDong) else "1ns"
+                if "ps" in ChuoiThoiGian:
+                    HeSoThoiGian = 0.001
+                elif "ns" in ChuoiThoiGian:
+                    HeSoThoiGian = 1.0
+                elif "us" in ChuoiThoiGian:
+                    HeSoThoiGian = 1000.0
 
-            if "$var" in line:
-                parts = line.split()
-                if len(parts) >= 5:
-                    v_type = parts[1]
-                    w = int(parts[2]) if parts[2].isdigit() else 1
-                    symbol = parts[3]
-                    name = parts[4]
-                    if len(parts) > 5 and parts[5].startswith("["):
-                        name = f"{name}{parts[5]}"
-                    # Filter out internal test counters
-                    if not any(ign in name for ign in ["total_tests", "passed_tests", "failed_tests"]):
-                        var_map[symbol] = {
-                            "name": name,
-                            "width": w,
-                            "symbol": symbol
+            if "$var" in Dong:
+                ThanhPhan = Dong.split()
+                if len(ThanhPhan) >= 5:
+                    DoRong = int(ThanhPhan[2]) if ThanhPhan[2].isdigit() else 1
+                    KyHieu = ThanhPhan[3]
+                    TenTinHieu = ThanhPhan[4]
+                    if len(ThanhPhan) > 5 and ThanhPhan[5].startswith("["):
+                        TenTinHieu = f"{TenTinHieu}{ThanhPhan[5]}"
+                    # Bo qua bien dem noi bo testbench
+                    if not any(TuKhoa in TenTinHieu for TuKhoa in ["total_tests", "passed_tests", "failed_tests"]):
+                        BangBien[KyHieu] = {
+                            "name": TenTinHieu,
+                            "width": DoRong,
+                            "symbol": KyHieu
                         }
 
-            if "$enddefinitions" in line:
-                idx += 1
+            if "$enddefinitions" in Dong:
+                ChiSo += 1
                 break
-            idx += 1
+            ChiSo += 1
 
-        # Parse value changes over time
-        # shortcut: parses bit changes and binary buses; analog real values skipped
-        current_time_ns = 0.0
-        signal_traces = {sym: [] for sym in var_map}
+        # Doc su bien doi gia tri theo thoi gian
+        ThoiGianNs = 0.0
+        XungTinHieu = {KyHieu: [] for KyHieu in BangBien}
 
-        while idx < len(lines):
-            line = lines[idx].strip()
-            if line.startswith("#"):
-                current_time_ns = round(float(line[1:]) * timescale_multiplier, 2)
-            elif line.startswith(("b", "B")):
-                parts = line.split()
-                if len(parts) >= 2 and parts[1] in signal_traces:
-                    signal_traces[parts[1]].append((current_time_ns, parts[0][1:]))
-            elif len(line) >= 2 and not line.startswith(("r", "R", "$")):
-                # Single bit change: e.g. "1!" or "0#"
-                sym = line[1:].strip()
-                if sym in signal_traces:
-                    signal_traces[sym].append((current_time_ns, line[0]))
-            idx += 1
+        while ChiSo < len(DanhSachDong):
+            Dong = DanhSachDong[ChiSo].strip()
+            if Dong.startswith("#"):
+                ThoiGianNs = round(float(Dong[1:]) * HeSoThoiGian, 2)
+            elif Dong.startswith(("b", "B")):
+                ThanhPhan = Dong.split()
+                if len(ThanhPhan) >= 2 and ThanhPhan[1] in XungTinHieu:
+                    XungTinHieu[ThanhPhan[1]].append((ThoiGianNs, ThanhPhan[0][1:]))
+            elif len(Dong) >= 2 and not Dong.startswith(("r", "R", "$")):
+                KyHieu = Dong[1:].strip()
+                if KyHieu in XungTinHieu:
+                    XungTinHieu[KyHieu].append((ThoiGianNs, Dong[0]))
+            ChiSo += 1
 
         return {
-            "var_map": var_map,
-            "signal_traces": signal_traces,
-            "max_time": current_time_ns if current_time_ns > 0 else 500.0
+            "var_map": BangBien,
+            "signal_traces": XungTinHieu,
+            "max_time": ThoiGianNs if ThoiGianNs > 0 else 500.0
         }
 
     @staticmethod
-    def generate_html_viewer(vcd_path, html_path, title="Hardware Simulation Waveform"):
-        """Generates an interactive, dark-themed HTML5/SVG Waveform Viewer."""
-        parsed = WaveformVisualizer.parse_vcd(vcd_path)
-        if not parsed:
-            # Fallback placeholder
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write("<html><body><h3>No VCD Waveform Data Available</h3></body></html>")
-            return html_path
+    def generate_html_viewer(DuongDanVcd=None, DuongDanHtml=None, TieuDe="Dang Song Mo Phong Phan Cung", vcd_path=None, html_path=None, title=None):
+        """Tao file HTML5 hien thi dang song truc quan tu du lieu VCD."""
+        TepVcd = vcd_path if vcd_path is not None else DuongDanVcd
+        TepHtml = html_path if html_path is not None else DuongDanHtml
+        TieuDeTrang = title if title is not None else TieuDe
 
-        var_map = parsed["var_map"]
-        traces = parsed["signal_traces"]
-        max_t = max(parsed["max_time"], 100.0)
+        DuLieuPhanTich = WaveformVisualizer.parse_vcd(TepVcd)
+        if not DuLieuPhanTich:
+            with open(TepHtml, "w", encoding="utf-8") as TepTin:
+                TepTin.write("<html><body><h3>Khong co du lieu dang song VCD</h3></body></html>")
+            return TepHtml
 
-        # Select primary signals to plot (prefer non-bus bits or clean names)
-        signals_to_plot = []
-        # Group buses
-        plotted_names = set()
-        for sym, meta in var_map.items():
-            name = meta["name"]
-            base_name = re.sub(r"\[\d+\]", "", name)
-            if base_name not in plotted_names:
-                plotted_names.add(base_name)
-                # find transitions
-                tr = traces.get(sym, [])
-                signals_to_plot.append({
-                    "name": name,
-                    "symbol": sym,
-                    "transitions": tr,
-                    "is_bus": meta["width"] > 1 or "[" in name
+        BangBien = DuLieuPhanTich["var_map"]
+        XungTinHieu = DuLieuPhanTich["signal_traces"]
+        ThoiGianToiDa = max(DuLieuPhanTich["max_time"], 100.0)
+
+        # Chon cac tin hieu can ve
+        TinHieuVe = []
+        TenDaVe = set()
+        for KyHieu, ThongTin in BangBien.items():
+            TenGoc = re.sub(r"\[\d+\]", "", ThongTin["name"])
+            if TenGoc not in TenDaVe:
+                TenDaVe.add(TenGoc)
+                ChuyenTrangThai = XungTinHieu.get(KyHieu, [])
+                TinHieuVe.append({
+                    "name": ThongTin["name"],
+                    "symbol": KyHieu,
+                    "transitions": ChuyenTrangThai,
+                    "is_bus": ThongTin["width"] > 1 or "[" in ThongTin["name"]
                 })
 
-        # Pre-compute SVG paths for 0 to max_t
-        # Time scale: e.g. 2 pixels per ns
-        scale_x = 1.8
-        total_w = max(900, int(max_t * scale_x) + 100)
-        row_h = 42
+        TyLeX = 1.8
+        ChieuRongTong = max(900, int(ThoiGianToiDa * TyLeX) + 100)
+        ChieuCaoHang = 42
 
-        rows_svg = []
-        for i, sig in enumerate(signals_to_plot):
-            y_base = i * row_h + 30
-            y_high, y_low = y_base + 6, y_base + 30
+        DanhSachHangSvg = []
+        for ChiMuc, TinHieu in enumerate(TinHieuVe):
+            ToaDoY = ChiMuc * ChieuCaoHang + 30
+            YMucCao, YMucThap = ToaDoY + 6, ToaDoY + 30
 
-            # Build digital step polyline
-            path_points = []
-            tr_list = sig["transitions"] or [(0.0, "0"), (max_t, "0")]
-            last_y = y_low
+            ToaDoDiem = []
+            DanhSachChuyen = TinHieu["transitions"] or [(0.0, "0"), (ThoiGianToiDa, "0")]
+            YCuoi = YMucThap
 
-            for t_ns, val in tr_list:
-                x = t_ns * scale_x
-                target_y = y_high if val in ["1", "h", "H"] else y_low
-                path_points.append(f"{x:.1f},{last_y:.1f}")
-                path_points.append(f"{x:.1f},{target_y:.1f}")
-                last_y = target_y
-            path_points.append(f"{max_t * scale_x:.1f},{last_y:.1f}")
+            for ThoiGian, GiaTri in DanhSachChuyen:
+                ToaDoX = ThoiGian * TyLeX
+                YDich = YMucCao if GiaTri in ["1", "h", "H"] else YMucThap
+                ToaDoDiem.append(f"{ToaDoX:.1f},{YCuoi:.1f}")
+                ToaDoDiem.append(f"{ToaDoX:.1f},{YDich:.1f}")
+                YCuoi = YDich
+            ToaDoDiem.append(f"{ThoiGianToiDa * TyLeX:.1f},{YCuoi:.1f}")
 
-            stroke_color = "#00e676" if "clk" in sig["name"].lower() else ("#ffab00" if "coin" in sig["name"].lower() or "in" in sig["name"].lower() else "#00b0ff")
-            poly_str = " ".join(path_points)
+            TenInThuong = TinHieu["name"].lower()
+            MauDuong = "#00e676" if "clk" in TenInThuong else ("#ffab00" if ("coin" in TenInThuong or "in" in TenInThuong) else "#00b0ff")
+            ChuoiToaDo = " ".join(ToaDoDiem)
 
-            rows_svg.append(f"""
-            <!-- Signal: {sig['name']} -->
-            <g class="signal-row" data-name="{sig['name']}">
-                <rect x="0" y="{y_base}" width="{total_w}" height="{row_h}" fill="{'#1a1e24' if i%2==0 else '#15181c'}" />
-                <line x1="0" y1="{y_low}" x2="{total_w}" y2="{y_low}" stroke="#2a303c" stroke-dasharray="2,4" />
-                <polyline points="{poly_str}" fill="none" stroke="{stroke_color}" stroke-width="2" />
+            DanhSachHangSvg.append(f"""
+            <!-- Tin hieu: {TinHieu['name']} -->
+            <g class="signal-row" data-name="{TinHieu['name']}">
+                <rect x="0" y="{ToaDoY}" width="{ChieuRongTong}" height="{ChieuCaoHang}" fill="{'#1a1e24' if ChiMuc % 2 == 0 else '#15181c'}" />
+                <line x1="0" y1="{YMucThap}" x2="{ChieuRongTong}" y2="{YMucThap}" stroke="#2a303c" stroke-dasharray="2,4" />
+                <polyline points="{ChuoiToaDo}" fill="none" stroke="{MauDuong}" stroke-width="2" />
             </g>
             """)
 
-        # Grid lines every 50 ns
-        grid_svg = []
-        t = 0.0
-        while t <= max_t:
-            x = t * scale_x
-            grid_svg.append(f"""
-                <line x1="{x:.1f}" y1="0" x2="{x:.1f}" y2="{len(signals_to_plot)*row_h + 30}" stroke="#2c3440" stroke-width="1" />
-                <text x="{x + 2:.1f}" y="18" fill="#788b9c" font-size="11" font-family="monospace">{int(t)}ns</text>
+        # Vach thoi gian
+        DanhSachLuoiSvg = []
+        MocThoiGian = 0.0
+        while MocThoiGian <= ThoiGianToiDa:
+            ToaDoX = MocThoiGian * TyLeX
+            DanhSachLuoiSvg.append(f"""
+                <line x1="{ToaDoX:.1f}" y1="0" x2="{ToaDoX:.1f}" y2="{len(TinHieuVe) * ChieuCaoHang + 30}" stroke="#2c3440" stroke-width="1" />
+                <text x="{ToaDoX + 2:.1f}" y="18" fill="#788b9c" font-size="11" font-family="monospace">{int(MocThoiGian)}ns</text>
             """)
-            t += 20.0
+            MocThoiGian += 20.0
 
-        html_content = f"""<!DOCTYPE html>
-<html lang="en">
+        NoiDungHtml = f"""<!DOCTYPE html>
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>{title}</title>
+    <title>{TieuDeTrang}</title>
     <style>
         body {{
             margin: 0;
@@ -224,7 +219,7 @@ class WaveformVisualizer:
             padding-top: 30px;
         }}
         .label-row {{
-            height: {row_h}px;
+            height: {ChieuCaoHang}px;
             display: flex;
             align-items: center;
             padding: 0 15px;
@@ -241,110 +236,78 @@ class WaveformVisualizer:
             background: #15181c;
             position: relative;
         }}
-        .tooltip {{
-            position: fixed;
-            background: #1e293b;
-            color: #fff;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            display: none;
-            border: 1px solid #00e5ff;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        }}
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="title">⚡ {title}</div>
+        <div class="title">⚡ {TieuDeTrang}</div>
         <div class="badges">
-            <div class="badge badge-success">● ModelSim 10.1d Verified</div>
-            <div class="badge">Duration: {max_t:.1f} ns</div>
-            <div class="badge">Radix: Binary / Hex</div>
+            <div class="badge badge-success">● ModelSim Da Kiem Tra</div>
+            <div class="badge">Thoi gian: {ThoiGianToiDa:.1f} ns</div>
+            <div class="badge">Dang: Binary / Hex</div>
         </div>
     </div>
 
     <div class="container">
         <div class="signal-labels">
-            {"".join([f'<div class="label-row" title="{s["name"]}">{s["name"]}</div>' for s in signals_to_plot])}
+            {"".join([f'<div class="label-row" title="{T["name"]}">{T["name"]}</div>' for T in TinHieuVe])}
         </div>
         <div class="waveform-scroll">
-            <svg width="{total_w}" height="{len(signals_to_plot)*row_h + 35}" xmlns="http://www.w3.org/2000/svg">
-                <!-- Time Grid -->
-                {"".join(grid_svg)}
-                <!-- Waveform Rows -->
-                {"".join(rows_svg)}
+            <svg width="{ChieuRongTong}" height="{len(TinHieuVe) * ChieuCaoHang + 35}" xmlns="http://www.w3.org/2000/svg">
+                {"".join(DanhSachLuoiSvg)}
+                {"".join(DanhSachHangSvg)}
             </svg>
         </div>
     </div>
     <p style="color: #64748b; font-size: 12px; margin-top: 15px;">
-        * Trục ngang thể hiện thời gian mô phỏng (nanoseconds). Bạn có thể cuộn ngang để xem toàn bộ quá trình giao dịch, cấp tiền, nhả nước và thối tiền.
+        * Truc ngang the hien thoi gian mo phong (nanoseconds). Co the cuon ngang de xem toan bo qua trinh hoat dong cua mach.
     </p>
 </body>
 </html>
 """
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        return html_path
+        with open(TepHtml, "w", encoding="utf-8") as TepTin:
+            TepTin.write(NoiDungHtml)
+        return TepHtml
 
     @staticmethod
-    def generate_view_launcher(modelsim_bin, sim_dir, top_module, bat_path):
-        """Creates a 1-click Windows batch file to launch ModelSim Waveform GUI immediately."""
-        vsim_exe = os.path.join(modelsim_bin, "vsim.exe") if modelsim_bin else "vsim.exe"
+    def generate_view_launcher(ThuMucBinModelSim=None, ThuMucSim=None, TenModuleDau=None, DuongDanBat=None, modelsim_bin=None, sim_dir=None, top_module=None, bat_path=None):
+        """Tao file .bat khoi dong nhanh ModelSim GUI."""
+        ThuMucBin = modelsim_bin if modelsim_bin is not None else ThuMucBinModelSim
+        ThuMucMoPhong = sim_dir if sim_dir is not None else ThuMucSim
+        TenMod = top_module if top_module is not None else TenModuleDau
+        TepBat = bat_path if bat_path is not None else DuongDanBat
+
+        ThucThiVsim = os.path.join(ThuMucBin, "vsim.exe") if ThuMucBin else "vsim.exe"
         
-        bat_content = f"""@echo off
+        NoiDungBat = f"""@echo off
 chcp 65001 > nul
 echo ===============================================================================
-echo     Spec2RTL ^& Prompt2Silicon: 1-Click Graphical Waveform Launcher
+echo     Khoi Dong Trinh Xem Dang Song ModelSim Cho: {TenMod}
 echo ===============================================================================
 echo.
-echo [1/2] Khoi dong ModelSim Waveform GUI cho module: {top_module}...
+cd /d "{ThuMucMoPhong}"
 
-cd /d "{sim_dir}"
-
-if exist "{vsim_exe}" (
-    start "" "{vsim_exe}" -novopt work.{top_module} -do "add wave -r /*; run -all; wave zoom full;"
+if exist "{ThucThiVsim}" (
+    start "" "{ThucThiVsim}" -novopt work.{TenMod} -do "add wave -r /*; run -all; wave zoom full;"
     echo -> [OK] Da mo cua so song truc quan trong ModelSim GUI!
 ) else (
     echo -> [Luu y] Khong tim thay ModelSim GUI!
-    echo -> Ban co the mo file quartus/Waveform.vwf truc tiep trong Quartus II Waveform Editor.
+    echo -> Co the mo truc tiep file Waveform.vwf trong Quartus II Waveform Editor.
 )
-
-echo.
-echo [2/2] Da khoi tao thanh cong! Ban co the quan sat bieu do xung song tren man hinh.
-echo ===============================================================================
 """
-        with open(bat_path, "w", encoding="utf-8") as f:
-            f.write(bat_content)
-        return bat_path
+        with open(TepBat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(NoiDungBat)
+        return TepBat
 
 if __name__ == "__main__":
     from eda_finder import find_modelsim
-    base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    vcd = os.path.join(base, "sim", "vending_machine.vcd")
-    html_out = os.path.join(base, "sim", "waveform.html")
-    bat_out = os.path.join(base, "sim", "view_waveform.bat")
-    root_bat = os.path.join(base, "view_waveform.bat")
+    ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    TepVcd = os.path.join(ThuMucGoc, "sim", "vending_machine.vcd")
+    TepHtml = os.path.join(ThuMucGoc, "sim", "waveform.html")
 
-    vis = WaveformVisualizer()
-    if os.path.exists(vcd):
-        vis.generate_html_viewer(vcd, html_out, "Máy Bán Nước Tự Động (Vending Machine Waveform)")
-        print("Generated interactive HTML waveform at:", html_out)
-
-    ms_info = find_modelsim()
-    ms_bin = ms_info.get("bin_dir", "") if ms_info else ""
-    if ms_bin:
-        vis.generate_view_launcher(
-            ms_bin,
-            os.path.join(base, "sim"),
-            "tb_vending_machine",
-            bat_out
-        )
-        vis.generate_view_launcher(
-            ms_bin,
-            os.path.join(base, "sim"),
-            "tb_vending_machine",
-            root_bat
-        )
-        print("Generated 1-click launchers at:", bat_out, "and", root_bat)
+    BoTrucQuan = WaveformVisualizer()
+    if os.path.exists(TepVcd):
+        BoTrucQuan.generate_html_viewer(TepVcd, TepHtml, "May Ban Nuoc Tu Dong")
+        print("Da tao file HTML bieu dien dang song tai:", TepHtml)
+    else:
+        print("Chua co file VCD de thu nghiem.")

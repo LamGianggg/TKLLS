@@ -1,8 +1,8 @@
 """
 Module: tb_generator.py
-Description: Automated Testbench Generator for Spec2RTL & Prompt2Silicon.
-Generates self-checking Verilog testbenches with assertions, VCD waveform dumps,
-and VeriPrefer (arXiv:2504.15804) Verification Scoreboards for ANY module.
+Chuc nang: Tu dong tao testbench cho he thong Spec2RTL va Prompt2Silicon.
+Sinh testbench Verilog tu kiem tra voi assertions, xuat dang song VCD
+va bang diem kiem tra tieu chuan cho moi loai module.
 """
 
 import os
@@ -12,43 +12,54 @@ from verilog_linter import VerilogLinter
 from harness_generator import HarnessGenerator
 
 class TBGenerator:
-    def __init__(self, sim_dir):
-        self.sim_dir = sim_dir
-        os.makedirs(sim_dir, exist_ok=True)
-        self.harness_gen = HarnessGenerator(sim_dir)
+    """Bo tao testbench tu dong cho cac mach Verilog."""
 
-    def generate_harness(self, rtl_path):
-        """Generates a standardized Option A Verilog Hardware Test Harness wrapper."""
-        return self.harness_gen.generate_harness(rtl_path)
+    def __init__(self, ThuMucSim=None, sim_dir=None):
+        self.ThuMucSim = sim_dir if sim_dir is not None else ThuMucSim
+        self.sim_dir = self.ThuMucSim
+        os.makedirs(self.ThuMucSim, exist_ok=True)
+        self.BoTaoHarness = HarnessGenerator(self.ThuMucSim)
+        self.harness_gen = self.BoTaoHarness
 
-    def generate_tb_from_spec(self, spec_text, rtl_path, spec_path=None):
-        """Unified entry point: dynamically synthesizes self-checking Testbench for ANY module."""
-        analyzer = SpecAnalyzer(spec_path if spec_path else spec_text)
-        cat = analyzer.classify_system()
-        mod_name = analyzer.extract_module_name()
+    def generate_harness(self, DuongDanRtl=None, rtl_path=None):
+        """Tao wrapper phan cung chuan hoa Option A Harness cho mach RTL."""
+        TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
+        return self.BoTaoHarness.generate_harness(TepRtl)
 
-        if cat == "VENDING" and mod_name == "vending_machine":
-            return f"tb_{mod_name}", self.generate_vending_tb(mod_name)
-        elif cat == "ELEVATOR" and mod_name == "elevator_controller":
-            return f"tb_{mod_name}", self.generate_elevator_tb(mod_name)
-        elif cat == "TRAFFIC" and mod_name == "traffic_light":
-            return f"tb_{mod_name}", self.generate_traffic_tb(mod_name)
-        elif cat == "SOC_AI":
-            return "tb_top_soc", os.path.join(self.sim_dir, "tb_top_soc.v")
-        elif cat == "ALU" and mod_name == "alu_4bit":
-            return f"tb_{mod_name}", self.generate_alu_tb(mod_name)
-        elif cat == "GRAY_COUNTER" and mod_name == "gray_counter_4bit":
-            return f"tb_{mod_name}", self.generate_gray_counter_tb(mod_name)
-        elif cat == "DIGITAL_LOCK" and mod_name == "digital_lock_fsm":
-            return f"tb_{mod_name}", self.generate_digital_lock_tb(mod_name)
-        elif cat == "SEQUENCE_DETECTOR" and mod_name == "sequence_detector_1011":
-            return f"tb_{mod_name}", self.generate_sequence_detector_tb(mod_name)
+    def generate_tb_from_spec(self, NoiDungSpec=None, DuongDanRtl=None, DuongDanSpec=None, spec_text=None, rtl_path=None, spec_path=None):
+        """Diem vao duy nhat: Tu dong tao Testbench tu kiem tra cho bat ky module nao."""
+        VanBanSpec = spec_text if spec_text is not None else NoiDungSpec
+        TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
+        TepSpec = spec_path if spec_path is not None else DuongDanSpec
+
+        BoPhanTich = SpecAnalyzer(TepSpec if TepSpec else VanBanSpec)
+        NhomMach = BoPhanTich.classify_system()
+        TenModule = BoPhanTich.extract_module_name()
+
+        if NhomMach == "VENDING" and TenModule == "vending_machine":
+            return f"tb_{TenModule}", self.generate_vending_tb(TenModule)
+        elif NhomMach == "ELEVATOR" and TenModule == "elevator_controller":
+            return f"tb_{TenModule}", self.generate_elevator_tb(TenModule)
+        elif NhomMach == "TRAFFIC" and TenModule == "traffic_light":
+            return f"tb_{TenModule}", self.generate_traffic_tb(TenModule)
+        elif NhomMach == "SOC_AI":
+            return "tb_top_soc", os.path.join(self.ThuMucSim, "tb_top_soc.v")
+        elif NhomMach == "ALU" and TenModule == "alu_4bit":
+            return f"tb_{TenModule}", self.generate_alu_tb(TenModule)
+        elif NhomMach == "GRAY_COUNTER" and TenModule == "gray_counter_4bit":
+            return f"tb_{TenModule}", self.generate_gray_counter_tb(TenModule)
+        elif NhomMach == "DIGITAL_LOCK" and TenModule == "digital_lock_fsm":
+            return f"tb_{TenModule}", self.generate_digital_lock_tb(TenModule)
+        elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011":
+            return f"tb_{TenModule}", self.generate_sequence_detector_tb(TenModule)
         else:
-            return f"tb_{mod_name}", self.generate_generic_tb(rtl_path, mod_name)
+            return f"tb_{TenModule}", self.generate_generic_tb(TepRtl, TenModule)
 
-    def generate_vending_tb(self, module_name="vending_machine"):
-        """Generates self-checking testbench for Vending Machine with VeriPrefer scoreboard."""
-        tb_name = f"tb_{module_name}"
+    def generate_vending_tb(self, TenModule="vending_machine", module_name=None):
+        """Tao testbench tu kiem tra cho may ban nuoc tu dong."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Automated Testbench for Vending Machine FSM
@@ -220,15 +231,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_traffic_tb(self, module_name="traffic_light"):
-        """Generates self-checking testbench for Traffic Light Controller with VeriPrefer scoreboard."""
-        tb_name = f"tb_{module_name}"
+    def generate_traffic_tb(self, TenModule="traffic_light", module_name=None):
+        """Tao testbench tu kiem tra cho mach dieu khien den giao thong."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Automated Testbench for Intersection Traffic Light FSM
@@ -349,15 +362,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_elevator_tb(self, module_name="elevator_controller"):
-        """Generates self-checking testbench for 5-Floor Elevator Controller with VeriPrefer scoreboard."""
-        tb_name = f"tb_{module_name}"
+    def generate_elevator_tb(self, TenModule="elevator_controller", module_name=None):
+        """Tao testbench tu kiem tra cho mach dieu khien thang may."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Automated Testbench for 5-Floor Intelligent Elevator FSM
@@ -468,15 +483,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_alu_tb(self, module_name="alu_4bit"):
-        """Generates self-checking testbench for 4-bit ALU with full opcode coverage and mathematical oracle."""
-        tb_name = f"tb_{module_name}"
+    def generate_alu_tb(self, TenModule="alu_4bit", module_name=None):
+        """Tao testbench tu kiem tra cho khoi ALU 4-bit."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Autonomous Self-Checking Testbench for {module_name} (ALU)
@@ -613,15 +630,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_gray_counter_tb(self, module_name="gray_counter_4bit"):
-        """Generates self-checking testbench for Gray Code Counter with property-based single-bit flip invariant."""
-        tb_name = f"tb_{module_name}"
+    def generate_gray_counter_tb(self, TenModule="gray_counter_4bit", module_name=None):
+        """Tao testbench tu kiem tra cho mach dem ma Gray 4-bit."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Autonomous Property-Checking Testbench for {module_name}
@@ -724,15 +743,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_digital_lock_tb(self, module_name="digital_lock_fsm"):
-        """Generates self-checking testbench for Digital Lock FSM with security lockout oracle."""
-        tb_name = f"tb_{module_name}"
+    def generate_digital_lock_tb(self, TenModule="digital_lock_fsm", module_name=None):
+        """Tao testbench tu kiem tra cho khoa ma so dien tu FSM."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Autonomous Self-Checking Testbench for {module_name} (Digital Lock)
@@ -874,15 +895,17 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_sequence_detector_tb(self, module_name="sequence_detector_1011"):
-        """Generates self-checking testbench for Sequence Detector FSM verifying non-overlapping detection."""
-        tb_name = f"tb_{module_name}"
+    def generate_sequence_detector_tb(self, TenModule="sequence_detector_1011", module_name=None):
+        """Tao testbench tu kiem tra cho mach do chuoi bit 1011."""
+        TenMod = module_name if module_name is not None else TenModule
+        tb_name = f"tb_{TenMod}"
+        module_name = TenMod
         code = f"""//==============================================================================
 // Testbench: {tb_name}
 // Description: Autonomous Self-Checking Testbench for {module_name}
@@ -1010,143 +1033,143 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(code)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{tb_name}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
-    def generate_generic_tb(self, rtl_path, module_name):
-        """Autonomously extracts ports and synthesizes a VeriPrefer-compliant self-checking testbench."""
-        tb_name = f"tb_{module_name}"
+    def generate_generic_tb(self, DuongDanRtl=None, TenModuleDau=None, rtl_path=None, module_name=None):
+        """Tu dong trich xuat cong va tong hop testbench tu kiem tra theo tieu chuan VeriPrefer."""
+        TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
+        TenModule = module_name if module_name is not None else TenModuleDau
+        TenTb = f"tb_{TenModule}"
 
-        with open(rtl_path, "r", encoding="utf-8", errors="replace") as f:
-            rtl_code = f.read()
+        with open(TepRtl, "r", encoding="utf-8", errors="replace") as TepTin:
+            MaRtl = TepTin.read()
 
-        # Extract port declarations
-        m_mod = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", rtl_code, re.DOTALL)
-        ports = []
-        if m_mod:
-            port_block = m_mod.group(2)
-            # Strip comments first to prevent matching keywords inside comments
-            port_block = re.sub(r"//.*", "", port_block)
-            port_block = re.sub(r"/\*.*?\*/", "", port_block, flags=re.DOTALL)
-            verilog_reserved = {"input", "output", "inout", "wire", "reg", "for", "while", "case", "default", "assign", "begin", "end"}
-            for line in port_block.split(","):
-                line = line.strip()
-                m_p = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", line)
-                if m_p:
-                    direction, msb, lsb, port_name = m_p.groups()
-                    if port_name.lower() in verilog_reserved:
+        # Trich xuat khai bao cong tu module Verilog
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaRtl, re.DOTALL)
+        DanhSachCong = []
+        if KhopModule:
+            KhoiKhaiBaoCong = KhopModule.group(2)
+            # Loai bo chu thich truoc de tranh trung tu khoa
+            KhoiKhaiBaoCong = re.sub(r"//.*", "", KhoiKhaiBaoCong)
+            KhoiKhaiBaoCong = re.sub(r"/\*.*?\*/", "", KhoiKhaiBaoCong, flags=re.DOTALL)
+            TuKhoaVerilog = {"input", "output", "inout", "wire", "reg", "for", "while", "case", "default", "assign", "begin", "end"}
+            for Dong in KhoiKhaiBaoCong.split(","):
+                Dong = Dong.strip()
+                KhopCong = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", Dong)
+                if KhopCong:
+                    HuongCong, Msb, Lsb, TenCong = KhopCong.groups()
+                    if TenCong.lower() in TuKhoaVerilog:
                         continue
-                    w = (int(msb) - int(lsb) + 1) if (msb and lsb) else 1
-                    ports.append({
-                        "name": port_name,
-                        "direction": direction,
-                        "width": w,
-                        "msb": msb,
-                        "lsb": lsb,
-                        "is_clk": any(k in port_name.lower() for k in ["clk", "clock"]),
-                        "is_rst": any(k in port_name.lower() for k in ["rst", "clr", "reset", "clear"])
+                    DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
+                    DanhSachCong.append({
+                        "name": TenCong,
+                        "direction": HuongCong,
+                        "width": DoRong,
+                        "msb": Msb,
+                        "lsb": Lsb,
+                        "is_clk": any(Tu in TenCong.lower() for Tu in ["clk", "clock"]),
+                        "is_rst": any(Tu in TenCong.lower() for Tu in ["rst", "clr", "reset", "clear"])
                     })
 
-        # Declarations
-        decls = []
-        inst_connections = []
-        has_clk = False
-        clk_name = "clk"
-        has_rst = False
-        stimulus_lines = []
+        # Khai bao tin hieu
+        KhaiBaoTinHieu = []
+        KetNoiCongDut = []
+        CoXungNhip = False
+        TenXungNhip = "clk"
+        CoReset = False
+        DongKichThich = []
 
-        for p in ports:
-            p_name = p["name"]
-            w_str = f"[{p['width']-1}:0] " if p["width"] > 1 else ""
-            inst_connections.append(f"        .{p_name}({p_name})")
+        for Cong in DanhSachCong:
+            TenCong = Cong["name"]
+            ChuoiDoRong = f"[{Cong['width']-1}:0] " if Cong["width"] > 1 else ""
+            KetNoiCongDut.append(f"        .{TenCong}({TenCong})")
 
-            if p["direction"] == "input":
-                decls.append(f"    reg  {w_str:<8} {p_name};")
-                if p["is_clk"]:
-                    has_clk = True
-                    clk_name = p_name
-                if p["is_rst"]:
-                    has_rst = True
+            if Cong["direction"] == "input":
+                KhaiBaoTinHieu.append(f"    reg  {ChuoiDoRong:<8} {TenCong};")
+                if Cong["is_clk"]:
+                    CoXungNhip = True
+                    TenXungNhip = TenCong
+                if Cong["is_rst"]:
+                    CoReset = True
             else:
-                decls.append(f"    wire {w_str:<8} {p_name};")
+                KhaiBaoTinHieu.append(f"    wire {ChuoiDoRong:<8} {TenCong};")
 
-        # Initial stimulus
-        stimulus_lines.append("        // Initial conditions")
-        for p in ports:
-            if p["direction"] == "input":
-                if p["is_rst"]:
-                    # Check active low
-                    if p["name"].endswith("_n") or p["name"] == "rst_n":
-                        stimulus_lines.append(f"        {p['name']} = 1'b0; // Assert active-low reset")
+        # Tao kich thich ban dau
+        DongKichThich.append("        // Trang thai khoi tao")
+        for Cong in DanhSachCong:
+            if Cong["direction"] == "input":
+                if Cong["is_rst"]:
+                    if Cong["name"].endswith("_n") or Cong["name"] == "rst_n":
+                        DongKichThich.append(f"        {Cong['name']} = 1'b0; // Kich hoat reset muc thap")
                     else:
-                        stimulus_lines.append(f"        {p['name']} = 1'b1; // Assert active-high reset")
+                        DongKichThich.append(f"        {Cong['name']} = 1'b1; // Kich hoat reset muc cao")
                 else:
-                    stimulus_lines.append(f"        {p['name']} = 0;")
+                    DongKichThich.append(f"        {Cong['name']} = 0;")
 
-        stimulus_lines.append("\n        #25;")
-        for p in ports:
-            if p["direction"] == "input" and p["is_rst"]:
-                if p["name"].endswith("_n") or p["name"] == "rst_n":
-                    stimulus_lines.append(f"        {p['name']} = 1'b1; // Deassert active-low reset")
+        DongKichThich.append("\n        #25;")
+        for Cong in DanhSachCong:
+            if Cong["direction"] == "input" and Cong["is_rst"]:
+                if Cong["name"].endswith("_n") or Cong["name"] == "rst_n":
+                    DongKichThich.append(f"        {Cong['name']} = 1'b1; // Huy reset muc thap")
                 else:
-                    stimulus_lines.append(f"        {p['name']} = 1'b0; // Deassert active-high reset")
+                    DongKichThich.append(f"        {Cong['name']} = 1'b0; // Huy reset muc cao")
 
-        # Apply diverse stimulus scenarios with assertions
-        stimulus_lines.append("\n        // Test Scenarios Execution with VeriPrefer Assertions")
-        test_inputs = [p for p in ports if p["direction"] == "input" and not p["is_clk"] and not p["is_rst"]]
-        output_ports = [p for p in ports if p["direction"] == "output"]
-        for step in range(1, 5):
-            stimulus_lines.append(f"        // Scenario {step}")
-            for idx, inp in enumerate(test_inputs):
-                val = (step * (idx + 1) * 3) % (1 << min(inp["width"], 8))
-                stimulus_lines.append(f"        {inp['name']} = {inp['width']}'d{val};")
-            stimulus_lines.append("        #20;")
-            stimulus_lines.append("        total_tests = total_tests + 1;")
-            if output_ports:
-                # Genuine verification assertion: check outputs are deterministic and non-floating
-                check_conds = " && ".join([f"(^{p['name']} !== 1'bx)" for p in output_ports])
-                stimulus_lines.append(f"        if ({check_conds}) begin")
-                stimulus_lines.append("            passed_tests = passed_tests + 1;")
-                stimulus_lines.append(f"            $display(\"  [PASS] Scenario {step}: Outputs valid and deterministic\");")
-                stimulus_lines.append("        end else begin")
-                stimulus_lines.append("            failed_tests = failed_tests + 1;")
-                stimulus_lines.append(f"            $display(\"  [ERROR] Scenario {step}: Output contains undefined or floating (X/Z) bits!\");")
-                stimulus_lines.append("        end")
+        # Thuc thi cac kich ban kiem thu voi assertions
+        DongKichThich.append("\n        // Chay cac kich ban kiem thu voi assertions")
+        CongVaoKiemThu = [Cong for Cong in DanhSachCong if Cong["direction"] == "input" and not Cong["is_clk"] and not Cong["is_rst"]]
+        CongRaKiemThu = [Cong for Cong in DanhSachCong if Cong["direction"] == "output"]
+        for Buoc in range(1, 5):
+            DongKichThich.append(f"        // Kich ban {Buoc}")
+            for ChiSo, CongVao in enumerate(CongVaoKiemThu):
+                GiaTri = (Buoc * (ChiSo + 1) * 3) % (1 << min(CongVao["width"], 8))
+                DongKichThich.append(f"        {CongVao['name']} = {CongVao['width']}'d{GiaTri};")
+            DongKichThich.append("        #20;")
+            DongKichThich.append("        total_tests = total_tests + 1;")
+            if CongRaKiemThu:
+                DieuKienKiemTra = " && ".join([f"(^{Cong['name']} !== 1'bx)" for Cong in CongRaKiemThu])
+                DongKichThich.append(f"        if ({DieuKienKiemTra}) begin")
+                DongKichThich.append("            passed_tests = passed_tests + 1;")
+                DongKichThich.append(f"            $display(\"  [PASS] Scenario {Buoc}: Outputs valid and deterministic\");")
+                DongKichThich.append("        end else begin")
+                DongKichThich.append("            failed_tests = failed_tests + 1;")
+                DongKichThich.append(f"            $display(\"  [ERROR] Scenario {Buoc}: Output contains undefined or floating (X/Z) bits!\");")
+                DongKichThich.append("        end")
             else:
-                stimulus_lines.append("        passed_tests = passed_tests + 1;")
+                DongKichThich.append("        passed_tests = passed_tests + 1;")
 
-        stimulus_lines.append("        #40;")
+        DongKichThich.append("        #40;")
 
-        decls_str = "\n".join(decls)
-        connections_str = ",\n".join(inst_connections)
-        stimulus_str = "\n".join(stimulus_lines)
-        clk_gen_str = f"always #10 {clk_name} = ~{clk_name};" if has_clk else ""
+        ChuoiKhaiBao = "\n".join(KhaiBaoTinHieu)
+        ChuoiKetNoi = ",\n".join(KetNoiCongDut)
+        ChuoiKichThich = "\n".join(DongKichThich)
+        ChuoiXungNhip = f"always #10 {TenXungNhip} = ~{TenXungNhip};" if CoXungNhip else ""
 
-        code = f"""//==============================================================================
-// Testbench: {tb_name}
-// Description: Autonomous Self-Checking Testbench for {module_name}
-// Based on VeriPrefer (arXiv:2504.15804) Functional Verification Framework
+        MaNguon = f"""//==============================================================================
+// Testbench: {TenTb}
+// Mo ta: Testbench tu kiem tra cho thiet ke {TenModule}
+// Tieu chuan kiem dinh: VeriPrefer (arXiv:2504.15804)
 //==============================================================================
 `timescale 1ns / 1ps
 
-module {tb_name};
+module {TenTb};
 
-{decls_str}
+{ChuoiKhaiBao}
 
     integer total_tests = 0;
     integer passed_tests = 0;
     integer failed_tests = 0;
 
-    {module_name} dut (
-{connections_str}
+    {TenModule} dut (
+{ChuoiKetNoi}
     );
 
-    {clk_gen_str}
+    {ChuoiXungNhip}
 
-    // Watchdog Safety Timer Guard (Option A Harness Architecture)
+    // Bo dem thoi gian bao ve Watchdog
     initial begin
         #100000;
         $display("[HARNESS WATCHDOG TIMEOUT] Simulation exceeded safety limit (100 us)!");
@@ -1154,14 +1177,14 @@ module {tb_name};
     end
 
     initial begin
-        $dumpfile("{module_name}.vcd");
-        $dumpvars(0, {tb_name});
+        $dumpfile("{TenModule}.vcd");
+        $dumpvars(0, {TenTb});
 
         $display("============================================================================");
-        $display("   AUTONOMOUS HARDWARE VERIFICATION FOR MODULE: {module_name}");
+        $display("   AUTONOMOUS HARDWARE VERIFICATION FOR MODULE: {TenModule}");
         $display("============================================================================");
 
-{stimulus_str}
+{ChuoiKichThich}
 
         $display("============================================================================");
         $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
@@ -1172,9 +1195,9 @@ module {tb_name};
         $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
-            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");
         end else begin
-            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{module_name}' FAILED WITH %0d ERRORS!", failed_tests);
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{TenModule}' FAILED WITH %0d ERRORS!", failed_tests);
         end
         $display("============================================================================");
         $finish;
@@ -1182,12 +1205,12 @@ module {tb_name};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.sim_dir, f"{tb_name}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+        MaNguon = VerilogLinter.sanitize_verilog_code(MaNguon)
+        DuongDanXuat = os.path.join(self.ThuMucSim, f"{TenTb}.v")
+        with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
+            TepTin.write(MaNguon)
+        return DuongDanXuat
 
 if __name__ == "__main__":
-    gen = TBGenerator("../sim")
-    print("TBGenerator with VeriPrefer standard ready.")
+    BoTao = TBGenerator("../sim")
+    print("TBGenerator da san sang hoat dong.")

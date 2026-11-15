@@ -1,86 +1,83 @@
 """
 Module: verilog_linter.py
-Description: Static Verilog Linter, Pre-Synthesis Checker & Sanitizer.
-Based on University of Florida VerilogDB (arXiv:2507.13369) Preprocessing Framework.
-Validates syntax, port consistency, and sanitizes strings before EDA compilation.
+Mô tả: Bộ tiền kiểm tra và dọn dẹp cú pháp Verilog trước khi biên dịch EDA.
+Tự động sửa lỗi dấu phẩy thừa, format chuỗi % và kiểm tra cân bằng begin/end.
 """
 
 import re
 import os
 
 class VerilogLinter:
-    """Pre-synthesis static analysis and sanitation engine for generated Verilog RTL and Testbenches."""
+    """Bộ kiểm tra tĩnh và chuẩn hóa cú pháp Verilog RTL và Testbench."""
 
     @staticmethod
-    def sanitize_verilog_code(code):
-        """Sanitizes common syntax hazards in Verilog code."""
-        # 1. Fix unescaped '%' in $display string literals (e.g. "100%!" -> "100 PERCENT!")
-        def fix_display_percent(match):
-            content = match.group(0)
-            # Replace invalid %! with PERCENT!
-            content = re.sub(r'%!', r' PERCENT!', content)
-            # Replace 100% when not already escaped as 100%% or followed by format specifier
-            content = re.sub(r'100%(?!%|[0-9a-zA-Z])', r'100 PERCENT', content)
-            return content
+    def sanitize_verilog_code(MaNguon):
+        """Dọn dẹp các lỗi cú pháp phổ biến trong mã Verilog."""
+        # 1. Sửa ký tự '%' chưa escape trong chuỗi $display
+        def SuaKyTuPhanTram(Khop):
+            NoiDung = Khop.group(0)
+            NoiDung = re.sub(r'%!', r' PERCENT!', NoiDung)
+            NoiDung = re.sub(r'100%(?!%|[0-9a-zA-Z])', r'100 PERCENT', NoiDung)
+            return NoiDung
 
-        code = re.sub(r'\$display\s*\([^;]+;', fix_display_percent, code)
+        MaNguon = re.sub(r'\$display\s*\([^;]+;', SuaKyTuPhanTram, MaNguon)
 
-        # 2. Fix multiple trailing commas in module port list: e.g. "port1,\n);" -> "port1\n);"
-        code = re.sub(r',\s*\)', r'\n)', code)
+        # 2. Xóa dấu phẩy thừa ở cuối danh sách cổng module
+        MaNguon = re.sub(r',\s*\)', r'\n)', MaNguon)
 
-        return code
+        return MaNguon
 
     @staticmethod
-    def sanitize_file(file_path):
-        """Reads, sanitizes, and writes back a Verilog file if changes are needed."""
-        if not os.path.exists(file_path):
-            return False, "File does not exist"
+    def sanitize_file(DuongDanFile):
+        """Đọc, chuẩn hóa cú pháp và lưu lại file Verilog nếu có lỗi."""
+        if not os.path.exists(DuongDanFile):
+            return False, "File không tồn tại"
 
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            original = f.read()
+        with open(DuongDanFile, "r", encoding="utf-8", errors="replace") as TepTin:
+            NoiDungGoc = TepTin.read()
 
-        cleaned = VerilogLinter.sanitize_verilog_code(original)
+        NoiDungSach = VerilogLinter.sanitize_verilog_code(NoiDungGoc)
 
-        if cleaned != original:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(cleaned)
-            return True, "Sanitized syntax hazards (e.g. format specifiers, trailing commas)"
-        return False, "Clean"
+        if NoiDungSach != NoiDungGoc:
+            with open(DuongDanFile, "w", encoding="utf-8") as TepTin:
+                TepTin.write(NoiDungSach)
+            return True, "Đã chuẩn hóa cú pháp (dấu phẩy thừa, ký tự format)"
+        return False, "Chuẩn cú pháp"
 
     @staticmethod
-    def lint_check(code):
-        """Performs static checks and returns any warnings or structural defects."""
-        issues = []
+    def lint_check(MaNguon):
+        """Kiểm tra tĩnh cấu trúc khối lệnh begin/end, case/endcase, module/endmodule."""
+        DanhSachLoi = []
 
-        # 1. Check begin/end balance
-        begin_count = len(re.findall(r'\bbegin\b', code))
-        end_count = len(re.findall(r'\bend\b', code))
-        if begin_count != end_count:
-            issues.append(f"Mismatched block count: {begin_count} 'begin' vs {end_count} 'end'")
+        # 1. Kiểm tra cặp begin/end
+        SoLuongBegin = len(re.findall(r'\bbegin\b', MaNguon))
+        SoLuongEnd = len(re.findall(r'\bend\b', MaNguon))
+        if SoLuongBegin != SoLuongEnd:
+            DanhSachLoi.append(f"Lệch số lượng khối: {SoLuongBegin} 'begin' so với {SoLuongEnd} 'end'")
 
-        # 2. Check case/endcase balance
-        case_count = len(re.findall(r'\bcase\b|\bcasex\b|\bcasez\b', code))
-        endcase_count = len(re.findall(r'\bendcase\b', code))
-        if case_count != endcase_count:
-            issues.append(f"Mismatched case count: {case_count} 'case' vs {endcase_count} 'endcase'")
+        # 2. Kiểm tra cặp case/endcase
+        SoLuongCase = len(re.findall(r'\bcase\b|\bcasex\b|\bcasez\b', MaNguon))
+        SoLuongEndcase = len(re.findall(r'\bendcase\b', MaNguon))
+        if SoLuongCase != SoLuongEndcase:
+            DanhSachLoi.append(f"Lệch số lượng case: {SoLuongCase} 'case' so với {SoLuongEndcase} 'endcase'")
 
-        # 3. Check module/endmodule balance
-        mod_count = len(re.findall(r'\bmodule\b', code))
-        endmod_count = len(re.findall(r'\bendmodule\b', code))
-        if mod_count != endmod_count:
-            issues.append(f"Mismatched module count: {mod_count} 'module' vs {endmod_count} 'endmodule'")
+        # 3. Kiểm tra cặp module/endmodule
+        SoLuongModule = len(re.findall(r'\bmodule\b', MaNguon))
+        SoLuongEndmodule = len(re.findall(r'\bendmodule\b', MaNguon))
+        if SoLuongModule != SoLuongEndmodule:
+            DanhSachLoi.append(f"Lệch module: {SoLuongModule} 'module' so với {SoLuongEndmodule} 'endmodule'")
 
-        # 4. Check for invalid format specifiers in display
-        if re.search(r'\$display\s*\([^"]*"[^"]*%![^"]*"', code):
-            issues.append("Invalid format specifier '%!' detected in $display statement")
+        # 4. Kiểm tra format không hợp lệ trong $display
+        if re.search(r'\$display\s*\([^"]*"[^"]*%![^"]*"', MaNguon):
+            DanhSachLoi.append("Phát hiện format '%!' không hợp lệ trong lệnh $display")
 
         return {
-            "valid": len(issues) == 0,
-            "issues": issues
+            "valid": len(DanhSachLoi) == 0,
+            "issues": DanhSachLoi
         }
 
 if __name__ == "__main__":
-    sample = '''module test; initial begin $display("100%!"); end endmodule'''
-    cleaned = VerilogLinter.sanitize_verilog_code(sample)
-    print("Cleaned:", cleaned)
-    print("Lint:", VerilogLinter.lint_check(cleaned))
+    MauThu = '''module test; initial begin $display("100%!"); end endmodule'''
+    KetQuaSach = VerilogLinter.sanitize_verilog_code(MauThu)
+    print("Mã sau dọn dẹp:", KetQuaSach)
+    print("Kết quả kiểm tra:", VerilogLinter.lint_check(KetQuaSach))
