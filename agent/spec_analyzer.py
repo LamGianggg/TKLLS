@@ -85,12 +85,37 @@ class SpecAnalyzer:
 
         return "custom_hw_module"
 
+    def is_30_percent_architecture(self):
+        """Identifies if the specification describes a 30% Custom Innovation / Monolithic Complex SoC.
+        According to the 70/30 separation philosophy, complex monolithic systems
+        (e.g., Top SoC, Multi-core AI Accelerator, Systolic Array Processor, Multi-channel DMA Subsystem)
+        must not be flattened into a single monolithic prompt, but decomposed into 70% modular components."""
+        raw_text = (os.path.basename(self.spec_path) + " " + self.content)
+        text = remove_vietnamese_accents(raw_text)
+
+        # Monolithic SoC / AI Accelerator Core / Multi-module system triggers
+        if any(term in text for term in [
+            "top_soc", "top soc", "ai accelerator core", "ai_accelerator_core",
+            "he thong ai accelerator", "bo xu ly ai da loi", "systolic array processor",
+            "mang tam thu 2d", "mang tam thu npu", "multi-channel dma controller",
+            "npu_core", "ai_core_top"
+        ]):
+            return True
+
+        if "soc" in text and any(k in text for k in ["accelerator", "core", "datapath", "dma", "cpu", "he thong"]):
+            return True
+
+        if ("dma" in text and "relu" in text and "ai" in text):
+            return True
+
+        return False
+
     def classify_system(self):
         """Classifies the specification into a known or generic hardware architecture."""
         raw_text = (os.path.basename(self.spec_path) + " " + self.content)
         text = remove_vietnamese_accents(raw_text)
 
-        if "soc" in text or ("dma" in text and "relu" in text) or "mac_unit" in text:
+        if self.is_30_percent_architecture():
             return "SOC_AI"
         if "vend" in text or "ban nuoc" in text:
             return "VENDING"
