@@ -132,15 +132,14 @@
      * Kỹ sư phần cứng cần nhìn thấy sơ đồ mạch thật để kiểm soát kết nối thực thể.
      * `bdf_generator.py`: Tự động tạo file Symbol (`.bsf`) và file sơ đồ khối nguyên lý (`.bdf`). Mở Quartus II lên là thấy đầy đủ khối linh kiện, cổng vào/ra, bus dây được nối thẳng hàng, không bị lỗi đứt dây hay chân lơ lửng.
      * `port_auditor.py`: Thanh tra đối chiếu chéo 4 chiều độc lập: $\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$ (Cam kết bảo toàn toàn vẹn cổng tín hiệu).
-  2. **Bộ 4 định dạng dạng sóng Waveform trực quan [`vwf_generator.py` & `waveform_visualizer.py`]**:
-     * *ModelSim 1-Click Waveform (`view_waveform.bat`)*: Nhấp đúp chuột là tự bật cửa sổ sóng phóng to toàn màn hình.
-     * *Quartus Waveform Editor [`vwf_generator.py`]*: Tạo file `.vwf` nạp sẵn chân tín hiệu và xung clock vào Quartus.
-     * *Interactive Web Waveform [`waveform_visualizer.py`]*: Tạo file `waveform.html` xem dạng sóng tương tác bằng chuột ngay trên trình duyệt web mà không cần cài phần mềm nặng.
-     * *Dữ liệu sóng chuẩn công nghiệp*: Xuất file `.vcd` tương thích với mọi công cụ phân tích khác.
+  2. **Bộ định dạng dạng sóng Waveform trực quan chuẩn EDA [`vwf_generator.py`]**:
+     * *ModelSim Waveform GUI (cờ `--gui`)*: Tự động khởi động cửa sổ sóng đồ họa ModelSim phóng to toàn màn hình.
+     * *Quartus Waveform Editor [`vwf_generator.py`]*: Tạo file `.vwf` nạp sẵn chân tín hiệu và xung clock vào Quartus II.
+     * *Dữ liệu sóng chuẩn công nghiệp*: Xuất file `.vcd` (Value Change Dump) tương thích với mọi công cụ phân tích EDA.
 * **Lời thoại thuyết trình (45s)**:
   > *"Điểm khác biệt lớn nhất và là **giá trị cốt lõi ở đầu ra của toàn bộ luồng chạy** chính là nguyên lý: 'Trực quan hóa để kiểm soát thực thể'.*  
   > *Một kỹ sư phần cứng hay thầy cô chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
-  > *Nhờ module `bdf_generator.py` và `port_auditor.py`, hệ thống tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp hoàn toàn với đề bài. Đồng thời, module `waveform_visualizer.py` xuất ra 4 định dạng sóng trực quan: chỉ cần nhấp đúp chuột là ModelSim tự động mở sóng, hoặc có thể mở ngay file HTML trên trình duyệt để kiểm tra từng xung nhịp."*
+  > *Nhờ module `bdf_generator.py` và `port_auditor.py`, hệ thống tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp hoàn toàn với đề bài. Đồng thời, hệ thống xuất file sóng Quartus `.vwf` và tự động kích hoạt ModelSim GUI để kiểm tra trực tiếp dạng sóng xung nhịp trên màn hình."*
 
 ---
 
@@ -169,14 +168,14 @@
   - **Bước 1: Soạn đề bài tự nhiên**:
     * Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) (Đồng hồ bấm giờ 0-9 giây kèm giải mã LED 7 đoạn).
   - **Bước 2: Chạy hệ thống tự động**:
-    * Mở file `demo.bat` (gọi ngầm `run_spec2rtl.py`) $\rightarrow$ Nhập số `[3]` $\rightarrow$ Nhấn Enter.
+    * Chạy lệnh: `python agent/run_spec2rtl.py specs/c.txt --gui`
     * Các module được kích hoạt tự động theo chuỗi: `spec_analyzer` $\rightarrow$ `rtl_generator` $\rightarrow$ `simulator` (ModelSim) $\rightarrow$ `bdf_generator` (Quartus).
   - **Bước 3: Chiêm ngưỡng kết quả đa phương tiện**:
     * Màn hình ModelSim tự động mở cửa sổ Waveform: Xung nhịp đếm 0..9 và mã LED 7 đoạn chạy mượt mà.
     * Mở file `quartus/sch_stopwatch.bdf`: Xem sơ đồ mạch nguyên lý với các cổng I/O rõ ràng trên Quartus II.
 * **Lời thoại thuyết trình (35s)**:
   > *"Sau đây em xin phép được thực hiện demo trực tiếp trên máy tính:  
-  > Em chỉ cần mở file văn bản mô tả đề bài mạch Đồng hồ bấm giờ, nhấp đúp file launcher demo.bat và chọn bài số 3.  
+  > Em chỉ cần mở file văn bản mô tả đề bài mạch Đồng hồ bấm giờ và chạy một câu lệnh ngắn: `python agent/run_spec2rtl.py specs/c.txt --gui`.  
   > Ngay lập tức, màn hình console sẽ hiển thị quá trình ModelSim chạy mô phỏng đạt kết quả PASS, cửa sổ sóng ModelSim tự động bật lên, và file sơ đồ BDF đã được tạo sẵn để Thầy Cô kiểm tra trực tiếp trong Quartus II."*
 
 ---

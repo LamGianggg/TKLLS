@@ -307,21 +307,11 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     spec_ports = analyzer.extract_ports()
     PortAuditor.audit(spec_ports, primary_rtl, bsf_path, bdf_path)
 
-    # 1-Click Graphical Waveform Launchers (ModelSim GUI)
+    # Simulation waveform trace
     vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
-    bat_sim = os.path.join(sim_dir, "view_waveform.bat")
-    bat_root = os.path.join(base_dir, "view_waveform.bat")
-    bat_sim_entity = os.path.join(sim_dir, f"view_waveform_{top_entity}.bat")
-    bat_root_entity = os.path.join(base_dir, f"view_waveform_{top_entity}.bat")
 
     modelsim_info = find_modelsim()
     m_bin = modelsim_info.get("bin_dir") if modelsim_info else ""
-
-    vis = WaveformVisualizer()
-    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim)
-    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root)
-    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim_entity)
-    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root_entity)
 
     if open_gui and m_bin:
         print(f"\n[ModelSim GUI]: Đang khởi động cửa sổ sóng đồ họa trên màn hình...")
@@ -344,9 +334,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         if vwf_path and os.path.exists(vwf_path):
             vwf_entity = os.path.join(q_dir, f"Waveform_{top_entity}.vwf")
             print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_entity} (hoặc {vwf_path})")
-        print(f" 3. 1-Click GUI   : Nhấp đúp chuột vào '{bat_root_entity}' hoặc 'view_waveform.bat'")
-        print(f" 4. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
-        print(f" 5. Raw VCD Data  : {vcd_path}")
+        print(f" 3. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
+        print(f" 4. Raw VCD Data  : {vcd_path}")
         return True, elapsed, top_entity, bdf_path, metrics
     else:
         print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")
