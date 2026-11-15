@@ -4,36 +4,40 @@
 
 ---
 
-### SƠ ĐỒ LUỒNG HOẠT ĐỘNG & MỤC TIÊU CỐT LÕI (WORKFLOW & KEY MILESTONES)
+### SƠ ĐỒ LUỒNG HOẠT ĐỘNG & CÁC MODULE PHẦN MỀM (.PY) ĐẢM NHIỆM
 
 ```text
                      ĐẶC TẢ YÊU CẦU (Natural Language Spec: .txt, .md, prompt)
                                                 │
-                                                ▼
+                                                ▼ [spec_analyzer.py]
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [BƯỚC 1: CHIẾN LƯỢC TỐI ƯU CÔNG SỨC - 70% Phổ Thông vs 30% Đột Phá]                     │
-│  - 70% Khối mạch thông dụng (FSM, Counter, ALU, FIFO, Bus): Tự động hóa 100% bằng AI     │
-│  - 30% Khối vi mạch cốt lõi (SoC AI Core, MAC Unit): Dành trọn thời gian cho kỹ sư      │
+│  - Phân loại vi mạch: [knowledge_matcher.py] tra cứu kho 539 mẫu chuẩn (hardware_db)    │
+│  - 70% Mạch thông dụng (FSM, Counter, ALU, FIFO, Bus): Tự động hóa 100% bằng AI         │
+│  - 30% Mạch cốt lõi (SoC AI Core, MAC Unit): Dành trọn thời gian cho kỹ sư              │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼
+                                                ▼ [rtl_generator.py, tb_generator.py]
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [BƯỚC 2: ĐỘNG CƠ THỰC THI SPEC2RTL - Spec -> RTL -> Testbench]                          │
-│  - Thay thế hàng tuần viết code tay bằng AI Agent thông minh                            │
-│  - Tự động sinh mã Verilog + Testbench tự kiểm chứng (Self-checking) chỉ trong 1-2 giây │
+│  - Sinh Verilog synthesizable chuẩn 100% không chốt ẩn: [rtl_generator.py]              │
+│  - Sinh Testbench tự kiểm tra (Self-checking Scoreboard): [tb_generator.py]            │
+│  - Quét cú pháp tĩnh chuẩn VerilogDB: [verilog_linter.py]                               │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼
+                                                ▼ [simulator.py, reflection_loop.py]
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [BƯỚC 3: KIỂM CHỨNG & TỰ SỬA LỖI - Vòng Lặp Phản Hồi EDA Khép Kín (Closed-Loop)]        │
-│  - Đưa trực tiếp ModelSim và Quartus vào làm trọng tài (EDA-in-the-loop)                │
-│  - Đọc log lỗi mô phỏng -> Reflection Agent tự sửa code cho đến khi đúng 100%          │
-│    (Kế thừa chuẩn nghiên cứu VeriPrefer - arXiv:2504.15804)                             │
+│  - Gọi ModelSim biên dịch và mô phỏng ngầm (CLI batch): [simulator.py]                  │
+│  - Đọc log lỗi sai lệch nano-giây -> Tự động sửa mã Verilog: [reflection_loop.py]       │
+│  - Đo đạc tài nguyên thực tế trên chip Cyclone II: [synthesis_profiler.py]              │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼
+                                                ▼ [bdf_generator.py, waveform_visualizer.py]
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [BƯỚC 4: ĐẦU RA BÀN GIAO - "Trực Quan Hóa Để Kiểm Soát Thực Thể"]                       │
-│  - Không chỉ dừng lại ở file code text vô hồn                                           │
-│  - Tự động vẽ Sơ đồ nguyên lý mạch Quartus BDF + Xuất 4 định dạng sóng đồ họa trực quan │
+│  - Tự động vẽ Sơ đồ nguyên lý mạch Quartus BDF + Tạo Symbol: [bdf_generator.py]         │
+│  - Thanh tra đối chiếu chéo 4 chiều bảo toàn chân cắm 1:1: [port_auditor.py]           │
+│  - Xuất file sóng Quartus: [vwf_generator.py] & Giao diện sóng Web/GUI: [waveform_...py]│
 └─────────────────────────────────────────────────────────────────────────────────────────┘
+               [Tổng điều phối luồng toàn trình: run_spec2rtl.py & eda_finder.py]
 ```
 
 ---
@@ -46,8 +50,9 @@
   - Giảng viên hướng dẫn: [Họ và tên Thầy giáo]
   - Công cụ EDA hỗ trợ: Altera Quartus II 13.0sp1 & ModelSim-Altera 10.1d
 * **Nội dung hiển thị trên slide**:
-  - Biểu tượng mũi tên chuyển đổi: `Mô tả tiếng Việt/tiếng Anh` $\rightarrow$ `Mã Verilog & Testbench` $\rightarrow$ `Sơ đồ nguyên lý BDF & Sóng ModelSim`.
+  - Biểu tượng mũi tên chuyển đổi: `Mô tả tự nhiên (.txt, .md)` $\rightarrow$ `Mã Verilog & Testbench` $\rightarrow$ `Sơ đồ nguyên lý BDF & Dạng sóng ModelSim`.
   - Mục tiêu: Rút ngắn chu kỳ thiết kế phần cứng từ vài ngày xuống vài giây.
+  - **Module điều phối trung tâm**: `run_spec2rtl.py` (Bộ não kết nối toàn bộ tiến trình) & `eda_finder.py` (Tự động nhận diện công cụ EDA).
 * **Lời thoại thuyết trình (Dễ hiểu, tự tin - 35s)**:
   > *"Kính thưa Thầy và quý Thầy Cô trong Hội đồng. Trong quy trình thiết kế vi mạch truyền thống, để biến một ý tưởng hay một bản mô tả chức năng thành một con chip hoạt động được, kỹ sư phần cứng phải mất từ vài ngày đến hàng tuần ngồi gõ từng dòng mã Verilog, viết hàng trăm dòng Testbench để kiểm tra, rồi vẽ sơ đồ nguyên lý trong Quartus.*  
   > *Đề tài của em xây dựng một **Hệ thống AI tự động hóa hoàn toàn luồng Spec2RTL**: Chỉ cần đưa vào một đoạn văn bản mô tả chức năng bình thường, hệ thống sẽ tự động tạo ra mã Verilog chuẩn, tự kiểm tra mô phỏng trên ModelSim, tự sửa lỗi nếu sai, và tự động vẽ ra sơ đồ mạch nguyên lý để nạp chạy ngay trên chip FPGA."*
@@ -74,30 +79,31 @@
 * **Nội dung hiển thị trên slide (Chia 2 cột rõ ràng)**:
   - **70% Phần cứng phổ thông (AI làm thay 100%)**:
     * Các khối mạch lặp đi lặp lại: Bộ đếm (Counters), Máy trạng thái (FSM), Bộ số học (ALU), Hàng đợi (FIFO), Bộ giải mã LED, Giao tiếp UART/SPI.
-    * *Đặc điểm*: Đã có quy chuẩn rõ ràng, nhưng tốn rất nhiều thời gian gõ code và kiểm thử lặp đi lặp lại.
-    * *Giải pháp*: Để AI tự động sinh và kiểm chứng trong 1-2 giây.
+    * *Cơ chế xử lý*: Module `knowledge_matcher.py` truy vấn kho 539 vi mạch chuẩn (`hardware_db.json`) để tự động nhận dạng mẫu thiết kế chuẩn công nghiệp.
+    * *Giải pháp*: Tự động sinh mã và kiểm chứng hoàn chỉnh trong 1-2 giây.
   - **30% Phần cứng cốt lõi (Con người tập trung tối ưu)**:
     * Các khối kiến trúc đột phá: Lõi xử lý AI (NPU, Systolic Array, Khối nhân ma trận MAC), Tối ưu hóa tiêu thụ năng lượng và xung nhịp GHz.
     * *Giá trị mang lại*: Kỹ sư không còn phải làm việc "thợ gõ code", mà dành 100% chất xám cho phần tinh hoa nhất của dự án.
 * **Lời thoại thuyết trình (45s)**:
   > *"Từ thực tế đó, kế hoạch của đồ án bắt đầu bằng **Chiến lược phân tách 70% và 30%**.*  
   > *Trong mọi hệ thống vi mạch hay đồ án vi xử lý, có tới 70% khối mạch là phần cứng phổ thông: ví dụ như bộ đếm thời gian, máy trạng thái FSM điều khiển, bộ chuyển đổi UART, hay giải mã LED 7 đoạn. Đây là những phần bắt buộc phải có, nhưng lại tốn hàng tuần làm thủ công.*  
-  > *Hệ thống của em sinh ra để tự động hóa 100% phần 70% phổ thông này. Nhờ đó, người kỹ sư được giải phóng hoàn toàn khỏi những tác vụ lặp lại, để dành toàn bộ thời gian và trí tuệ tập trung vào 30% kiến trúc cốt lõi, ví dụ như thiết kế lõi tăng tốc AI hay bộ xử lý chuyên dụng."*
+  > *Hệ thống của em tích hợp module `knowledge_matcher.py` với cơ sở tri thức 539 vi mạch để tự động hóa 100% phần 70% phổ thông này. Nhờ đó, người kỹ sư được giải phóng hoàn toàn khỏi những tác vụ lặp lại, để dành toàn bộ thời gian và trí tuệ tập trung vào 30% kiến trúc cốt lõi, ví dụ như thiết kế lõi tăng tốc AI hay bộ xử lý chuyên dụng."*
 
 ---
 
 ### SLIDE 4: ĐỘNG CƠ THỰC THI CHÍNH (SPEC $\rightarrow$ RTL $\rightarrow$ TESTBENCH)
 * **Tiêu đề**: Động Cơ Thực Thi Spec2RTL: Biến Ý Tưởng Thành Phần Cứng Trong 2 Giây
-* **Nội dung hiển thị trên slide**:
+* **Nội dung hiển thị trên slide (Kèm các module phần mềm phụ trách)**:
   - **Quy trình 3 pha tự động**:
-    1. *Nhận dạng đặc tả (Spec Ingestion)*: Đọc yêu cầu bằng tiếng Việt hoặc tiếng Anh từ file `.txt`, `.md` hoặc prompt tự do. Trích xuất chính xác: Tên module, danh sách chân cắm, độ rộng bit (bus width), và chức năng hoạt động.
-    2. *Sinh mã phần cứng (Synthesizable RTL)*: Tạo file Verilog chuẩn công nghiệp, bảo đảm 100% không chốt ẩn, tương thích hoàn toàn với Altera Quartus II.
-    3. *Sinh Testbench tự kiểm tra (Self-checking Scoreboard)*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai mà không cần người ngồi đọc dạng sóng bằng mắt.
+    1. *Nhận dạng đặc tả [`spec_analyzer.py`]*: Đọc yêu cầu từ file `.txt`, `.md` hoặc văn bản tự do. Tự động bóc tách: Tên module, danh sách chân cắm, độ rộng bus bit, và chức năng hoạt động.
+    2. *Sinh mã phần cứng [`rtl_generator.py`]*: Tạo mã Verilog synthesizable chuẩn công nghiệp. Kích hoạt cơ chế `RTLPortEnforcer` ép buộc danh sách chân cắm phải khớp 100% với đề bài, loại trừ hoàn toàn chân ma.
+    3. *Sinh Testbench tự kiểm tra [`tb_generator.py` & `harness_generator.py`]*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai (Self-checking Scoreboard).
+    4. *Quét tĩnh cú pháp [`verilog_linter.py`]*: Rà soát triệt tiêu sớm chốt ẩn (inferred latches) trước khi nạp vào bộ mô phỏng.
   - **Thời gian xử lý**: Toàn bộ quá trình diễn ra chỉ từ **1 đến 2 giây**!
 * **Lời thoại thuyết trình (45s)**:
-  > *"Để hiện thực hóa chiến lược trên, trái tim của luồng chạy chính là **Động cơ thực thi Spec2RTL**.*  
-  > *Quy trình cực kỳ đơn giản: Kỹ sư chỉ cần cung cấp một bản mô tả chức năng mạch bình thường bằng file txt hoặc markdown. Động cơ AI sẽ tự động phân tích tên mạch, tách bạch từng chân tín hiệu vào/ra.*  
-  > *Điểm mấu chốt là hệ thống không chỉ sinh ra mã Verilog của mạch, mà còn sinh luôn cả một file Testbench tự kiểm chứng hoàn chỉnh. Testbench này có sẵn bảng chân lý để tự chấm điểm xem mạch chạy đúng hay sai, hoàn tất toàn bộ trong chưa đầy 2 giây."*
+  > *"Để hiện thực hóa chiến lược trên, trái tim của luồng chạy chính là **Động cơ thực thi Spec2RTL** với các module chuyên trách.*  
+  > *Quy trình cực kỳ đơn giản: Kỹ sư chỉ cần đưa vào file mô tả đề bài (.txt hoặc .md). Module `spec_analyzer.py` sẽ phân tích bóc tách tên mạch và từng chân tín hiệu.*  
+  > *Tiếp theo, `rtl_generator.py` sinh mã Verilog chuẩn và kích hoạt bộ ép chân RTLPortEnforcer để đảm bảo không sai lệch một bit nào so với đề bài. Đồng thời, `tb_generator.py` sinh ngay Testbench tự kiểm chứng hoàn chỉnh, và `verilog_linter.py` rà quét sạch chốt ẩn. Toàn bộ khâu này diễn ra chỉ trong chưa đầy 2 giây."*
 
 ---
 
@@ -105,42 +111,44 @@
 * **Tiêu đề**: Cơ Chế Kiểm Chứng & Tự Sửa Lỗi: Đưa ModelSim Vào Vòng Lặp Phản Hồi Khép Kín
 * **Sơ đồ vòng lặp khép kín**:
   $$\text{AI Sinh Code Verilog} \longrightarrow \text{ModelSim Biên Dịch \& Chạy Thử} \longrightarrow \begin{cases} \text{Đúng 100\%} \rightarrow \text{Xuất mạch} \\ \text{Có lỗi} \rightarrow \text{Đọc Log} \rightarrow \text{AI Tự Sửa Lại} \end{cases}$$
-* **Nội dung hiển thị trên slide**:
+* **Nội dung hiển thị trên slide (Kèm các module phụ trách)**:
   - **Nguyên tắc "Không tin mù quáng vào AI"**: Lấy các phần mềm EDA tiêu chuẩn công nghiệp (ModelSim 10.1d, Quartus II) làm "Trọng tài chân lý".
-  - **Cơ chế phản hồi thông minh (VeriPrefer Standard - arXiv:2504.15804)**:
-    * Nếu biên dịch bị báo lỗi cú pháp hoặc chạy mô phỏng sai kết quả: Hệ thống tự động bắt chính xác dòng thông báo lỗi và thời điểm nano-giây sai lệch từ log ModelSim.
-    * Gửi log đó ngược lại cho `Reflection Agent` để tự động sửa mã và biên dịch lại ngay lập tức.
-    * Đảm bảo kết quả đầu ra luôn đạt **100% PASS** trước khi bàn giao cho người dùng.
+  - **Cơ chế phản hồi thông minh (Chuẩn nghiên cứu VeriPrefer - arXiv:2504.15804)**:
+    * *Mô phỏng ngầm tự động [`simulator.py`]*: Gọi ModelSim chạy `vlog` và `vsim` ở chế độ batch mode để kiểm tra toàn bộ test case.
+    * *Đặc vụ tự sửa lỗi [`reflection_loop.py`]*: Nếu phát hiện lỗi mô phỏng hoặc sai lệch assertion, module sẽ trích xuất chính xác thời điểm nano-giây sai lệch từ log ModelSim, đưa ngược lại cho Reflection Agent tự sửa đúng dòng code bị lỗi.
+    * *Đo đạc tài nguyên thực tế [`synthesis_profiler.py`]*: Tự động chạy `quartus_map` để đo số Logic Elements, Flip-Flops và Pin tiêu thụ trên chip FPGA.
+    * Đảm bảo mạch xuất ra luôn đạt **100% PASS** trước khi bàn giao.
 * **Lời thoại thuyết trình (50s)**:
   > *"Nhưng làm sao để tin chắc rằng mã Verilog mà AI sinh ra chạy đúng 100%?*  
-  > *Câu trả lời nằm ở **Khâu kiểm chứng thực tế với vòng lặp phản hồi khép kín (EDA-in-the-loop)**, kế thừa phương pháp nghiên cứu VeriPrefer.*  
-  > *Chúng em không bao giờ tin tưởng mù quáng vào mã do AI viết ra. Ngay sau khi sinh code, hệ thống tự động gọi ngầm công cụ ModelSim lên để biên dịch và chạy mô phỏng thực tế. Nếu ModelSim báo lỗi cú pháp hoặc kết quả sai ở nano-giây nào, hệ thống sẽ trích xuất chính xác thông báo lỗi đó đưa ngược lại cho AI Agent để tự phân tích và sửa lại đúng dòng code bị lỗi. Vòng lặp này tự vận hành cho tới khi nào ModelSim trả về kết quả 100% PASS thì mới nghiệm thu."*
+  > *Câu trả lời nằm ở **Khâu kiểm chứng thực tế với vòng lặp phản hồi khép kín (EDA-in-the-loop)**.*  
+  > *Chúng em không bao giờ tin tưởng mù quáng vào mã do AI viết ra. Ngay sau khi sinh code, module `simulator.py` tự động gọi ngầm ModelSim lên biên dịch và chạy mô phỏng. Nếu có lỗi, module `reflection_loop.py` sẽ đọc chính xác dòng thông báo lỗi và thời điểm nano-giây sai lệch từ log ModelSim, rồi tự động sửa lại mã Verilog. Vòng lặp này tự vận hành khép kín cho tới khi nào ModelSim xác nhận 100% PASS thì mới nghiệm thu."*
 
 ---
 
 ### SLIDE 6: ĐẦU RA BÀN GIAO: TRỰC QUAN HÓA ĐỂ KIỂM SOÁT THỰC THỂ
 * **Tiêu đề**: Mục Tiêu Đầu Ra: "Trực Quan Hóa Để Kiểm Soát Thực Thể" (Sơ Đồ BDF & Sóng Đồ Họa)
-* **Nội dung hiển thị trên slide (Hiển thị 2 giá trị vượt trội)**:
-  1. **Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF (`.bdf`)**:
-     * Kỹ sư phần cứng không chỉ muốn nhìn mã text, họ muốn nhìn thấy sơ đồ mạch thật.
-     * Hệ thống tự động tạo file Symbol (`.bsf`) và file sơ đồ khối (`.bdf`). Mở Quartus II lên là thấy đầy đủ khối linh kiện, cổng vào/ra, bus dây được nối thẳng hàng, không bị lỗi đứt dây hay chân ảo.
-  2. **Bộ 4 định dạng dạng sóng Waveform trực quan**:
+* **Nội dung hiển thị trên slide (Kèm các module phụ trách)**:
+  1. **Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF [`bdf_generator.py` & `port_auditor.py`]**:
+     * Kỹ sư phần cứng cần nhìn thấy sơ đồ mạch thật để kiểm soát kết nối thực thể.
+     * `bdf_generator.py`: Tự động tạo file Symbol (`.bsf`) và file sơ đồ khối nguyên lý (`.bdf`). Mở Quartus II lên là thấy đầy đủ khối linh kiện, cổng vào/ra, bus dây được nối thẳng hàng, không bị lỗi đứt dây hay chân lơ lửng.
+     * `port_auditor.py`: Thanh tra đối chiếu chéo 4 chiều độc lập: $\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$ (Cam kết 0 chân ma, 0 chân thiếu).
+  2. **Bộ 4 định dạng dạng sóng Waveform trực quan [`vwf_generator.py` & `waveform_visualizer.py`]**:
      * *ModelSim 1-Click Waveform (`view_waveform.bat`)*: Nhấp đúp chuột là tự bật cửa sổ sóng phóng to toàn màn hình.
-     * *Quartus Waveform Editor (`.vwf`)*: Nạp sẵn chân tín hiệu và xung clock vào Quartus.
-     * *Interactive Web Waveform (`waveform.html`)*: Xem dạng sóng tương tác bằng chuột ngay trên trình duyệt web mà không cần cài phần mềm nặng.
-     * *Dữ liệu sóng chuẩn công nghiệp (`.vcd`)*: Tương thích với mọi công cụ phân tích khác.
+     * *Quartus Waveform Editor [`vwf_generator.py`]*: Tạo file `.vwf` nạp sẵn chân tín hiệu và xung clock vào Quartus.
+     * *Interactive Web Waveform [`waveform_visualizer.py`]*: Tạo file `waveform.html` xem dạng sóng tương tác bằng chuột ngay trên trình duyệt web mà không cần cài phần mềm nặng.
+     * *Dữ liệu sóng chuẩn công nghiệp*: Xuất file `.vcd` tương thích với mọi công cụ phân tích khác.
 * **Lời thoại thuyết trình (45s)**:
   > *"Điểm khác biệt lớn nhất và là **giá trị cốt lõi ở đầu ra của toàn bộ luồng chạy** chính là nguyên lý: 'Trực quan hóa để kiểm soát thực thể'.*  
-  > *Một kỹ sư phần cứng hay giảng viên chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
-  > *Hệ thống của em tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp 100% với đề bài. Đồng thời, hệ thống xuất ra 4 định dạng dạng sóng trực quan: chỉ cần nhấp đúp chuột là ModelSim tự động mở sóng, hoặc có thể mở trực tiếp file HTML trên trình duyệt web để xem sóng nhảy theo từng xung nhịp clk."*
+  > *Một kỹ sư phần cứng hay thầy cô chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
+  > *Nhờ module `bdf_generator.py` và `port_auditor.py`, hệ thống tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp 100% với đề bài. Đồng thời, module `waveform_visualizer.py` xuất ra 4 định dạng sóng trực quan: chỉ cần nhấp đúp chuột là ModelSim tự động mở sóng, hoặc có thể mở ngay file HTML trên trình duyệt để kiểm tra từng xung nhịp."*
 
 ---
 
 ### SLIDE 7: KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC TRÊN CHIP FPGA CYCLONE II
 * **Tiêu đề**: Kết Quả Thực Nghiệm: Độ Chính Xác 100% & Đo Đạc Tài Nguyên Thật
-* **Nội dung hiển thị trên slide (Bảng số liệu thực tế)**:
-  - **Bộ kiểm thử hồi quy (Regression Test Battery)**:
-    * Thử nghiệm trên **20 họ mạch chuẩn công nghiệp** (Đồng hồ 0-9, Khóa số điện tử, Động cơ bước, UART, ALU, Gray Counter, SPI, CRC...).
+* **Nội dung hiển thị trên slide (Kèm công cụ kiểm định)**:
+  - **Bộ kiểm thử hồi quy tự động [`test_robustness_battery.py`]**:
+    * Thử nghiệm tự động trên **20 họ mạch chuẩn công nghiệp** (Đồng hồ 0-9, Khóa số điện tử, Động cơ bước, UART, ALU, Gray Counter, SPI, CRC...).
     * Tỷ lệ hoàn thành: **20/20 PASS (100.0%)**.
     * Lỗi chân cắm (Phantom/Missing Ports): **0 lỗi (Bảo toàn 100%)**.
   - **Tài nguyên đo đạc thực tế trên FPGA Cyclone II (EP2C35F672C6)**:
@@ -150,7 +158,7 @@
     | **Khóa số mật mã 4 số an toàn** | **27 LEs** | **8 FFs** | 11 Pins | **2.1 giây** |
     | **Bộ điều khiển động cơ bước 4 pha** | **8 LEs** | **3 FFs** | 7 Pins | **1.7 giây** |
 * **Lời thoại thuyết trình (40s)**:
-  > *"Để chứng minh tính khả thi, em đã cho hệ thống chạy kiểm thử trên 20 họ mạch phần cứng từ cơ bản đến phức tạp. Kết quả đạt 100% thành công, không có bất kỳ chân cắm nào bị ảo giác hay mất tín hiệu.*  
+  > *"Để chứng minh tính khả thi, em đã cho chạy bộ kiểm thử tự động `test_robustness_battery.py` trên 20 họ mạch phần cứng từ cơ bản đến phức tạp. Kết quả đạt 100% thành công, không có bất kỳ chân cắm nào bị ảo giác hay mất tín hiệu.*  
   > *Khi tiến hành tổng hợp trên dòng chip FPGA Altera Cyclone II, các mạch đều tối ưu tài nguyên rất sạch: ví dụ mạch Đồng hồ bấm giờ chỉ tốn 11 Logic Elements và 4 Flip-Flop, thời gian sinh mạch và kiểm tra toàn trình chỉ mất chưa đầy 2 giây."*
 
 ---
@@ -161,8 +169,8 @@
   - **Bước 1: Soạn đề bài tự nhiên**:
     * Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) (Đồng hồ bấm giờ 0-9 giây kèm giải mã LED 7 đoạn).
   - **Bước 2: Chạy hệ thống tự động**:
-    * Mở file `demo.bat` $\rightarrow$ Nhập số `[3]` $\rightarrow$ Nhấn Enter.
-    * Hệ thống chạy luồng khép kín: Tách chân $\rightarrow$ Sinh Verilog $\rightarrow$ ModelSim mô phỏng $\rightarrow$ Xuất BDF.
+    * Mở file `demo.bat` (gọi ngầm `run_spec2rtl.py`) $\rightarrow$ Nhập số `[3]` $\rightarrow$ Nhấn Enter.
+    * Các module được kích hoạt tự động theo chuỗi: `spec_analyzer` $\rightarrow$ `rtl_generator` $\rightarrow$ `simulator` (ModelSim) $\rightarrow$ `bdf_generator` (Quartus).
   - **Bước 3: Chiêm ngưỡng kết quả đa phương tiện**:
     * Màn hình ModelSim tự động mở cửa sổ Waveform: Xung nhịp đếm 0..9 và mã LED 7 đoạn chạy mượt mà.
     * Mở file `quartus/sch_stopwatch.bdf`: Xem sơ đồ mạch nguyên lý với các cổng I/O rõ ràng trên Quartus II.
