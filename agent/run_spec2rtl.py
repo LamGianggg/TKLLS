@@ -53,7 +53,7 @@ def get_circuit_quartus_dir(ThuMucGoc, TenMach):
     os.makedirs(ThuMucQuartus, exist_ok=True)
     return ThuMucQuartus
 
-def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachRtl):
+def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachRtl, DuongDanVcd=None):
     """Tự động tạo dự án Quartus, biểu tượng BSF và sơ đồ nguyên lý BDF."""
     os.makedirs(ThuMucQuartus, exist_ok=True)
     FileQuartusMap = find_quartus_map()
@@ -109,19 +109,21 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
         BoTaoBdf.generate_bdf_from_bsf(FileBsf, FileBdf)
         DaTaoBdf = True
 
-    # 3.5. Sinh dạng sóng Quartus VWF
+    # 3.5. Sinh duy nhất 1 file dạng sóng Quartus VWF (Waveform.vwf)
     FileVwf = os.path.join(ThuMucQuartus, "Waveform.vwf")
-    FileVwfMach = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
+    FileVwfMachCu = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
+    if os.path.exists(FileVwfMachCu):
+        try: os.remove(FileVwfMachCu)
+        except Exception: pass
+
     BoTaoVwf = VWFGenerator()
     if os.path.exists(FileRtlChinh):
-        BoTaoVwf.generate_vwf_from_rtl(FileRtlChinh, FileVwf)
-        try: shutil.copy2(FileVwf, FileVwfMach)
-        except Exception: pass
-        TenVwfTuongDoi = f"Waveform_{TenMach}.vwf"
-        if not any(f"VECTOR_WAVEFORM_FILE" in Dong and TenVwfTuongDoi in Dong for Dong in DongCauHinhQsf):
-            DongCauHinhQsf.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{TenVwfTuongDoi}"')
-            with open(FileQsf, "w", encoding="utf-8") as TepTin:
-                TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
+        BoTaoVwf.generate_vwf_from_rtl(FileRtlChinh, FileVwf, DuongDanVcd=DuongDanVcd)
+        TenVwfTuongDoi = "Waveform.vwf"
+        DongCauHinhQsf = [dong for dong in DongCauHinhQsf if "VECTOR_WAVEFORM_FILE" not in dong]
+        DongCauHinhQsf.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{TenVwfTuongDoi}"')
+        with open(FileQsf, "w", encoding="utf-8") as TepTin:
+            TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
 
     # 4. Tổng hợp Quartus Map
     if FileQuartusMap and os.path.exists(FileQuartusMap):
@@ -309,7 +311,8 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
 
     # Bước 4: Tự động sinh Symbol BSF, sơ đồ BDF, sóng VWF và Dự án Quartus
     print(f"\n[Bước 4] Tự động tạo Symbol BSF, Sơ đồ BDF, Sóng VWF & Dự án Quartus...")
-    FileQpf, FileBsf, FileBdf, FileVwf = setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachFileRtl)
+    FileVcd = os.path.join(ThuMucSim, f"{TenMach}.vcd")
+    FileQpf, FileBsf, FileBdf, FileVwf = setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachFileRtl, DuongDanVcd=FileVcd)
     print(f" -> Dự án Quartus (.qpf) : {FileQpf}")
     print(f" -> Ký hiệu Symbol (.bsf): {FileBsf}")
     if FileBdf:
@@ -346,8 +349,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         if FileBdf:
             print(f" 1. Sơ đồ BDF   : Mở Quartus II -> {FileBdf}")
         if FileVwf and os.path.exists(FileVwf):
-            FileVwfMachRieng = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
-            print(f" 2. Dạng sóng VWF: Mở Quartus II -> {FileVwfMachRieng} (hoặc {FileVwf})")
+            print(f" 2. Dạng sóng VWF: Mở Quartus II -> {FileVwf}")
         print(f" 3. RTL Viewer  : Mở Quartus II -> {FileQpf} -> Tools -> Netlist Viewers -> RTL Viewer")
         print(f" 4. Dữ liệu VCD : {FileVcd}")
         return True, ThoiGianChay, TenMach, FileBdf, ThongSoTaiNguyen
