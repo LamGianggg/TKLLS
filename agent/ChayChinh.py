@@ -37,7 +37,6 @@ from DonDepVerilog import VerilogLinter
 from DoTaiNguyen import SynthesisProfiler
 from TraCuuMau import KnowledgeMatcher
 from TaoVwf import VWFGenerator
-from TrucQuanSong import WaveformVisualizer
 
 def get_base_dir():
     """Tự động xác định thư mục gốc của dự án trên mọi máy tính và hệ điều hành."""

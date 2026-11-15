@@ -30,12 +30,12 @@
 │  - Đọc log lỗi sai lệch nano-giây -> Tự động sửa mã Verilog: [VongLapPhanHoi.py]        │
 │  - Đo đạc tài nguyên thực tế trên chip Cyclone II: [DoTaiNguyen.py]                     │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼ [TaoBdf.py, TrucQuanSong.py]
+                                                ▼ [TaoBdf.py, TaoVwf.py]
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [BƯỚC 4: ĐẦU RA BÀN GIAO - "Trực Quan Hóa Để Kiểm Soát Thực Thể"]                       │
 │  - Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF + Tạo Symbol: [TaoBdf.py]              │
 │  - Thanh tra đối chiếu chéo 4 chiều bảo toàn chân cắm 1:1: [KiemToanCong.py]            │
-│  - Xuất file sóng Quartus: [TaoVwf.py] & Giao diện sóng Web/GUI: [TrucQuanSong.py]      │
+│  - Xuất file kiểm tra dạng sóng Vector Waveform Quartus: [TaoVwf.py]                     │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
                [Tổng điều phối luồng toàn trình: ChayChinh.py & TimEda.py]
 ```

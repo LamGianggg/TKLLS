@@ -7,7 +7,7 @@ tong hop duoc (synthesizable IEEE 1364-2001) cho moi thiet ke so.
 
 import os
 import re
-from PhanTichSpec import SpecAnalyzer, clean_identifier, remove_vietnamese_accents
+from PhanTichSpec import SpecAnalyzer, remove_vietnamese_accents
 from DonDepVerilog import VerilogLinter
 
 class RTLPortEnforcer:

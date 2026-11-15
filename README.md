@@ -66,8 +66,6 @@ TKLLS/
 │   ├── DoTaiNguyen.py             # Đo đạc mức tiêu thụ tài nguyên FPGA (LEs, Registers, Pins)
 │   ├── DonDepVerilog.py           # Tiền kiểm tra cú pháp và dọn dẹp mã Verilog
 │   ├── TaoHarness.py              # Sinh Hardware Test Harness và Watchdog an toàn
-│   ├── TrucQuanSong.py            # Trực quan hóa dạng sóng xung nhịp HTML5/SVG
-│   ├── TaoPdf100Prompt.py         # Biên soạn tài liệu 100 đề bài đặc tả dạng PDF
 │   └── KiemThuToanDien.py         # Bộ kiểm thử hồi quy 20 bài toán toàn diện
 ├── knowledge_base/                # Cơ sở tri thức vi mạch (RTLLM, VerilogEval, VeriPrefer)
 ├── specs/                         # Thư mục chứa các đề bài đặc tả kỹ thuật (.txt, .md)
