@@ -1,10 +1,9 @@
-# Giải Mã Địa Chỉ Bộ Nhớ 64KB (memory_address_decoder)
+# Bộ Giải Mã 3 Sang 8 (decoder_3to8)
 ## 1. Đầu vào (Inputs):
-• [15:0] addr: Tuyến địa chỉ 16-bit (không gian 64KB)
-• mem_en: Cho phép truy cập bộ nhớ
+• [2:0] a: Địa chỉ ngõ vào 3-bit
+• en: Cho phép giải mã
 ## 2. Đầu ra (Outputs):
-• cs_ram: Chọn chip SRAM (vùng 0x0000 - 0x7FFF: 32KB)
-• cs_rom: Chọn chip ROM (vùng 0x8000 - 0xBFFF: 16KB)
-• cs_io: Chọn vùng ngoại vi I/O (vùng 0xC000 - 0xFFFF: 16KB)
+• [7:0] y: Tuyến ngõ ra 8-bit active-high
 ## 3. Hoạt động / Logic mong muốn:
-• Phân giải 2 bit địa chỉ cao addr[15:14] để kích hoạt chính xác tín hiệu chọn chip tương ứng
+• Khi en = 1: y = (1 << a).
+• Khi en = 0: y = 8'b00000000

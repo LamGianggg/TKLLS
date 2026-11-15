@@ -1,0 +1,9 @@
+# Bộ Giải Mã 3 Sang 8 (decoder_3to8)
+## 1. Đầu vào (Inputs):
+• [2:0] a: Địa chỉ ngõ vào 3-bit
+• en: Cho phép giải mã
+## 2. Đầu ra (Outputs):
+• [7:0] y: Tuyến ngõ ra 8-bit active-high
+## 3. Hoạt động / Logic mong muốn:
+• Khi en = 1: y = (1 << a).
+• Khi en = 0: y = 8'b00000000

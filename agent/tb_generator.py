@@ -1216,9 +1216,17 @@ endmodule
         return DuongDanXuat
 
     def generate_decoder_tb(self, TenModule="memory_address_decoder", DuongDanRtl=None):
-        """Testbench tu kiem tra cho bo giai ma dia chi 64KB."""
-        TenTb = f"tb_{TenModule}"
-        code = f"""`timescale 1ns / 1ps
+        """Testbench tu kiem tra cho bo giai ma dia chi 64KB hoac bo giai ma nhi phan."""
+        MaRtl = ""
+        if DuongDanRtl and os.path.exists(DuongDanRtl):
+            with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as f:
+                MaRtl = f.read()
+
+        is_mem_decoder = "addr" in MaRtl or "cs_ram" in MaRtl
+
+        if is_mem_decoder:
+            TenTb = f"tb_{TenModule}"
+            code = f"""`timescale 1ns / 1ps
 
 module {TenTb};
 
@@ -1320,11 +1328,13 @@ module {TenTb};
 
 endmodule
 """
-        code = VerilogLinter.sanitize_verilog_code(code)
-        out_path = os.path.join(self.ThuMucSim, f"{TenTb}.v")
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(code)
-        return out_path
+            code = VerilogLinter.sanitize_verilog_code(code)
+            out_path = os.path.join(self.ThuMucSim, f"{TenTb}.v")
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            return out_path
+        else:
+            return self.generate_generic_tb(DuongDanRtl, TenModule)
 
     def generate_temperature_monitor_tb(self, TenModule="temperature_monitor_alarm", DuongDanRtl=None):
         """Testbench tu kiem tra cho mach giam sat nhiet do."""
