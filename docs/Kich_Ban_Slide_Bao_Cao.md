@@ -4,34 +4,34 @@
 
 ---
 
-### SƠ ĐỒ ĐỊNH HƯỚNG TỔNG QUAN (XUYÊN SUỐT TOÀN BỘ BÁO CÁO)
+### SƠ ĐỒ LUỒNG HOẠT ĐỘNG & MỤC TIÊU CỐT LÕI (WORKFLOW & KEY MILESTONES)
 
 ```text
                      ĐẶC TẢ YÊU CẦU (Natural Language Spec: .txt, .md, prompt)
                                                 │
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [ĐỊNH HƯỚNG 5: Triết Lý Phân Tách 70% Phổ Thông vs 30% Đột Phá]                         │
+│ [BƯỚC 1: CHIẾN LƯỢC TỐI ƯU CÔNG SỨC - 70% Phổ Thông vs 30% Đột Phá]                     │
 │  - 70% Khối mạch thông dụng (FSM, Counter, ALU, FIFO, Bus): Tự động hóa 100% bằng AI     │
 │  - 30% Khối vi mạch cốt lõi (SoC AI Core, MAC Unit): Dành trọn thời gian cho kỹ sư      │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [ĐỊNH HƯỚNG 4: Động Cơ Thực Thi Spec2RTL (Spec -> RTL -> Testbench)]                    │
+│ [BƯỚC 2: ĐỘNG CƠ THỰC THI SPEC2RTL - Spec -> RTL -> Testbench]                          │
 │  - Thay thế hàng tuần viết code tay bằng AI Agent thông minh                            │
 │  - Tự động sinh mã Verilog + Testbench tự kiểm chứng (Self-checking) chỉ trong 1-2 giây │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [ĐỊNH HƯỚNG 6: Vòng Lặp Phản Hồi Thực Tế EDA (Closed-Loop Feedback)]                    │
-│  - Đưa trực tiếp ModelSim và Quartus vào kiểm tra (EDA-in-the-loop)                     │
+│ [BƯỚC 3: KIỂM CHỨNG & TỰ SỬA LỖI - Vòng Lặp Phản Hồi EDA Khép Kín (Closed-Loop)]        │
+│  - Đưa trực tiếp ModelSim và Quartus vào làm trọng tài (EDA-in-the-loop)                │
 │  - Đọc log lỗi mô phỏng -> Reflection Agent tự sửa code cho đến khi đúng 100%          │
 │    (Kế thừa chuẩn nghiên cứu VeriPrefer - arXiv:2504.15804)                             │
 └───────────────────────────────────────────────┬─────────────────────────────────────────┘
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [GIÁ TRỊ CỐT LÕI TỪ ĐỊNH HƯỚNG 2: "Trực Quan Hóa Để Kiểm Soát Thực Thể"]               │
-│  - Không chỉ trả về file code text vô hồn                                               │
+│ [BƯỚC 4: ĐẦU RA BÀN GIAO - "Trực Quan Hóa Để Kiểm Soát Thực Thể"]                       │
+│  - Không chỉ dừng lại ở file code text vô hồn                                           │
 │  - Tự động vẽ Sơ đồ nguyên lý mạch Quartus BDF + Xuất 4 định dạng sóng đồ họa trực quan │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -69,8 +69,8 @@
 
 ---
 
-### SLIDE 3: [ĐỊNH HƯỚNG 5] TRIẾT LÝ PHÂN TÁCH 70% PHỔ THÔNG VS 30% ĐỘT PHÁ
-* **Tiêu đề**: [Định Hướng 5] Triết Lý Giải Phóng Kỹ Sư: 70% Commodity vs 30% Custom Innovation
+### SLIDE 3: CHIẾN LƯỢC TỐI ƯU CÔNG SỨC (70% PHỔ THÔNG VS 30% ĐỘT PHÁ)
+* **Tiêu đề**: Chiến Lược Giải Phóng Kỹ Sư: 70% Tự Động Hóa vs 30% Sáng Tạo Cốt Lõi
 * **Nội dung hiển thị trên slide (Chia 2 cột rõ ràng)**:
   - **70% Phần cứng phổ thông (AI làm thay 100%)**:
     * Các khối mạch lặp đi lặp lại: Bộ đếm (Counters), Máy trạng thái (FSM), Bộ số học (ALU), Hàng đợi (FIFO), Bộ giải mã LED, Giao tiếp UART/SPI.
@@ -80,14 +80,14 @@
     * Các khối kiến trúc đột phá: Lõi xử lý AI (NPU, Systolic Array, Khối nhân ma trận MAC), Tối ưu hóa tiêu thụ năng lượng và xung nhịp GHz.
     * *Giá trị mang lại*: Kỹ sư không còn phải làm việc "thợ gõ code", mà dành 100% chất xám cho phần tinh hoa nhất của dự án.
 * **Lời thoại thuyết trình (45s)**:
-  > *"Từ thực tế đó, đề tài của em được xây dựng dựa trên **Định hướng số 5: Triết lý phân tách 70% và 30%**.*  
+  > *"Từ thực tế đó, kế hoạch của đồ án bắt đầu bằng **Chiến lược phân tách 70% và 30%**.*  
   > *Trong mọi hệ thống vi mạch hay đồ án vi xử lý, có tới 70% khối mạch là phần cứng phổ thông: ví dụ như bộ đếm thời gian, máy trạng thái FSM điều khiển, bộ chuyển đổi UART, hay giải mã LED 7 đoạn. Đây là những phần bắt buộc phải có, nhưng lại tốn hàng tuần làm thủ công.*  
   > *Hệ thống của em sinh ra để tự động hóa 100% phần 70% phổ thông này. Nhờ đó, người kỹ sư được giải phóng hoàn toàn khỏi những tác vụ lặp lại, để dành toàn bộ thời gian và trí tuệ tập trung vào 30% kiến trúc cốt lõi, ví dụ như thiết kế lõi tăng tốc AI hay bộ xử lý chuyên dụng."*
 
 ---
 
-### SLIDE 4: [ĐỊNH HƯỚNG 4] ĐỘNG CƠ THỰC THI SPEC2RTL (SPEC $\rightarrow$ RTL $\rightarrow$ TESTBENCH)
-* **Tiêu đề**: [Định Hướng 4] Động Cơ Spec2RTL: Biến Ý Tưởng Thành Phần Cứng Trong 2 Giây
+### SLIDE 4: ĐỘNG CƠ THỰC THI CHÍNH (SPEC $\rightarrow$ RTL $\rightarrow$ TESTBENCH)
+* **Tiêu đề**: Động Cơ Thực Thi Spec2RTL: Biến Ý Tưởng Thành Phần Cứng Trong 2 Giây
 * **Nội dung hiển thị trên slide**:
   - **Quy trình 3 pha tự động**:
     1. *Nhận dạng đặc tả (Spec Ingestion)*: Đọc yêu cầu bằng tiếng Việt hoặc tiếng Anh từ file `.txt`, `.md` hoặc prompt tự do. Trích xuất chính xác: Tên module, danh sách chân cắm, độ rộng bit (bus width), và chức năng hoạt động.
@@ -95,14 +95,14 @@
     3. *Sinh Testbench tự kiểm tra (Self-checking Scoreboard)*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai mà không cần người ngồi đọc dạng sóng bằng mắt.
   - **Thời gian xử lý**: Toàn bộ quá trình diễn ra chỉ từ **1 đến 2 giây**!
 * **Lời thoại thuyết trình (45s)**:
-  > *"Để thực hiện được triết lý trên, hệ thống sử dụng **Định hướng số 4: Động cơ thực thi Spec2RTL**.*  
+  > *"Để hiện thực hóa chiến lược trên, trái tim của luồng chạy chính là **Động cơ thực thi Spec2RTL**.*  
   > *Quy trình cực kỳ đơn giản: Kỹ sư chỉ cần cung cấp một bản mô tả chức năng mạch bình thường bằng file txt hoặc markdown. Động cơ AI sẽ tự động phân tích tên mạch, tách bạch từng chân tín hiệu vào/ra.*  
   > *Điểm mấu chốt là hệ thống không chỉ sinh ra mã Verilog của mạch, mà còn sinh luôn cả một file Testbench tự kiểm chứng hoàn chỉnh. Testbench này có sẵn bảng chân lý để tự chấm điểm xem mạch chạy đúng hay sai, hoàn tất toàn bộ trong chưa đầy 2 giây."*
 
 ---
 
-### SLIDE 5: [ĐỊNH HƯỚNG 6] VÒNG LẶP PHẢN HỒI THỰC TẾ EDA (CLOSED-LOOP FEEDBACK)
-* **Tiêu đề**: [Định Hướng 6] Kiểm Chứng Thực Tế: Đưa ModelSim Vào Vòng Lặp Sửa Lỗi Tự Động
+### SLIDE 5: VÒNG LẶP PHẢN HỒI THỰC TẾ EDA (CLOSED-LOOP VERIFICATION)
+* **Tiêu đề**: Cơ Chế Kiểm Chứng & Tự Sửa Lỗi: Đưa ModelSim Vào Vòng Lặp Phản Hồi Khép Kín
 * **Sơ đồ vòng lặp khép kín**:
   $$\text{AI Sinh Code Verilog} \longrightarrow \text{ModelSim Biên Dịch \& Chạy Thử} \longrightarrow \begin{cases} \text{Đúng 100\%} \rightarrow \text{Xuất mạch} \\ \text{Có lỗi} \rightarrow \text{Đọc Log} \rightarrow \text{AI Tự Sửa Lại} \end{cases}$$
 * **Nội dung hiển thị trên slide**:
@@ -113,13 +113,13 @@
     * Đảm bảo kết quả đầu ra luôn đạt **100% PASS** trước khi bàn giao cho người dùng.
 * **Lời thoại thuyết trình (50s)**:
   > *"Nhưng làm sao để tin chắc rằng mã Verilog mà AI sinh ra chạy đúng 100%?*  
-  > *Câu trả lời nằm ở **Định hướng số 6: Vòng lặp phản hồi thực tế khép kín (EDA-in-the-loop)**, được xây dựng dựa trên bài báo khoa học VeriPrefer.*  
+  > *Câu trả lời nằm ở **Khâu kiểm chứng thực tế với vòng lặp phản hồi khép kín (EDA-in-the-loop)**, kế thừa phương pháp nghiên cứu VeriPrefer.*  
   > *Chúng em không bao giờ tin tưởng mù quáng vào mã do AI viết ra. Ngay sau khi sinh code, hệ thống tự động gọi ngầm công cụ ModelSim lên để biên dịch và chạy mô phỏng thực tế. Nếu ModelSim báo lỗi cú pháp hoặc kết quả sai ở nano-giây nào, hệ thống sẽ trích xuất chính xác thông báo lỗi đó đưa ngược lại cho AI Agent để tự phân tích và sửa lại đúng dòng code bị lỗi. Vòng lặp này tự vận hành cho tới khi nào ModelSim trả về kết quả 100% PASS thì mới nghiệm thu."*
 
 ---
 
-### SLIDE 6: [GIÁ TRỊ CỐT LÕI TỪ ĐỊNH HƯỚNG 2] TRỰC QUAN HÓA ĐỂ KIỂM SOÁT THỰC THỂ
-* **Tiêu đề**: [Định Hướng 2] "Trực Quan Hóa Để Kiểm Soát Thực Thể" (Sơ Đồ BDF & Sóng Đồ Họa)
+### SLIDE 6: ĐẦU RA BÀN GIAO: TRỰC QUAN HÓA ĐỂ KIỂM SOÁT THỰC THỂ
+* **Tiêu đề**: Mục Tiêu Đầu Ra: "Trực Quan Hóa Để Kiểm Soát Thực Thể" (Sơ Đồ BDF & Sóng Đồ Họa)
 * **Nội dung hiển thị trên slide (Hiển thị 2 giá trị vượt trội)**:
   1. **Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF (`.bdf`)**:
      * Kỹ sư phần cứng không chỉ muốn nhìn mã text, họ muốn nhìn thấy sơ đồ mạch thật.
@@ -130,7 +130,7 @@
      * *Interactive Web Waveform (`waveform.html`)*: Xem dạng sóng tương tác bằng chuột ngay trên trình duyệt web mà không cần cài phần mềm nặng.
      * *Dữ liệu sóng chuẩn công nghiệp (`.vcd`)*: Tương thích với mọi công cụ phân tích khác.
 * **Lời thoại thuyết trình (45s)**:
-  > *"Điểm đặc biệt nhất và là **Giá trị cốt lõi từ Định hướng số 2** chính là triết lý: 'Trực quan hóa để kiểm soát thực thể'.*  
+  > *"Điểm khác biệt lớn nhất và là **giá trị cốt lõi ở đầu ra của toàn bộ luồng chạy** chính là nguyên lý: 'Trực quan hóa để kiểm soát thực thể'.*  
   > *Một kỹ sư phần cứng hay giảng viên chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
   > *Hệ thống của em tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp 100% với đề bài. Đồng thời, hệ thống xuất ra 4 định dạng dạng sóng trực quan: chỉ cần nhấp đúp chuột là ModelSim tự động mở sóng, hoặc có thể mở trực tiếp file HTML trên trình duyệt web để xem sóng nhảy theo từng xung nhịp clk."*
 
