@@ -1,135 +1,184 @@
-# KỊCH BẢN SLIDE BÁO CÁO ĐỒ ÁN 3
-## ĐỀ TÀI: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH SỐ SPEC2RTL & PROMPT2SILICON
-**Dựa trên nghiên cứu của NVIDIA Research (arXiv:2506.13905) & CityU HK VeriPrefer (arXiv:2504.15804)**
+# KỊCH BẢN SLIDE BÁO CÁO ĐỒ ÁN
+## ĐỀ TÀI: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH TỪ ĐẶC TẢ NGÔN NGỮ TỰ NHIÊN (SPEC2RTL)
+**Phương pháp: Ứng dụng Mô hình Phản hồi Khép kín EDA & Trực quan hóa Vi mạch**
 
 ---
 
-### SLIDE 1: TRANG TIÊU ĐỀ (TITLE SLIDE)
-* **Tiêu đề chính**: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH TỪ ĐẶC TẢ NGÔN NGỮ TỰ NHIÊN (SPEC2RTL)
-* **Tiêu đề phụ**: Luồng Chuyển Đổi Khép Kín: SPEC $\rightarrow$ GENERATE $\rightarrow$ REVIEW $\rightarrow$ SHIP
-* **Người thực hiện**: [Họ và tên Sinh viên]
-* **Giảng viên hướng dẫn**: [Họ và tên Thầy giáo]
-* **Môi trường EDA**: Altera Quartus II 13.0sp1 & Mentor Graphics ModelSim 10.1d
-* **Lời thoại thuyết trình (30s)**:
-  > *"Kính thưa Thầy và Hội đồng, đề tài của em tập trung giải quyết bài toán cốt tử trong kỷ nguyên vi mạch hiện đại: Làm sao để từ một yêu cầu đặc tả chức năng bằng văn bản tự nhiên, hệ thống AI có thể tự động sinh ra mã phần cứng Verilog, tự kiểm tra mô phỏng trên ModelSim và tự động xuất ra sơ đồ nguyên lý mạch BDF trong Quartus II mà bảo đảm đúng 100% không có lỗi ảo giác."*
+### SƠ ĐỒ ĐỊNH HƯỚNG TỔNG QUAN (XUYÊN SUỐT TOÀN BỘ BÁO CÁO)
+
+```text
+                     ĐẶC TẢ YÊU CẦU (Natural Language Spec: .txt, .md, prompt)
+                                                │
+                                                ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [ĐỊNH HƯỚNG 5: Triết Lý Phân Tách 70% Phổ Thông vs 30% Đột Phá]                         │
+│  - 70% Khối mạch thông dụng (FSM, Counter, ALU, FIFO, Bus): Tự động hóa 100% bằng AI     │
+│  - 30% Khối vi mạch cốt lõi (SoC AI Core, MAC Unit): Dành trọn thời gian cho kỹ sư      │
+└───────────────────────────────────────────────┬─────────────────────────────────────────┘
+                                                ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [ĐỊNH HƯỚNG 4: Động Cơ Thực Thi Spec2RTL (Spec -> RTL -> Testbench)]                    │
+│  - Thay thế hàng tuần viết code tay bằng AI Agent thông minh                            │
+│  - Tự động sinh mã Verilog + Testbench tự kiểm chứng (Self-checking) chỉ trong 1-2 giây │
+└───────────────────────────────────────────────┬─────────────────────────────────────────┘
+                                                ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [ĐỊNH HƯỚNG 6: Vòng Lặp Phản Hồi Thực Tế EDA (Closed-Loop Feedback)]                    │
+│  - Đưa trực tiếp ModelSim và Quartus vào kiểm tra (EDA-in-the-loop)                     │
+│  - Đọc log lỗi mô phỏng -> Reflection Agent tự sửa code cho đến khi đúng 100%          │
+│    (Kế thừa chuẩn nghiên cứu VeriPrefer - arXiv:2504.15804)                             │
+└───────────────────────────────────────────────┬─────────────────────────────────────────┘
+                                                ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [GIÁ TRỊ CỐT LÕI TỪ ĐỊNH HƯỚNG 2: "Trực Quan Hóa Để Kiểm Soát Thực Thể"]               │
+│  - Không chỉ trả về file code text vô hồn                                               │
+│  - Tự động vẽ Sơ đồ nguyên lý mạch Quartus BDF + Xuất 4 định dạng sóng đồ họa trực quan │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-### SLIDE 2: ĐẶT VẤN ĐỀ & THÁCH THỨC KỸ THUẬT
-* **Tiêu đề**: Vì Sao LLM Truyền Thống Thất Bại Khi Thiết Kế Phần Cứng?
-* **Nội dung 3 điểm nghẽn lớn**:
-  1. **Khác biệt ngữ nghĩa (Spatial vs Temporal)**: LLM sinh văn bản tuần tự (như Python/C), trong khi phần cứng hoạt động song song trong không gian vật lý theo từng sườn xung nhịp.
-  2. **Ảo giác chân cắm (Port Hallucination)**: LLM thường tự ý bịa thêm chân tín hiệu, sai độ rộng bus, hoặc sinh ra chốt ẩn (inferred latches) gây lỗi định thời phần cứng.
-  3. **Tỷ lệ lỗi cao (55% Fail)**: Khảo sát của CityU Hong Kong cho thấy nếu chỉ dùng prompt đơn lẻ, code Verilog sinh ra bị lỗi mô phỏng hoặc deadlock tới hơn 45-55%.
-* **Lời thoại (45s)**:
-  > *"Nếu chúng ta chỉ đưa một prompt vào ChatGPT hay Claude để xin code Verilog, tỷ lệ lỗi lên tới 55%. Code có thể nhìn rất đẹp mắt nhưng khi đưa vào ModelSim hay Quartus thì bị lỗi chốt ẩn, sai bus, hoặc treo mạch vĩnh viễn. Để đưa AI vào công nghiệp bán dẫn, chúng ta không thể tin tưởng mù quáng vào xác suất sinh từ của LLM mà bắt buộc phải có một quy trình kỹ thuật có kiểm chứng khách quan."*
+### SLIDE 1: TRANG TIÊU ĐỀ & GIỚI THIỆU CHUNG
+* **Tiêu đề lớn**: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH SỐ SPEC2RTL
+* **Tiêu đề phụ**: Từ Yêu Cầu Văn Bản Tự Nhiên Đến Mạch Nguyên Lý Hoàn Chỉnh Trên FPGA
+* **Thông tin thực hiện**:
+  - Sinh viên thực hiện: [Họ và tên Sinh viên]
+  - Giảng viên hướng dẫn: [Họ và tên Thầy giáo]
+  - Công cụ EDA hỗ trợ: Altera Quartus II 13.0sp1 & ModelSim-Altera 10.1d
+* **Nội dung hiển thị trên slide**:
+  - Biểu tượng mũi tên chuyển đổi: `Mô tả tiếng Việt/tiếng Anh` $\rightarrow$ `Mã Verilog & Testbench` $\rightarrow$ `Sơ đồ nguyên lý BDF & Sóng ModelSim`.
+  - Mục tiêu: Rút ngắn chu kỳ thiết kế phần cứng từ vài ngày xuống vài giây.
+* **Lời thoại thuyết trình (Dễ hiểu, tự tin - 35s)**:
+  > *"Kính thưa Thầy và quý Thầy Cô trong Hội đồng. Trong quy trình thiết kế vi mạch truyền thống, để biến một ý tưởng hay một bản mô tả chức năng thành một con chip hoạt động được, kỹ sư phần cứng phải mất từ vài ngày đến hàng tuần ngồi gõ từng dòng mã Verilog, viết hàng trăm dòng Testbench để kiểm tra, rồi vẽ sơ đồ nguyên lý trong Quartus.*  
+  > *Đề tài của em xây dựng một **Hệ thống AI tự động hóa hoàn toàn luồng Spec2RTL**: Chỉ cần đưa vào một đoạn văn bản mô tả chức năng bình thường, hệ thống sẽ tự động tạo ra mã Verilog chuẩn, tự kiểm tra mô phỏng trên ModelSim, tự sửa lỗi nếu sai, và tự động vẽ ra sơ đồ mạch nguyên lý để nạp chạy ngay trên chip FPGA."*
 
 ---
 
-### SLIDE 3: MỤC TIÊU & ĐỊNH HƯỚNG CỦA ĐỒ ÁN
-* **Tiêu đề**: Mục Tiêu Đề Tài & Định Hướng Phương Pháp
-* **Nội dung**:
-  * **Mục tiêu**: Xây dựng luồng tự động hóa hoàn toàn từ đặc tả văn bản tự nhiên đa định dạng (`.txt`, `.md`, prompt kỹ thuật) $\rightarrow$ Mạch tổng hợp hoàn chỉnh trên FPGA Altera Cyclone II.
-  * **Định hướng tiếp cận**:
-    - **Không pre-train mò mẫm**: Tiếp cận theo mô hình **Compound AI System** (Hệ thống AI đa thành phần).
-    - **Chưng cất tri thức miền**: Tích hợp kho tri thức 539 vi mạch chuẩn công nghiệp (VerilogDB, RTLLM, VerilogEval).
-    - **EDA-in-the-Loop**: Đưa trực tiếp ModelSim và Quartus II vào làm "Giám khảo chân lý" kiểm tra tự động.
-* **Lời thoại (45s)**:
-  > *"Định hướng của đồ án không phải là cố gắng huấn luyện một mô hình ngôn ngữ từ đầu hàng tỷ tham số, mà là xây dựng một hệ thống AI kỹ thuật công nghiệp có kỷ luật. Hệ thống tiếp nhận linh hoạt các bản đặc tả kỹ thuật bằng ngôn ngữ tự nhiên từ file văn bản (.txt, .md) hoặc nhập trực tiếp, chưng cất các quy tắc phần cứng chuẩn thành bộ khung bất biến, và sử dụng chính các công cụ EDA tiêu chuẩn làm thước đo kiểm định."*
+### SLIDE 2: NỖI ĐAU THỰC TẾ & VÌ SAO CHATGPT KHÔNG THỂ THIẾT KẾ VI MẠCH?
+* **Tiêu đề**: Nỗi Đau Ngành Bán Dẫn & Giới Hạn Của AI Sinh Văn Bản (LLM)
+* **Nội dung hiển thị trên slide**:
+  - **Nỗi đau ngành chip**: 70% thời gian của một dự án vi mạch bị chôn vùi vào khâu viết mã lặp lại và debug kiểm tra lỗi (Verification Bottleneck).
+  - **Vì sao ChatGPT/Claude thông thường thất bại khi viết Verilog?**:
+    1. *Ảo giác chân tín hiệu (Port Hallucination)*: Đề bài yêu cầu 5 chân, AI tự ý bịa thêm chân thứ 6 hoặc quên mất chân tín hiệu quan trọng.
+    2. *Tạo ra chốt ẩn nguy hiểm (Inferred Latches)*: Code nhìn bên ngoài rất đúng cú pháp, nhưng nạp vào chip thì mạch bị chập chờn, tiêu tốn tài nguyên và sai lệch thời gian.
+    3. *Không thể tự kiểm chứng*: AI văn bản chỉ đoán từ tiếp theo, nó không biết cách bấm nút biên dịch trong ModelSim hay Quartus để xem mạch có chạy thật hay không.
+* **Lời thoại thuyết trình (45s)**:
+  > *"Nhiều người sẽ hỏi: Bây giờ có ChatGPT hay Claude rồi, tại sao không copy đề bài vào đó rồi xin code Verilog?*  
+  > *Thực tế nghiên cứu cho thấy, nếu chỉ dùng AI thông thường, tỷ lệ lỗi lên tới hơn 50%. Phần cứng rất khắt khe: chỉ cần AI bịa thêm một chân tín hiệu lạ, hoặc viết thiếu một trường hợp trong lệnh `case` tạo ra chốt ẩn, là toàn bộ chip sẽ bị cháy hoặc treo cứng.*  
+  > *AI bình thường chỉ 'giỏi nói', nhưng không có công cụ để 'làm và kiểm tra'. Muốn ứng dụng AI vào thiết kế vi mạch thực tế, chúng ta bắt buộc phải có một phương pháp tiếp cận kỹ thuật bài bản và có kỷ luật."*
 
 ---
 
-### SLIDE 4: KIẾN TRÚC TỔNG THỂ HỆ THỐNG
-* **Tiêu đề**: Kiến Trúc Hệ Thống Spec2RTL 4 Bước Chuẩn Hóa
-* **Hình vẽ / Sơ đồ luồng**:
-  $$\text{SPEC (.txt, .md, prompt)} \xrightarrow{\text{B1: Parse}} \text{Contract} \xrightarrow{\text{B2: Gen}} \text{RTL & TB} \xrightarrow{\text{B3: Review}} \text{EDA Simulator} \xrightarrow{\text{B4: Ship}} \text{BDF + Project}$$
-* **Nội dung 4 khối chính**:
-  1. **Spec Analyzer**: Đọc và chuẩn hóa đặc tả từ mọi định dạng văn bản tự nhiên (`.txt`, `.md`, hoặc prompt tự do); trích xuất tên Entity, bảng chân I/O, độ rộng bus và phân loại họ mạch.
-  2. **RTL & TB Generator**: Sinh mã Verilog synthesizable và Testbench tự kiểm tra (Self-checking Scoreboard).
-  3. **EDA Reviewer**: Chạy batch mode ModelSim (`vlog/vsim`) và đo đạc tài nguyên Quartus II (`quartus_map`).
-  4. **Packaging & Shipper**: Tạo tự động Symbol (`.bsf`), Schematic (`.bdf`), Waveform (`.vwf`), và Dự án Quartus (`.qpf/.qsf`).
-* **Lời thoại (45s)**:
-  > *"Kiến trúc của hệ thống chia thành 4 chặng độc lập. Mỗi chặng đều có hợp đồng giao diện chặt chẽ: Chặng 1 đọc và phân tích đề bài từ file txt, md hoặc nhập liệu tùy ý; Chặng 2 sinh code Verilog và Testbench; Chặng 3 đưa thẳng vào ModelSim biên dịch và chạy mô phỏng; và Chặng 4 tự động đóng gói toàn bộ dự án để kỹ sư có thể mở ngay trên Quartus II."*
+### SLIDE 3: [ĐỊNH HƯỚNG 5] TRIẾT LÝ PHÂN TÁCH 70% PHỔ THÔNG VS 30% ĐỘT PHÁ
+* **Tiêu đề**: [Định Hướng 5] Triết Lý Giải Phóng Kỹ Sư: 70% Commodity vs 30% Custom Innovation
+* **Nội dung hiển thị trên slide (Chia 2 cột rõ ràng)**:
+  - **70% Phần cứng phổ thông (AI làm thay 100%)**:
+    * Các khối mạch lặp đi lặp lại: Bộ đếm (Counters), Máy trạng thái (FSM), Bộ số học (ALU), Hàng đợi (FIFO), Bộ giải mã LED, Giao tiếp UART/SPI.
+    * *Đặc điểm*: Đã có quy chuẩn rõ ràng, nhưng tốn rất nhiều thời gian gõ code và kiểm thử lặp đi lặp lại.
+    * *Giải pháp*: Để AI tự động sinh và kiểm chứng trong 1-2 giây.
+  - **30% Phần cứng cốt lõi (Con người tập trung tối ưu)**:
+    * Các khối kiến trúc đột phá: Lõi xử lý AI (NPU, Systolic Array, Khối nhân ma trận MAC), Tối ưu hóa tiêu thụ năng lượng và xung nhịp GHz.
+    * *Giá trị mang lại*: Kỹ sư không còn phải làm việc "thợ gõ code", mà dành 100% chất xám cho phần tinh hoa nhất của dự án.
+* **Lời thoại thuyết trình (45s)**:
+  > *"Từ thực tế đó, đề tài của em được xây dựng dựa trên **Định hướng số 5: Triết lý phân tách 70% và 30%**.*  
+  > *Trong mọi hệ thống vi mạch hay đồ án vi xử lý, có tới 70% khối mạch là phần cứng phổ thông: ví dụ như bộ đếm thời gian, máy trạng thái FSM điều khiển, bộ chuyển đổi UART, hay giải mã LED 7 đoạn. Đây là những phần bắt buộc phải có, nhưng lại tốn hàng tuần làm thủ công.*  
+  > *Hệ thống của em sinh ra để tự động hóa 100% phần 70% phổ thông này. Nhờ đó, người kỹ sư được giải phóng hoàn toàn khỏi những tác vụ lặp lại, để dành toàn bộ thời gian và trí tuệ tập trung vào 30% kiến trúc cốt lõi, ví dụ như thiết kế lõi tăng tốc AI hay bộ xử lý chuyên dụng."*
 
 ---
 
-### SLIDE 5: LUỒNG THỰC THI CHI TIẾT (DEEP DIVE PIPELINE)
-* **Tiêu đề**: Chi Tiết Chu Trình Kỹ Thuật: Spec $\rightarrow$ Generate $\rightarrow$ Review $\rightarrow$ Ship
-* **Bảng các bước thực thi**:
-  | Chặng | Tên bước | Công cụ phụ trách | Đầu ra kỹ thuật |
-  | :--- | :--- | :--- | :--- |
-  | **Bước 1** | Spec Ingestion | `spec_analyzer.py` | Tiếp nhận `.txt`, `.md` hoặc văn bản tự do $\rightarrow$ Bảng chân I/O JSON (Hardware Contract) |
-  | **Bước 2** | RTL & TB Gen | `rtl_generator.py`, `tb_generator.py` | `src/{entity}.v`, `sim/tb_{entity}.v`, Test Harness |
-  | **Bước 3** | Review & Audit | `simulator.py`, `port_auditor.py` | Log ModelSim 10.1d, Bảng Scoreboard 100% PASS |
-  | **Bước 4** | Packaging | `bdf_generator.py`, `vwf_generator.py` | `quartus/{entity}.bdf`, `.bsf`, `.qpf`, `.vwf`, HTML |
-* **Lời thoại (60s)**:
-  > *"Điểm đặc biệt ở Bước 3 là bộ linter tĩnh VerilogDB sẽ quét triệt tiêu chốt ẩn trước khi nạp vào ModelSim. Nếu có bất kỳ vi phạm assertion nào, vòng lặp phản hồi VeriPrefer sẽ đọc log sai lệch nano giây và tự động sửa đúng dòng gây lỗi."*
+### SLIDE 4: [ĐỊNH HƯỚNG 4] ĐỘNG CƠ THỰC THI SPEC2RTL (SPEC $\rightarrow$ RTL $\rightarrow$ TESTBENCH)
+* **Tiêu đề**: [Định Hướng 4] Động Cơ Spec2RTL: Biến Ý Tưởng Thành Phần Cứng Trong 2 Giây
+* **Nội dung hiển thị trên slide**:
+  - **Quy trình 3 pha tự động**:
+    1. *Nhận dạng đặc tả (Spec Ingestion)*: Đọc yêu cầu bằng tiếng Việt hoặc tiếng Anh từ file `.txt`, `.md` hoặc prompt tự do. Trích xuất chính xác: Tên module, danh sách chân cắm, độ rộng bit (bus width), và chức năng hoạt động.
+    2. *Sinh mã phần cứng (Synthesizable RTL)*: Tạo file Verilog chuẩn công nghiệp, bảo đảm 100% không chốt ẩn, tương thích hoàn toàn với Altera Quartus II.
+    3. *Sinh Testbench tự kiểm tra (Self-checking Scoreboard)*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai mà không cần người ngồi đọc dạng sóng bằng mắt.
+  - **Thời gian xử lý**: Toàn bộ quá trình diễn ra chỉ từ **1 đến 2 giây**!
+* **Lời thoại thuyết trình (45s)**:
+  > *"Để thực hiện được triết lý trên, hệ thống sử dụng **Định hướng số 4: Động cơ thực thi Spec2RTL**.*  
+  > *Quy trình cực kỳ đơn giản: Kỹ sư chỉ cần cung cấp một bản mô tả chức năng mạch bình thường bằng file txt hoặc markdown. Động cơ AI sẽ tự động phân tích tên mạch, tách bạch từng chân tín hiệu vào/ra.*  
+  > *Điểm mấu chốt là hệ thống không chỉ sinh ra mã Verilog của mạch, mà còn sinh luôn cả một file Testbench tự kiểm chứng hoàn chỉnh. Testbench này có sẵn bảng chân lý để tự chấm điểm xem mạch chạy đúng hay sai, hoàn tất toàn bộ trong chưa đầy 2 giây."*
 
 ---
 
-### SLIDE 6: CÔNG NGHỆ ĐỘT PHÁ 1: BẢO TOÀN GIAO DIỆN CHÂN (PORT INVARIANT)
-* **Tiêu đề**: Loại Trừ 100% Ảo Giác Chân Cắm (Zero-Defect Port Invariant)
-* **Vấn đề giải quyết**: Tránh hiện tượng mạch sinh ra bị thiếu chân (như mất chân `seg` giải mã 7 đoạn) hoặc bịa thêm chân lạ.
-* **Cơ chế hoạt động**:
-  - **`RTLPortEnforcer`**: Ép buộc danh sách cổng của module Verilog phải khớp từng bit 1:1 với đặc tả người dùng.
-  - **`PortAuditor`**: Thanh tra đối chiếu chéo 4 chiều độc lập:  
-    $$\text{Spec Ports} \equiv \text{RTL Ports} \equiv \text{BSF Symbol} \equiv \text{BDF Schematic}$$
-  - Nếu phát hiện bất kỳ cổng ma (phantom) hoặc thiếu chân: Tự động từ chối và tái đồng bộ hóa trước khi ship.
-* **Lời thoại (45s)**:
-  > *"Trước đây, các hệ thống AI thường bị lỗi khi sinh sơ đồ BDF trong Quartus: chân cắm trong code Verilog một đằng, mà chân trên sơ đồ nguyên lý một nẻo, khiến dây bị đứt hoặc báo lỗi Unconnected Port. Chúng em đã phát triển bộ đôi RTLPortEnforcer và PortAuditor để kiểm tra chéo 4 chiều, cam kết 100% cổng từ đề bài được giữ nguyên vẹn trên sơ đồ mạch BDF."*
+### SLIDE 5: [ĐỊNH HƯỚNG 6] VÒNG LẶP PHẢN HỒI THỰC TẾ EDA (CLOSED-LOOP FEEDBACK)
+* **Tiêu đề**: [Định Hướng 6] Kiểm Chứng Thực Tế: Đưa ModelSim Vào Vòng Lặp Sửa Lỗi Tự Động
+* **Sơ đồ vòng lặp khép kín**:
+  $$\text{AI Sinh Code Verilog} \longrightarrow \text{ModelSim Biên Dịch \& Chạy Thử} \longrightarrow \begin{cases} \text{Đúng 100\%} \rightarrow \text{Xuất mạch} \\ \text{Có lỗi} \rightarrow \text{Đọc Log} \rightarrow \text{AI Tự Sửa Lại} \end{cases}$$
+* **Nội dung hiển thị trên slide**:
+  - **Nguyên tắc "Không tin mù quáng vào AI"**: Lấy các phần mềm EDA tiêu chuẩn công nghiệp (ModelSim 10.1d, Quartus II) làm "Trọng tài chân lý".
+  - **Cơ chế phản hồi thông minh (VeriPrefer Standard - arXiv:2504.15804)**:
+    * Nếu biên dịch bị báo lỗi cú pháp hoặc chạy mô phỏng sai kết quả: Hệ thống tự động bắt chính xác dòng thông báo lỗi và thời điểm nano-giây sai lệch từ log ModelSim.
+    * Gửi log đó ngược lại cho `Reflection Agent` để tự động sửa mã và biên dịch lại ngay lập tức.
+    * Đảm bảo kết quả đầu ra luôn đạt **100% PASS** trước khi bàn giao cho người dùng.
+* **Lời thoại thuyết trình (50s)**:
+  > *"Nhưng làm sao để tin chắc rằng mã Verilog mà AI sinh ra chạy đúng 100%?*  
+  > *Câu trả lời nằm ở **Định hướng số 6: Vòng lặp phản hồi thực tế khép kín (EDA-in-the-loop)**, được xây dựng dựa trên bài báo khoa học VeriPrefer.*  
+  > *Chúng em không bao giờ tin tưởng mù quáng vào mã do AI viết ra. Ngay sau khi sinh code, hệ thống tự động gọi ngầm công cụ ModelSim lên để biên dịch và chạy mô phỏng thực tế. Nếu ModelSim báo lỗi cú pháp hoặc kết quả sai ở nano-giây nào, hệ thống sẽ trích xuất chính xác thông báo lỗi đó đưa ngược lại cho AI Agent để tự phân tích và sửa lại đúng dòng code bị lỗi. Vòng lặp này tự vận hành cho tới khi nào ModelSim trả về kết quả 100% PASS thì mới nghiệm thu."*
 
 ---
 
-### SLIDE 7: CÔNG NGHỆ ĐỘT PHÁ 2: HỆ SINH THÁI ĐỒ HỌA TRỰC QUAN ĐA NỀN TẢNG
-* **Tiêu đề**: Đóng Gói Toàn Diện: Xem Sơ Đồ & Dạng Sóng Mọi Lúc Mọi Nơi
-* **Hệ sinh thái bàn giao gồm 5 định dạng**:
-  1. **Quartus Schematic (`.bdf`)**: Mở trực tiếp trong Quartus II Schematic Editor, đầy đủ chân pin, bus wire và tên khối.
-  2. **Quartus Symbol (`.bsf`)**: Biểu tượng khối chuẩn để kéo thả vào các dự án lớn hơn.
-  3. **Quartus Waveform (`.vwf`)**: Nạp sẵn các chân I/O và xung clock vào Quartus Waveform Simulator.
-  4. **ModelSim 1-Click GUI (`view_waveform.bat`)**: Nhấp đúp chuột là tự động phóng to toàn màn hình dạng sóng trong ModelSim.
-  5. **Interactive Web Waveform (`waveform.html`)**: Xem dạng sóng tương tác bằng SVG trực tiếp trên trình duyệt web không cần cài phần mềm nặng.
-* **Lời thoại (45s)**:
-  > *"Sau khi hoàn tất, hệ thống không chỉ trả về 1 file code trơ trọi, mà xuất ra toàn bộ hệ sinh thái đồ họa hoàn chỉnh. Thầy có thể xem sơ đồ khối BDF trong Quartus II, xem sóng trong ModelSim, hoặc mở ngay file HTML trên trình duyệt để kiểm tra dạng sóng trực quan."*
+### SLIDE 6: [GIÁ TRỊ CỐT LÕI TỪ ĐỊNH HƯỚNG 2] TRỰC QUAN HÓA ĐỂ KIỂM SOÁT THỰC THỂ
+* **Tiêu đề**: [Định Hướng 2] "Trực Quan Hóa Để Kiểm Soát Thực Thể" (Sơ Đồ BDF & Sóng Đồ Họa)
+* **Nội dung hiển thị trên slide (Hiển thị 2 giá trị vượt trội)**:
+  1. **Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF (`.bdf`)**:
+     * Kỹ sư phần cứng không chỉ muốn nhìn mã text, họ muốn nhìn thấy sơ đồ mạch thật.
+     * Hệ thống tự động tạo file Symbol (`.bsf`) và file sơ đồ khối (`.bdf`). Mở Quartus II lên là thấy đầy đủ khối linh kiện, cổng vào/ra, bus dây được nối thẳng hàng, không bị lỗi đứt dây hay chân ảo.
+  2. **Bộ 4 định dạng dạng sóng Waveform trực quan**:
+     * *ModelSim 1-Click Waveform (`view_waveform.bat`)*: Nhấp đúp chuột là tự bật cửa sổ sóng phóng to toàn màn hình.
+     * *Quartus Waveform Editor (`.vwf`)*: Nạp sẵn chân tín hiệu và xung clock vào Quartus.
+     * *Interactive Web Waveform (`waveform.html`)*: Xem dạng sóng tương tác bằng chuột ngay trên trình duyệt web mà không cần cài phần mềm nặng.
+     * *Dữ liệu sóng chuẩn công nghiệp (`.vcd`)*: Tương thích với mọi công cụ phân tích khác.
+* **Lời thoại thuyết trình (45s)**:
+  > *"Điểm đặc biệt nhất và là **Giá trị cốt lõi từ Định hướng số 2** chính là triết lý: 'Trực quan hóa để kiểm soát thực thể'.*  
+  > *Một kỹ sư phần cứng hay giảng viên chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
+  > *Hệ thống của em tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp 100% với đề bài. Đồng thời, hệ thống xuất ra 4 định dạng dạng sóng trực quan: chỉ cần nhấp đúp chuột là ModelSim tự động mở sóng, hoặc có thể mở trực tiếp file HTML trên trình duyệt web để xem sóng nhảy theo từng xung nhịp clk."*
 
 ---
 
-### SLIDE 8: THỰC NGHIỆM & ĐO ĐẠC TRÊN BENCHMARK QUỐC TẾ
-* **Tiêu đề**: Kết Quả Thực Nghiệm Trên 3 Bộ Benchmark Quốc Tế
-* **Số liệu thực tế**:
-  * **Test Battery (20 họ mạch chuẩn)**: Đạt **20/20 PASS (100.0%)** với 0 chân ma, 0 lỗi cú pháp.
-  * **NVIDIA VerilogEval Benchmark**: 100% qua các bài kiểm thử cơ sở.
-  * **HKUST RTLLM Benchmark**: Tổng hợp thành công các mạch hệ thống phức tạp (ALU, BCD, FSM, Multiplier).
-  * **Tài nguyên tổng hợp trên FPGA Altera Cyclone II (EP2C35F672C6)**:
-    - Module Đồng hồ bấm giờ 0-9: tốn **11 LEs, 4 Flip-Flops, 14 Pins**.
-    - Module Khóa số bảo mật: tốn **27 LEs, 8 Flip-Flops**.
-    - Thời gian tổng hợp và mô phỏng trung bình: **3.5 đến 4.5 giây/mạch**.
-* **Lời thoại (45s)**:
-  > *"Để chứng minh tính tổng quát, hệ thống đã được thử nghiệm trên 20 họ mạch phần cứng từ dễ đến phức tạp và đo đạc tài nguyên trên FPGA Cyclone II. Toàn bộ các mạch đều tổng hợp ra netlist sạch, không chốt ẩn, thời gian xử lý toàn trình chỉ từ 3 đến 5 giây."*
+### SLIDE 7: KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC TRÊN CHIP FPGA CYCLONE II
+* **Tiêu đề**: Kết Quả Thực Nghiệm: Độ Chính Xác 100% & Đo Đạc Tài Nguyên Thật
+* **Nội dung hiển thị trên slide (Bảng số liệu thực tế)**:
+  - **Bộ kiểm thử hồi quy (Regression Test Battery)**:
+    * Thử nghiệm trên **20 họ mạch chuẩn công nghiệp** (Đồng hồ 0-9, Khóa số điện tử, Động cơ bước, UART, ALU, Gray Counter, SPI, CRC...).
+    * Tỷ lệ hoàn thành: **20/20 PASS (100.0%)**.
+    * Lỗi chân cắm (Phantom/Missing Ports): **0 lỗi (Bảo toàn 100%)**.
+  - **Tài nguyên đo đạc thực tế trên FPGA Cyclone II (EP2C35F672C6)**:
+    | Mạch thí nghiệm | Số phần tử Logic (LEs) | Số Flip-Flop (FFs) | Chân I/O | Thời gian tổng hợp |
+    | :--- | :--- | :--- | :--- | :--- |
+    | **Đồng hồ bấm giờ 0-9 + LED 7 đoạn** | **11 LEs** | **4 FFs** | 14 Pins | **1.8 giây** |
+    | **Khóa số mật mã 4 số an toàn** | **27 LEs** | **8 FFs** | 11 Pins | **2.1 giây** |
+    | **Bộ điều khiển động cơ bước 4 pha** | **8 LEs** | **3 FFs** | 7 Pins | **1.7 giây** |
+* **Lời thoại thuyết trình (40s)**:
+  > *"Để chứng minh tính khả thi, em đã cho hệ thống chạy kiểm thử trên 20 họ mạch phần cứng từ cơ bản đến phức tạp. Kết quả đạt 100% thành công, không có bất kỳ chân cắm nào bị ảo giác hay mất tín hiệu.*  
+  > *Khi tiến hành tổng hợp trên dòng chip FPGA Altera Cyclone II, các mạch đều tối ưu tài nguyên rất sạch: ví dụ mạch Đồng hồ bấm giờ chỉ tốn 11 Logic Elements và 4 Flip-Flop, thời gian sinh mạch và kiểm tra toàn trình chỉ mất chưa đầy 2 giây."*
 
 ---
 
-### SLIDE 9: KỊCH BẢN DEMO THỰC TẾ TRÊN MÁY (LIVE DEMO WORKFLOW)
-* **Tiêu đề**: Kịch Bản Trình Diễn Trực Tiếp (Live Demo)
-* **Quy trình 3 bước demo cho Hội đồng**:
-  1. **Bước 1**: Mở file đặc tả (ví dụ [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) hoặc file `.md` bất kỳ) mô tả Đồng hồ bấm giờ 0-9 kèm LED 7 đoạn.
-  2. **Bước 2**: Chạy lệnh `demo.bat` $\rightarrow$ chọn bài [3].
-  3. **Bước 3**: Xem trực tiếp kết quả:
-     - Console ModelSim in ra: `Functional Accuracy: 100.0 PERCENT (PASS)`.
-     - Cửa sổ dạng sóng ModelSim tự động bật lên hiển thị rõ xung clk, giá trị count 0..9 và mã seg LED 7 đoạn.
-     - Mở tệp `quartus/sch_stopwatch.bdf` trong Quartus II để thấy sơ đồ khối linh kiện hoàn chỉnh.
-* **Lời thoại (30s)**:
-  > *"Sau đây em xin phép được trình diễn trực tiếp kịch bản demo: Em khởi động launcher demo.bat, chọn mạch Đồng hồ bấm giờ. Chỉ sau 4 giây, ModelSim tự động mở cửa sổ sóng và Quartus II đã sẵn sàng sơ đồ nguyên lý mạch."*
+### SLIDE 8: KỊCH BẢN TRÌNH DIỄN TRỰC TIẾP (LIVE DEMO 3 BƯỚC)
+* **Tiêu đề**: Kịch Bản Trình Diễn Thực Tế Tại Chỗ (3 Bước Đơn Giản)
+* **Nội dung hiển thị trên slide**:
+  - **Bước 1: Soạn đề bài tự nhiên**:
+    * Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) (Đồng hồ bấm giờ 0-9 giây kèm giải mã LED 7 đoạn).
+  - **Bước 2: Chạy hệ thống tự động**:
+    * Mở file `demo.bat` $\rightarrow$ Nhập số `[3]` $\rightarrow$ Nhấn Enter.
+    * Hệ thống chạy luồng khép kín: Tách chân $\rightarrow$ Sinh Verilog $\rightarrow$ ModelSim mô phỏng $\rightarrow$ Xuất BDF.
+  - **Bước 3: Chiêm ngưỡng kết quả đa phương tiện**:
+    * Màn hình ModelSim tự động mở cửa sổ Waveform: Xung nhịp đếm 0..9 và mã LED 7 đoạn chạy mượt mà.
+    * Mở file `quartus/sch_stopwatch.bdf`: Xem sơ đồ mạch nguyên lý với các cổng I/O rõ ràng trên Quartus II.
+* **Lời thoại thuyết trình (35s)**:
+  > *"Sau đây em xin phép được thực hiện demo trực tiếp trên máy tính:  
+  > Em chỉ cần mở file văn bản mô tả đề bài mạch Đồng hồ bấm giờ, nhấp đúp file launcher demo.bat và chọn bài số 3.  
+  > Ngay lập tức, màn hình console sẽ hiển thị quá trình ModelSim chạy mô phỏng đạt 100% PASS, cửa sổ sóng ModelSim tự động bật lên, và file sơ đồ BDF đã được tạo sẵn để Thầy Cô kiểm tra trực tiếp trong Quartus II."*
 
 ---
 
-### SLIDE 10: KẾT LUẬN & HƯỚNG PHÁT TRIỂN TIẾP THEO
-* **Tiêu đề**: Kết Luận & Hướng Mở Rộng
-* **Kết luận**:
-  - Đã xây dựng thành công luồng tự động hóa thiết kế vi mạch Spec2RTL loại trừ 100% ảo giác chân cắm.
-  - Tương thích hoàn toàn với bộ công cụ công nghiệp Quartus II 13.0sp1 và ModelSim 10.1d.
-  - Đóng gói ngân hàng 100 đề bài đặc tả kỹ thuật chuẩn hóa (`100_Promt_Thiet_Ke_Mach.pdf`).
-* **Hướng phát triển**:
-  - Mở rộng hỗ trợ chuẩn giao tiếp AXI4 / Avalon Bus cho các SoC đa lõi.
-  - Tích hợp thêm khâu bố trí và định tuyến tự động Place & Route vật lý.
-* **Lời thoại (30s)**:
-  > *"Em xin chân thành cảm ơn Thầy và quý Thầy Cô trong Hội đồng đã lắng nghe. Em rất mong nhận được những nhận xét và câu hỏi đóng góp của Thầy Cô!"*
+### SLIDE 9: TỔNG KẾT & GIÁ TRỊ ĐÓNG GÓP
+* **Tiêu đề**: Kết Luận: Hiện Thực Hóa Thiết Kế Vi Mạch Thông Minh
+* **Nội dung hiển thị trên slide (3 đóng góp cốt lõi)**:
+  1. **Khép kín quy trình**: Giải quyết trọn vẹn luồng từ văn bản mô tả $\rightarrow$ Code RTL $\rightarrow$ Testbench $\rightarrow$ Mô phỏng $\rightarrow$ Sơ đồ mạch BDF.
+  2. **Tin cậy công nghiệp**: Triệt tiêu hoàn toàn ảo giác của AI nhờ đưa công cụ EDA ModelSim/Quartus vào làm trọng tài tự sửa lỗi (VeriPrefer).
+  3. **Tiết kiệm thời gian vượt trội**: Cắt giảm 70% công việc thủ công nhàm chán, giúp sinh viên và kỹ sư tiếp cận thiết kế vi mạch nhanh chóng, trực quan.
+* **Lời thoại thuyết trình kết thúc (30s)**:
+  > *"Tóm lại, đề tài đã hiện thực hóa thành công một hệ thống tự động hóa thiết kế vi mạch tin cậy, biến những dòng mô tả ý tưởng thành sơ đồ mạch thực tế có thể nạp ngay lên FPGA. Hệ thống giải phóng kỹ sư khỏi 70% công việc chân tay lặp lại, mang lại cách tiếp cận trực quan và hiệu quả cho lĩnh vực bán dẫn.*  
+  > *Em xin chân thành cảm ơn Thầy và quý Thầy Cô trong Hội đồng đã chú ý lắng nghe! Em rất mong nhận được câu hỏi và đóng góp từ Thầy Cô."*
