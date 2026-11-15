@@ -70,6 +70,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         f'set_global_assignment -name TOP_LEVEL_ENTITY {schematic_top}',
         'set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"',
         'set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"',
+        'set_global_assignment -name SEARCH_PATH ../../src',
         'set_global_assignment -name SEARCH_PATH ../src',
         'set_global_assignment -name SEARCH_PATH .',
         f'set_global_assignment -name BDF_FILE {schematic_top}.bdf',
@@ -201,6 +202,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
 
     elif cat in KNOWN_SYSTEMS:
         top_entity, project_name, gen_rtl, gen_tb = KNOWN_SYSTEMS[cat]
+        q_dir = os.path.join(base_dir, "quartus", top_entity)
+        os.makedirs(q_dir, exist_ok=True)
         top_name = f"tb_{top_entity}"
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
@@ -217,6 +220,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         top_entity = mod_name
         top_name = f"tb_{top_entity}"
         project_name = "".join(part.capitalize() for part in top_entity.split("_"))
+        q_dir = os.path.join(base_dir, "quartus", top_entity)
+        os.makedirs(q_dir, exist_ok=True)
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
 
@@ -259,6 +264,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
             if m_ent and not m_ent.group(1).startswith("tb_") and not m_ent.group(1).startswith("harness_"):
                 top_entity = m_ent.group(1)
                 project_name = "".join(part.capitalize() for part in top_entity.split("_"))
+                q_dir = os.path.join(base_dir, "quartus", top_entity)
+                os.makedirs(q_dir, exist_ok=True)
 
     for vf in verilog_files:
         if (os.path.basename(vf).startswith("tb_") or os.path.basename(vf).startswith("harness_")) and os.path.exists(vf):
