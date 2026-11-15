@@ -1,5 +1,5 @@
 """
-Module: DonDepVerilog.py (truoc day la verilog_linter.py)
+Module: verilog_linter.py
 Mô tả: Bộ tiền kiểm tra và dọn dẹp cú pháp Verilog trước khi biên dịch EDA.
 Tự động sửa lỗi dấu phẩy thừa, format chuỗi % và kiểm tra cân bằng begin/end.
 """

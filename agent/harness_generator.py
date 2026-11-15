@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module: TaoHarness.py (truoc day la harness_generator.py)
+Module: harness_generator.py
 Mô tả: Tự động sinh khung kiểm thử phần cứng Verilog Test Harness Wrapper (Option A).
 Cấu trúc chuẩn:
   1. Bộ tạo xung nhịp đồng hồ và reset đồng bộ
@@ -17,7 +17,7 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-from DonDepVerilog import VerilogLinter
+from verilog_linter import VerilogLinter
 
 class HarnessGenerator:
     """Tự động sinh Test Harness Verilog chuẩn công nghiệp."""

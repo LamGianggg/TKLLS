@@ -15,7 +15,7 @@ Thư mục này chứa toàn bộ tài liệu hướng dẫn, kịch bản thuy�
 
 ## 2. Cấu Trúc Chuẩn Của Một Prompt Kỹ Thuật
 
-Mỗi đề bài trong tuyển tập `100_Prompt_Thiet_Ke_Mach.pdf` được thiết kế theo cấu trúc chuẩn hóa 3 phần độc lập, tương thích 100% với bộ phân tích `agent/PhanTichSpec.py`:
+Mỗi đề bài trong tuyển tập `100_Prompt_Thiet_Ke_Mach.pdf` được thiết kế theo cấu trúc chuẩn hóa 3 phần độc lập, tương thích 100% với bộ phân tích `agent/spec_analyzer.py`:
 
 ```markdown
 # [Tên Mạch] (module_name)
@@ -43,7 +43,7 @@ Mỗi đề bài trong tuyển tập `100_Prompt_Thiet_Ke_Mach.pdf` được thi
 3. **Lưu vào thư mục `specs/`**: Dán nội dung vừa sao chép vào một file mới (ví dụ: `specs/test_mach.txt`).
 4. **Chạy lệnh sinh vi mạch tự động**:
    ```bash
-   python agent/ChayChinh.py specs/test_mach.txt
+   python agent/run_spec2rtl.py specs/test_mach.txt
    ```
 5. **Kiểm tra kết quả**:
    - Mã nguồn Verilog RTL: `src/`

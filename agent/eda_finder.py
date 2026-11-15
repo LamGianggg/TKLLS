@@ -1,5 +1,5 @@
 """
-Module: TimEda.py (truoc day la eda_finder.py)
+Module: eda_finder.py
 Mô tả: Tự động tìm kiếm công cụ ModelSim, Quartus II, Icarus Verilog trên máy.
 Hỗ trợ chạy mượt mà trên nhiều máy tính mà không cần cấu hình thủ công.
 """

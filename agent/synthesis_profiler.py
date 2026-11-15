@@ -1,5 +1,5 @@
 """
-Module: DoTaiNguyen.py (truoc day la synthesis_profiler.py)
+Module: synthesis_profiler.py
 Mô tả: Đo đạc và ước lượng tài nguyên phần cứng (LE, Register, LUT, chân I/O).
 Đọc báo cáo tổng hợp từ Quartus II hoặc tự động ước lượng tĩnh từ mã Verilog RTL.
 """

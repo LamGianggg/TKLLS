@@ -1,5 +1,5 @@
 """
-Module: TaoVwf.py (truoc day la vwf_generator.py)
+Module: vwf_generator.py
 Mô tả: Tự động tạo file dạng sóng Vector Waveform File (.vwf) chuẩn Quartus II.
 Hỗ trợ mở trực tiếp trong Quartus II Waveform Editor để xem và chạy mô phỏng.
 """

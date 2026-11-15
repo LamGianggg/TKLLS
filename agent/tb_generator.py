@@ -1,5 +1,5 @@
 """
-Module: TaoTestbench.py (truoc day la tb_generator.py)
+Module: tb_generator.py
 Chuc nang: Tu dong tao testbench cho he thong Spec2RTL va Prompt2Silicon.
 Sinh testbench Verilog tu kiem tra voi assertions, xuat dang song VCD
 va bang diem kiem tra tieu chuan cho moi loai module.
@@ -7,9 +7,9 @@ va bang diem kiem tra tieu chuan cho moi loai module.
 
 import os
 import re
-from PhanTichSpec import SpecAnalyzer
-from DonDepVerilog import VerilogLinter
-from TaoHarness import HarnessGenerator
+from spec_analyzer import SpecAnalyzer
+from verilog_linter import VerilogLinter
+from harness_generator import HarnessGenerator
 
 class TBGenerator:
     """Bo tao testbench tu dong cho cac mach Verilog."""

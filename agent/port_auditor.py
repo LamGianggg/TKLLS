@@ -1,5 +1,5 @@
 """
-Module: KiemToanCong.py (truoc day la port_auditor.py)
+Module: port_auditor.py
 Mô tả: Kiểm tra tính toàn vẹn của các cổng tín hiệu (Ports).
 Đảm bảo khớp 100% giữa đặc tả spec, mã Verilog RTL, file Symbol BSF và sơ đồ BDF.
 """

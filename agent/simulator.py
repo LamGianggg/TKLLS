@@ -1,5 +1,5 @@
 """
-Module: MoPhongEda.py (truoc day la simulator.py)
+Module: simulator.py
 Mô tả: Tự động điều phối mô phỏng vi mạch EDA cho Spec2RTL.
 Hỗ trợ:
   1. ModelSim-Altera batch mode (vlog, vsim -c)
@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import shutil
-from TimEda import find_modelsim, find_iverilog
+from eda_finder import find_modelsim, find_iverilog
 
 class EDASimulator:
     def __init__(self, ThuMucMoPhong=None):

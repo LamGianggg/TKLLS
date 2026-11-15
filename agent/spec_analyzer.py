@@ -1,5 +1,5 @@
 """
-Module: PhanTichSpec.py (truoc day la spec_analyzer.py)
+Module: spec_analyzer.py
 Mô tả: Bộ phân tích đặc tả yêu cầu phần cứng bằng ngôn ngữ tự nhiên (Tiếng Việt & Tiếng Anh).
 Tự động trích xuất tên module, danh sách cổng vào/ra, độ rộng bus và phân loại vi kiến trúc.
 """

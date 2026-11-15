@@ -1,5 +1,5 @@
 """
-Module: TaoRtl.py (truoc day la rtl_generator.py)
+Module: rtl_generator.py
 Chuc nang: Tu dong sinh ma Verilog RTL cho he thong Spec2RTL & Prompt2Silicon.
 Phan tich dac ta ngon ngu tu nhien / Markdown va tong hop ma Verilog
 tong hop duoc (synthesizable IEEE 1364-2001) cho moi thiet ke so.
@@ -7,8 +7,8 @@ tong hop duoc (synthesizable IEEE 1364-2001) cho moi thiet ke so.
 
 import os
 import re
-from PhanTichSpec import SpecAnalyzer, remove_vietnamese_accents
-from DonDepVerilog import VerilogLinter
+from spec_analyzer import SpecAnalyzer, remove_vietnamese_accents
+from verilog_linter import VerilogLinter
 
 class RTLPortEnforcer:
     """Kiem toan va ep buoc cac cong module RTL phai khop 100% voi dac ta dac ta."""
