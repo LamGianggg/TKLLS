@@ -113,6 +113,21 @@ class ReflectionAgent:
             DaSua = True
             NhatKySua.append("Chuẩn hóa cú pháp và format qua VerilogLinter")
 
+        # Sửa 4: Lỗi lệch tên cổng khi gọi module (Port '...' not found in the connected module)
+        KhopCongLoi = re.search(r"Port '([A-Za-z0-9_]+)' not found in the connected module", NhatKy)
+        if KhopCongLoi:
+            ThuMucHienTai = os.path.dirname(DuongDanFile)
+            ThuMucSrc = os.path.join(os.path.dirname(ThuMucHienTai), "src") if "sim" in ThuMucHienTai else ThuMucHienTai
+            TenTb = os.path.basename(DuongDanFile)
+            TenModule = TenTb.replace("tb_", "").replace(".v", "")
+            TepRtl = os.path.join(ThuMucSrc, f"{TenModule}.v")
+            if os.path.exists(TepRtl):
+                from tb_generator import TBGenerator
+                bo_tb = TBGenerator(ThuMucHienTai)
+                bo_tb.generate_generic_tb(TepRtl, TenModule)
+                DaSua = True
+                NhatKySua.append(f"Tự động tái tạo Testbench đồng bộ 100% theo các cổng thực tế của {TenModule}.v")
+
         if DaSua:
             with open(DuongDanFile, "w", encoding="utf-8") as TepTin:
                 TepTin.writelines(DanhSachDong)

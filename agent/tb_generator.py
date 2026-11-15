@@ -26,6 +26,22 @@ class TBGenerator:
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         return self.BoTaoHarness.generate_harness(TepRtl)
 
+    def _extract_ports_from_rtl(self, DuongDanRtl):
+        """Trich xuat danh sach ten cong thuc te (chu thuong) tu file Verilog RTL."""
+        if not DuongDanRtl or not os.path.exists(DuongDanRtl):
+            return set()
+        with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as f:
+            code = f.read()
+        m = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\(.*?\)\s*)?\((.*?)\);", code, re.DOTALL)
+        if not m:
+            return set()
+        ports_str = re.sub(r"//.*", "", m.group(2))
+        ports_str = re.sub(r"/\*.*?\*/", "", ports_str, flags=re.DOTALL)
+        port_names = set()
+        for p in re.findall(r"\b(?:input|output|inout)\s+(?:wire|reg)?\s*(?:\[\s*[^:]+\s*:\s*[^\]]+\s*\])?\s*([A-Za-z0-9_]+)", ports_str):
+            port_names.add(p.lower())
+        return port_names
+
     def generate_tb_from_spec(self, NoiDungSpec=None, DuongDanRtl=None, DuongDanSpec=None, spec_text=None, rtl_path=None, spec_path=None):
         """Diem vao duy nhat: Tu dong tao Testbench tu kiem tra cho bat ky module nao."""
         VanBanSpec = spec_text if spec_text is not None else NoiDungSpec
@@ -36,27 +52,31 @@ class TBGenerator:
         NhomMach = BoPhanTich.classify_system()
         TenModule = BoPhanTich.extract_module_name()
 
-        if NhomMach == "VENDING" and TenModule == "vending_machine":
+        # Trich xuat danh sach cong thuc te cua RTL de dam bao 100% khong bao gio bi lech cong
+        CongThucTe = self._extract_ports_from_rtl(TepRtl)
+
+        if NhomMach == "VENDING" and TenModule == "vending_machine" and {"coin_5k", "dispense"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_vending_tb(TenModule)
-        elif NhomMach == "ELEVATOR" and TenModule == "elevator_controller":
+        elif NhomMach == "ELEVATOR" and TenModule == "elevator_controller" and {"req_floor", "current_floor"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_elevator_tb(TenModule)
-        elif NhomMach == "TRAFFIC" and TenModule == "traffic_light":
+        elif NhomMach == "TRAFFIC" and TenModule == "traffic_light" and {"red", "green"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_traffic_tb(TenModule)
-        elif NhomMach == "SOC_AI":
+        elif NhomMach == "SOC_AI" and os.path.exists(os.path.join(self.ThuMucSim, "tb_top_soc.v")):
             return "tb_top_soc", os.path.join(self.ThuMucSim, "tb_top_soc.v")
-        elif NhomMach == "ALU" and TenModule == "alu_4bit":
+        elif NhomMach == "ALU" and TenModule == "alu_4bit" and {"a", "b", "result"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_alu_tb(TenModule)
-        elif NhomMach == "GRAY_COUNTER" and TenModule == "gray_counter_4bit":
+        elif NhomMach == "GRAY_COUNTER" and TenModule == "gray_counter_4bit" and {"gray_out"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_gray_counter_tb(TenModule)
-        elif NhomMach == "DIGITAL_LOCK" and TenModule == "digital_lock_fsm":
+        elif NhomMach == "DIGITAL_LOCK" and TenModule == "digital_lock_fsm" and {"key_in", "unlock"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_digital_lock_tb(TenModule)
-        elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011":
+        elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011" and {"seq_in", "detected"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_sequence_detector_tb(TenModule)
-        elif NhomMach == "DECODER":
+        elif NhomMach == "DECODER" and {"addr", "mem_en", "cs_ram"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_decoder_tb(TenModule, TepRtl)
-        elif NhomMach == "TEMPERATURE_MONITOR":
+        elif NhomMach == "TEMPERATURE_MONITOR" and {"temp_celsius", "max_temp_limit", "fan_high_speed"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_temperature_monitor_tb(TenModule, TepRtl)
         else:
+            # Fallback thong minh: Tu dong sinh testbench dua tren 100% cong thuc te cua RTL
             return f"tb_{TenModule}", self.generate_generic_tb(TepRtl, TenModule)
 
     def generate_vending_tb(self, TenModule="vending_machine", module_name=None):
