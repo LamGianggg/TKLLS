@@ -320,6 +320,7 @@ echo ===========================================================================
         return bat_path
 
 if __name__ == "__main__":
+    from eda_finder import find_modelsim
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     vcd = os.path.join(base, "sim", "vending_machine.vcd")
     html_out = os.path.join(base, "sim", "waveform.html")
@@ -331,16 +332,19 @@ if __name__ == "__main__":
         vis.generate_html_viewer(vcd, html_out, "Máy Bán Nước Tự Động (Vending Machine Waveform)")
         print("Generated interactive HTML waveform at:", html_out)
 
-    vis.generate_view_launcher(
-        r"D:\altera\13.0sp1\modelsim_ase\win32aloem",
-        os.path.join(base, "sim"),
-        "tb_vending_machine",
-        bat_out
-    )
-    vis.generate_view_launcher(
-        r"D:\altera\13.0sp1\modelsim_ase\win32aloem",
-        os.path.join(base, "sim"),
-        "tb_vending_machine",
-        root_bat
-    )
-    print("Generated 1-click launchers at:", bat_out, "and", root_bat)
+    ms_info = find_modelsim()
+    ms_bin = ms_info.get("bin_dir", "") if ms_info else ""
+    if ms_bin:
+        vis.generate_view_launcher(
+            ms_bin,
+            os.path.join(base, "sim"),
+            "tb_vending_machine",
+            bat_out
+        )
+        vis.generate_view_launcher(
+            ms_bin,
+            os.path.join(base, "sim"),
+            "tb_vending_machine",
+            root_bat
+        )
+        print("Generated 1-click launchers at:", bat_out, "and", root_bat)

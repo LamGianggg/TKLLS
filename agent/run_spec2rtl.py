@@ -39,6 +39,23 @@ from knowledge_matcher import KnowledgeMatcher
 from vwf_generator import VWFGenerator
 from waveform_visualizer import WaveformVisualizer
 
+def get_base_dir():
+    """Auto-detects the repository root folder dynamically based on this script's location.
+    Guaranteed to work regardless of clone path, drive letter (C:, D:, E:...), or working directory."""
+    return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+def get_circuit_quartus_dir(base_dir, top_entity):
+    """Dynamically creates and returns the isolated Quartus directory for the circuit.
+    Sanitizes entity name, ensures all parent directories exist, and is 100% portable across machines."""
+    if not base_dir:
+        base_dir = get_base_dir()
+    clean_name = re.sub(r'[^A-Za-z0-9_]', '_', str(top_entity)).strip('_') or "circuit"
+    quartus_root = os.path.join(os.path.abspath(base_dir), "quartus")
+    os.makedirs(quartus_root, exist_ok=True)
+    q_dir = os.path.join(quartus_root, clean_name)
+    os.makedirs(q_dir, exist_ok=True)
+    return q_dir
+
 def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_files):
     """Auto-generates Quartus project, BSF symbol, and BDF schematic diagram.
     Ensures BDF can be opened, edited, and synthesized without duplicate declaration errors."""
@@ -67,13 +84,13 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
     qsf_lines = [
         'set_global_assignment -name FAMILY "Cyclone II"',
         'set_global_assignment -name DEVICE EP2C35F672C6',
-        f'set_global_assignment -name TOP_LEVEL_ENTITY {schematic_top}',
+        f'set_global_assignment -name TOP_LEVEL_ENTITY "{schematic_top}"',
         'set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"',
         'set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"',
-        'set_global_assignment -name SEARCH_PATH ../../src',
-        'set_global_assignment -name SEARCH_PATH ../src',
-        'set_global_assignment -name SEARCH_PATH .',
-        f'set_global_assignment -name BDF_FILE {schematic_top}.bdf',
+        'set_global_assignment -name SEARCH_PATH "../../src"',
+        'set_global_assignment -name SEARCH_PATH "../src"',
+        'set_global_assignment -name SEARCH_PATH "."',
+        f'set_global_assignment -name BDF_FILE "{schematic_top}.bdf"',
     ]
     for vf in all_rtl_files:
         if not os.path.basename(vf).startswith("tb_"):
@@ -82,7 +99,7 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
                 try: shutil.copy2(vf, target_v)
                 except Exception: pass
             rel_vf = os.path.basename(vf)
-            qsf_lines.append(f'set_global_assignment -name VERILOG_FILE {rel_vf}')
+            qsf_lines.append(f'set_global_assignment -name VERILOG_FILE "{rel_vf}"')
 
     with open(qsf_path, "w", encoding="utf-8") as f:
         f.write('\n'.join(qsf_lines) + '\n')
@@ -107,8 +124,8 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         try: shutil.copy2(vwf_path, vwf_entity_path)
         except Exception: pass
         vwf_rel = f"Waveform_{top_entity}.vwf"
-        if not any(f"VECTOR_WAVEFORM_FILE {vwf_rel}" in l for l in qsf_lines):
-            qsf_lines.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE {vwf_rel}')
+        if not any(f"VECTOR_WAVEFORM_FILE" in l and vwf_rel in l for l in qsf_lines):
+            qsf_lines.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{vwf_rel}"')
             with open(qsf_path, "w", encoding="utf-8") as f:
                 f.write('\n'.join(qsf_lines) + '\n')
 
@@ -119,17 +136,27 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
             if os.path.exists(td):
                 try: shutil.rmtree(td, ignore_errors=True)
                 except Exception: pass
-        subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True)
+        try:
+            subprocess.run([qmap_exe, project_name, "-c", project_name], cwd=q_dir, capture_output=True, timeout=60)
+        except Exception as e:
+            print(f" -> [Lưu ý EDA]: Quá trình chạy quartus_map gặp cảnh báo: {e}")
     elif not qmap_exe:
         print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {project_name}.qpf, sơ đồ {schematic_top}.bdf và sóng Waveform.vwf đã được tạo sẵn để bạn mở và chỉnh sửa trực tiếp trong Quartus II GUI.")
 
     return qpf_path, bsf_path, bdf_path if bdf_created else None, vwf_path
 
-def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open_web=False):
+def run_single_spec(spec_path, base_dir=None, open_gui=False, use_harness=False, open_web=False):
     """Executes the full Spec2RTL pipeline for a single specification file."""
+    if not base_dir:
+        base_dir = get_base_dir()
+    base_dir = os.path.abspath(base_dir)
     src_dir = os.path.join(base_dir, "src")
     sim_dir = os.path.join(base_dir, "sim")
-    q_dir   = os.path.join(base_dir, "quartus")
+    quartus_root = os.path.join(base_dir, "quartus")
+    os.makedirs(src_dir, exist_ok=True)
+    os.makedirs(sim_dir, exist_ok=True)
+    os.makedirs(quartus_root, exist_ok=True)
+    q_dir = quartus_root
 
     print("\n" + "=" * 80)
     print(f"   [PROCESSING SPEC]: {os.path.basename(spec_path)}")
@@ -202,8 +229,7 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
 
     elif cat in KNOWN_SYSTEMS:
         top_entity, project_name, gen_rtl, gen_tb = KNOWN_SYSTEMS[cat]
-        q_dir = os.path.join(base_dir, "quartus", top_entity)
-        os.makedirs(q_dir, exist_ok=True)
+        q_dir = get_circuit_quartus_dir(base_dir, top_entity)
         top_name = f"tb_{top_entity}"
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
@@ -220,8 +246,7 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         top_entity = mod_name
         top_name = f"tb_{top_entity}"
         project_name = "".join(part.capitalize() for part in top_entity.split("_"))
-        q_dir = os.path.join(base_dir, "quartus", top_entity)
-        os.makedirs(q_dir, exist_ok=True)
+        q_dir = get_circuit_quartus_dir(base_dir, top_entity)
         v_file = os.path.join(src_dir, f"{top_entity}.v")
         tb_file = os.path.join(sim_dir, f"{top_name}.v")
 
@@ -264,8 +289,7 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
             if m_ent and not m_ent.group(1).startswith("tb_") and not m_ent.group(1).startswith("harness_"):
                 top_entity = m_ent.group(1)
                 project_name = "".join(part.capitalize() for part in top_entity.split("_"))
-                q_dir = os.path.join(base_dir, "quartus", top_entity)
-                os.makedirs(q_dir, exist_ok=True)
+                q_dir = get_circuit_quartus_dir(base_dir, top_entity)
 
     for vf in verilog_files:
         if (os.path.basename(vf).startswith("tb_") or os.path.basename(vf).startswith("harness_")) and os.path.exists(vf):
@@ -441,7 +465,7 @@ def run_benchmark_suite(target_suite, base_dir):
     return total_passed == len(to_run)
 
 def main():
-    base_dir  = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    base_dir  = get_base_dir()
     specs_dir = os.path.join(base_dir, "specs")
 
     print("=" * 80)

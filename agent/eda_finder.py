@@ -38,7 +38,7 @@ def find_modelsim():
                 }
 
     # 3. Scan common Altera / Intel FPGA installation locations across drives
-    for drive in ["C", "D", "E", "F"]:
+    for drive in ["C", "D", "E", "F", "G", "H"]:
         patterns = [
             f"{drive}:/altera/*/modelsim_ase/win32aloem",
             f"{drive}:/altera/*/modelsim_ae/win32aloem",
@@ -46,8 +46,12 @@ def find_modelsim():
             f"{drive}:/intelFPGA_lite/*/modelsim_ase/win32aloem",
             f"{drive}:/intelFPGA/*/modelsim_ae/win32aloem",
             f"{drive}:/intelFPGA_lite/*/modelsim_ae/win32aloem",
+            f"{drive}:/intelFPGA_pro/*/modelsim_ase/win32aloem",
+            f"{drive}:/intelFPGA_pro/*/modelsim_ae/win32aloem",
             f"{drive}:/modeltech*/win32",
             f"{drive}:/modeltech*/win64",
+            f"{drive}:/Program Files/altera/*/modelsim_ase/win32aloem",
+            f"{drive}:/Program Files (x86)/altera/*/modelsim_ase/win32aloem",
         ]
         for p in patterns:
             for m in glob.glob(p):
@@ -100,14 +104,20 @@ def find_quartus_map():
                 return os.path.abspath(cand)
 
     # 3. Scan across drives
-    for drive in ["C", "D", "E", "F"]:
+    for drive in ["C", "D", "E", "F", "G", "H"]:
         patterns = [
             f"{drive}:/altera/*/quartus/bin64/quartus_map.exe",
             f"{drive}:/altera/*/quartus/bin/quartus_map.exe",
+            f"{drive}:/Program Files/altera/*/quartus/bin64/quartus_map.exe",
+            f"{drive}:/Program Files/altera/*/quartus/bin/quartus_map.exe",
+            f"{drive}:/Program Files (x86)/altera/*/quartus/bin64/quartus_map.exe",
+            f"{drive}:/Program Files (x86)/altera/*/quartus/bin/quartus_map.exe",
             f"{drive}:/intelFPGA/*/quartus/bin64/quartus_map.exe",
             f"{drive}:/intelFPGA_lite/*/quartus/bin64/quartus_map.exe",
             f"{drive}:/intelFPGA/*/quartus/bin/quartus_map.exe",
             f"{drive}:/intelFPGA_lite/*/quartus/bin/quartus_map.exe",
+            f"{drive}:/intelFPGA_pro/*/quartus/bin64/quartus_map.exe",
+            f"{drive}:/intelFPGA_pro/*/quartus/bin/quartus_map.exe",
         ]
         for p in patterns:
             for m in glob.glob(p):
