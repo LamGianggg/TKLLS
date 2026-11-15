@@ -105,8 +105,9 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
         vwf_gen.generate_vwf_from_rtl(primary_rtl, vwf_path)
         try: shutil.copy2(vwf_path, vwf_entity_path)
         except Exception: pass
-        if not any("VECTOR_WAVEFORM_FILE" in l for l in qsf_lines):
-            qsf_lines.append('set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf')
+        vwf_rel = f"Waveform_{top_entity}.vwf"
+        if not any(f"VECTOR_WAVEFORM_FILE {vwf_rel}" in l for l in qsf_lines):
+            qsf_lines.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE {vwf_rel}')
             with open(qsf_path, "w", encoding="utf-8") as f:
                 f.write('\n'.join(qsf_lines) + '\n')
 
@@ -310,6 +311,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
     bat_sim = os.path.join(sim_dir, "view_waveform.bat")
     bat_root = os.path.join(base_dir, "view_waveform.bat")
+    bat_sim_entity = os.path.join(sim_dir, f"view_waveform_{top_entity}.bat")
+    bat_root_entity = os.path.join(base_dir, f"view_waveform_{top_entity}.bat")
 
     modelsim_info = find_modelsim()
     m_bin = modelsim_info.get("bin_dir") if modelsim_info else ""
@@ -317,6 +320,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     vis = WaveformVisualizer()
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim)
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root)
+    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim_entity)
+    vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root_entity)
 
     if open_gui and m_bin:
         print(f"\n[ModelSim GUI]: Đang khởi động cửa sổ sóng đồ họa trên màn hình...")
@@ -337,8 +342,9 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         if bdf_path:
             print(f" 1. BDF Schematic : Open Quartus II -> {bdf_path}")
         if vwf_path and os.path.exists(vwf_path):
-            print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_path} (Sóng xung nhịp trong Quartus Waveform Editor)")
-        print(f" 3. 1-Click GUI   : Nhấp đúp chuột vào 'view_waveform.bat' (Mở trực tiếp cửa sổ sóng trong ModelSim)")
+            vwf_entity = os.path.join(q_dir, f"Waveform_{top_entity}.vwf")
+            print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_entity} (hoặc {vwf_path})")
+        print(f" 3. 1-Click GUI   : Nhấp đúp chuột vào '{bat_root_entity}' hoặc 'view_waveform.bat'")
         print(f" 4. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
         print(f" 5. Raw VCD Data  : {vcd_path}")
         return True, elapsed, top_entity, bdf_path, metrics
