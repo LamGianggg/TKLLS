@@ -153,6 +153,10 @@ class RTLGenerator:
             TepKetQua = self.generate_sequence_detector(TenModule, VanBanSpec, DanhSachCong)
         elif NhomMach == "DIGITAL_LOCK":
             TepKetQua = self.generate_digital_lock(TenModule, VanBanSpec, DanhSachCong)
+        elif NhomMach == "TEMPERATURE_MONITOR":
+            TepKetQua = self.generate_temperature_monitor(VanBanSpec, TenModule, DanhSachCong)
+        elif NhomMach == "DECODER":
+            TepKetQua = self.generate_decoder(VanBanSpec, TenModule, DanhSachCong)
         else:
             TepKetQua = self.generate_generic_module(TenModule, VanBanSpec, DanhSachCong)
 
@@ -1637,15 +1641,10 @@ endmodule
                 else:
                     outputs.append(p)
 
-        if not has_clk:
-            inputs.insert(0, {"name": "clk", "direction": "input", "width": 1, "is_clk": True, "is_rst": False})
-        if not has_rst:
-            inputs.insert(1, {"name": "rst", "direction": "input", "width": 1, "is_clk": False, "is_rst": True})
-
-        # If no custom data inputs were provided (only clk/rst), add a default input
         user_inputs = [p for p in inputs if not p.get("is_clk") and not p.get("is_rst")]
-        if not user_inputs:
+        if not user_inputs and not has_clk:
             inputs.append({"name": "data_in", "direction": "input", "width": 4, "is_clk": False, "is_rst": False})
+            user_inputs = [inputs[-1]]
 
         if not outputs:
             outputs.append({"name": "data_out", "direction": "output", "width": 4})
@@ -1662,14 +1661,41 @@ endmodule
 
         ports_str = ",\n".join(port_decls)
 
-        reset_resets = "\n".join([f"            {p['name']} <= {p['width']}'d0;" for p in outputs])
-        logic_assigns = []
-        for p in outputs:
-            if p["width"] > 1:
-                logic_assigns.append(f"            {p['name']} <= {p['name']} + 1'b1;")
+        if has_clk:
+            clk_p = next(p for p in inputs if p.get("is_clk"))
+            rst_p = next((p for p in inputs if p.get("is_rst")), None)
+            reset_resets = "\n".join([f"            {p['name']} <= {p['width']}'d0;" for p in outputs])
+            logic_assigns = []
+            for p in outputs:
+                if p["width"] > 1:
+                    logic_assigns.append(f"            {p['name']} <= {p['name']} + 1'b1;")
+                else:
+                    logic_assigns.append(f"            {p['name']} <= ~{p['name']};")
+            logic_str = "\n".join(logic_assigns)
+
+            if rst_p:
+                proc_str = f"""    always @(posedge {clk_p['name']} or posedge {rst_p['name']}) begin
+        if ({rst_p['name']}) begin
+{reset_resets}
+        end else begin
+{logic_str}
+        end
+    end"""
             else:
-                logic_assigns.append(f"            {p['name']} <= ~{p['name']};")
-        logic_str = "\n".join(logic_assigns)
+                proc_str = f"""    always @(posedge {clk_p['name']}) begin
+{logic_str}
+    end"""
+        else:
+            comb_assigns = []
+            for p in outputs:
+                if user_inputs:
+                    comb_assigns.append(f"        {p['name']} = {user_inputs[0]['name']}[{min(p['width'], user_inputs[0]['width'])-1}:0];")
+                else:
+                    comb_assigns.append(f"        {p['name']} = {p['width']}'d0;")
+            comb_body = "\n".join(comb_assigns)
+            proc_str = f"""    always @(*) begin
+{comb_body}
+    end"""
 
         code = f"""//==============================================================================
 // Module: {module_name}
@@ -1680,11 +1706,135 @@ module {module_name} (
 {ports_str}
 );
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-{reset_resets}
+{proc_str}
+
+endmodule
+"""
+        return self._write_verilog(f"{module_name}.v", code)
+
+    def generate_decoder(self, spec_text="", module_name="memory_address_decoder", ports=None):
+        """Generates synthesizable Verilog for address decoders and general decoders."""
+        inputs = [p for p in (ports or []) if p["direction"] == "input"]
+        outputs = [p for p in (ports or []) if p["direction"] == "output"]
+
+        port_names = {p["name"].lower() for p in (ports or [])}
+        is_mem_decoder = any(k in port_names for k in ["cs_ram", "cs_rom", "cs_io"]) or ("addr" in port_names)
+
+        if is_mem_decoder:
+            addr_port = next((p for p in inputs if "addr" in p["name"].lower()), {"name": "addr", "width": 16})
+            mem_en_port = next((p for p in inputs if "en" in p["name"].lower()), {"name": "mem_en", "width": 1})
+
+            cs_ram_name = next((p["name"] for p in outputs if "ram" in p["name"].lower()), "cs_ram")
+            cs_rom_name = next((p["name"] for p in outputs if "rom" in p["name"].lower()), "cs_rom")
+            cs_io_name  = next((p["name"] for p in outputs if "io" in p["name"].lower()), "cs_io")
+
+            code = f"""//==============================================================================
+// Module: {module_name}
+// Description: 64KB Memory Address Decoder (Combinational Logic)
+// Auto-generated by Spec2RTL Dynamic Synthesis Engine
+//==============================================================================
+module {module_name} (
+    input  wire [{addr_port['width']-1}:0] {addr_port['name']},
+    input  wire        {mem_en_port['name']},
+    output reg         {cs_ram_name},
+    output reg         {cs_rom_name},
+    output reg         {cs_io_name}
+);
+
+    always @(*) begin
+        {cs_ram_name} = 1'b0;
+        {cs_rom_name} = 1'b0;
+        {cs_io_name}  = 1'b0;
+        if ({mem_en_port['name']}) begin
+            case ({addr_port['name']}[15:14])
+                2'b00, 2'b01: {cs_ram_name} = 1'b1; // 0x0000 - 0x7FFF: 32KB SRAM
+                2'b10:        {cs_rom_name} = 1'b1; // 0x8000 - 0xBFFF: 16KB ROM
+                2'b11:        {cs_io_name}  = 1'b1; // 0xC000 - 0xFFFF: 16KB I/O
+            endcase
+        end
+    end
+
+endmodule
+"""
+        else:
+            in_port = inputs[0] if inputs else {"name": "in", "width": 3}
+            en_port = inputs[1] if len(inputs) > 1 else None
+            out_port = outputs[0] if outputs else {"name": "out", "width": 1 << in_port["width"]}
+
+            port_decls = [f"    input  wire [{in_port['width']-1}:0] {in_port['name']}"]
+            if en_port:
+                port_decls.append(f"    input  wire        {en_port['name']}")
+            port_decls.append(f"    output reg  [{out_port['width']-1}:0] {out_port['name']}")
+            ports_str = ",\n".join(port_decls)
+
+            en_cond = f"if ({en_port['name']}) " if en_port else ""
+            else_cond = f" else {out_port['name']} = {out_port['width']}'d0;" if en_port else ""
+            code = f"""//==============================================================================
+// Module: {module_name}
+// Description: Parameterized n-to-2^n Binary Decoder
+//==============================================================================
+module {module_name} (
+{ports_str}
+);
+
+    always @(*) begin
+        {en_cond}{out_port['name']} = (1'b1 << {in_port['name']});{else_cond}
+    end
+
+endmodule
+"""
+        return self._write_verilog(f"{module_name}.v", code)
+
+    def generate_temperature_monitor(self, spec_text="", module_name="temperature_monitor_alarm", ports=None):
+        """Generates synthesizable Verilog for temperature monitor and alarm system."""
+        port_names = {p["name"].lower(): p for p in (ports or [])}
+        clk_name = next((p["name"] for p in (ports or []) if p.get("is_clk") or "clk" in p["name"].lower()), "clk")
+        rst_name = next((p["name"] for p in (ports or []) if p.get("is_rst") or "rst" in p["name"].lower()), "rst")
+
+        temp_name = next((p["name"] for p in (ports or []) if "temp_celsius" in p["name"].lower() or "temp" in p["name"].lower()), "temp_celsius")
+        limit_name = next((p["name"] for p in (ports or []) if "limit" in p["name"].lower() or "max" in p["name"].lower()), "max_temp_limit")
+
+        fan_name = next((p["name"] for p in (ports or []) if "fan" in p["name"].lower()), "fan_high_speed")
+        alarm_name = next((p["name"] for p in (ports or []) if "alarm" in p["name"].lower()), "overtemp_alarm")
+        shutdown_name = next((p["name"] for p in (ports or []) if "shut" in p["name"].lower()), "shutdown_signal")
+
+        temp_w = port_names.get(temp_name.lower(), {}).get("width", 8)
+        limit_w = port_names.get(limit_name.lower(), {}).get("width", 8)
+
+        code = f"""//==============================================================================
+// Module: {module_name}
+// Description: Digital Temperature Monitor & Alarm Controller
+// Auto-generated by Spec2RTL Dynamic Synthesis Engine
+//==============================================================================
+module {module_name} (
+    input  wire        {clk_name},
+    input  wire        {rst_name},
+    input  wire [{temp_w-1}:0] {temp_name},
+    input  wire [{limit_w-1}:0] {limit_name},
+    output reg         {fan_name},
+    output reg         {alarm_name},
+    output reg         {shutdown_name}
+);
+
+    always @(posedge {clk_name} or posedge {rst_name}) begin
+        if ({rst_name}) begin
+            {fan_name}      <= 1'b0;
+            {alarm_name}    <= 1'b0;
+            {shutdown_name} <= 1'b0;
         end else begin
-{logic_str}
+            if ({temp_name} >= {limit_name} + {limit_w}'d10) begin
+                {fan_name}      <= 1'b1;
+                {alarm_name}    <= 1'b1;
+                {shutdown_name} <= 1'b1;
+            end else if ({temp_name} >= {limit_name}) begin
+                {fan_name}      <= 1'b1;
+                {alarm_name}    <= 1'b1;
+                {shutdown_name} <= 1'b0;
+            end else begin
+                {fan_name}      <= 1'b0;
+                {alarm_name}    <= 1'b0;
+                {shutdown_name} <= 1'b0;
+            end
         end
     end
 

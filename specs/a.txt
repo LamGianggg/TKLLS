@@ -1,19 +1,10 @@
-# Khóa Mã Số Điện Tử 4 Chữ Số Bảo Mật
-
+# Giải Mã Địa Chỉ Bộ Nhớ 64KB (memory_address_decoder)
 ## 1. Đầu vào (Inputs):
-- clk: Xung nhịp hệ thống
-- rst: Reset tích cực mức cao
-- [3:0] key_in: Chữ số người dùng nhập vào (0-9)
-- enter: Xung kích xác nhận nhập một số (nhấn enter sau mỗi số)
-
+• [15:0] addr: Tuyến địa chỉ 16-bit (không gian 64KB)
+• mem_en: Cho phép truy cập bộ nhớ
 ## 2. Đầu ra (Outputs):
-- unlock: Mở khóa thành công (1: Mở khóa, 0: Khóa)
-- alarm: Còi báo động (1: Báo động khi nhập sai quá 3 lần)
-- [1:0] err_count: Số lần đã nhập sai
-
+• cs_ram: Chọn chip SRAM (vùng 0x0000 - 0x7FFF: 32KB)
+• cs_rom: Chọn chip ROM (vùng 0x8000 - 0xBFFF: 16KB)
+• cs_io: Chọn vùng ngoại vi I/O (vùng 0xC000 - 0xFFFF: 16KB)
 ## 3. Hoạt động / Logic mong muốn:
-- Mật khẩu cố định là: 4 -> 2 -> 7 -> 9.
-- Người dùng nhập lần lượt từng số và nhấn `enter = 1` trong 1 chu kỳ clk.
-- Nếu nhập đúng liên tiếp 4 số: unlock bật lên 1 trong 5 chu kỳ clk rồi khóa lại, reset số lần sai về 0.
-- Nếu nhập sai bất kỳ số nào trong chuỗi: err_count tăng 1, chuỗi quay về chờ nhập lại từ đầu.
-- Nếu err_count đạt mức 3: alarm bật lên 1 và khóa cứng mạch cho đến khi có tín hiệu `rst = 1`.
+• Phân giải 2 bit địa chỉ cao addr[15:14] để kích hoạt chính xác tín hiệu chọn chip tương ứng

@@ -52,6 +52,10 @@ class TBGenerator:
             return f"tb_{TenModule}", self.generate_digital_lock_tb(TenModule)
         elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011":
             return f"tb_{TenModule}", self.generate_sequence_detector_tb(TenModule)
+        elif NhomMach == "DECODER":
+            return f"tb_{TenModule}", self.generate_decoder_tb(TenModule, TepRtl)
+        elif NhomMach == "TEMPERATURE_MONITOR":
+            return f"tb_{TenModule}", self.generate_temperature_monitor_tb(TenModule, TepRtl)
         else:
             return f"tb_{TenModule}", self.generate_generic_tb(TepRtl, TenModule)
 
@@ -1210,6 +1214,233 @@ endmodule
         with open(DuongDanXuat, "w", encoding="utf-8") as TepTin:
             TepTin.write(MaNguon)
         return DuongDanXuat
+
+    def generate_decoder_tb(self, TenModule="memory_address_decoder", DuongDanRtl=None):
+        """Testbench tu kiem tra cho bo giai ma dia chi 64KB."""
+        TenTb = f"tb_{TenModule}"
+        code = f"""`timescale 1ns / 1ps
+
+module {TenTb};
+
+    reg  [15:0] addr;
+    reg         mem_en;
+    wire        cs_ram;
+    wire        cs_rom;
+    wire        cs_io;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+
+    {TenModule} dut (
+        .addr(addr),
+        .mem_en(mem_en),
+        .cs_ram(cs_ram),
+        .cs_rom(cs_rom),
+        .cs_io(cs_io)
+    );
+
+    initial begin
+        $dumpfile("{TenModule}.vcd");
+        $dumpvars(0, {TenTb});
+
+        $display("============================================================================");
+        $display("   AUTONOMOUS HARDWARE VERIFICATION FOR MODULE: {TenModule}");
+        $display("============================================================================");
+
+        // Kich ban 1: mem_en = 0 (Tat ca CS phai bang 0)
+        addr = 16'h1234;
+        mem_en = 1'b0;
+        #20;
+        total_tests = total_tests + 1;
+        if (cs_ram == 0 && cs_rom == 0 && cs_io == 0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 1: mem_en=0 disables all chip selects");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 1: Output active when mem_en=0");
+        end
+
+        // Kich ban 2: SRAM (0x0000 - 0x7FFF)
+        addr = 16'h2000;
+        mem_en = 1'b1;
+        #20;
+        total_tests = total_tests + 1;
+        if (cs_ram == 1 && cs_rom == 0 && cs_io == 0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 2: SRAM region 0x2000 activates cs_ram");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 2: SRAM selection failed");
+        end
+
+        // Kich ban 3: ROM (0x8000 - 0xBFFF)
+        addr = 16'h9000;
+        mem_en = 1'b1;
+        #20;
+        total_tests = total_tests + 1;
+        if (cs_ram == 0 && cs_rom == 1 && cs_io == 0) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 3: ROM region 0x9000 activates cs_rom");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 3: ROM selection failed");
+        end
+
+        // Kich ban 4: I/O (0xC000 - 0xFFFF)
+        addr = 16'hE000;
+        mem_en = 1'b1;
+        #20;
+        total_tests = total_tests + 1;
+        if (cs_ram == 0 && cs_rom == 0 && cs_io == 1) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 4: I/O region 0xE000 activates cs_io");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 4: I/O selection failed");
+        end
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{TenModule}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.ThuMucSim, f"{TenTb}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
+
+    def generate_temperature_monitor_tb(self, TenModule="temperature_monitor_alarm", DuongDanRtl=None):
+        """Testbench tu kiem tra cho mach giam sat nhiet do."""
+        TenTb = f"tb_{TenModule}"
+        code = f"""`timescale 1ns / 1ps
+
+module {TenTb};
+
+    reg        clk;
+    reg        rst;
+    reg  [7:0] temp_celsius;
+    reg  [7:0] max_temp_limit;
+    wire       fan_high_speed;
+    wire       overtemp_alarm;
+    wire       shutdown_signal;
+
+    integer total_tests = 0;
+    integer passed_tests = 0;
+    integer failed_tests = 0;
+
+    {TenModule} dut (
+        .clk(clk),
+        .rst(rst),
+        .temp_celsius(temp_celsius),
+        .max_temp_limit(max_temp_limit),
+        .fan_high_speed(fan_high_speed),
+        .overtemp_alarm(overtemp_alarm),
+        .shutdown_signal(shutdown_signal)
+    );
+
+    always #10 clk = ~clk;
+
+    initial begin
+        $dumpfile("{TenModule}.vcd");
+        $dumpvars(0, {TenTb});
+
+        clk = 0;
+        rst = 1;
+        temp_celsius = 8'd25;
+        max_temp_limit = 8'd50;
+        #25;
+        rst = 0;
+
+        // Kich ban 1: Nhiet do binh thuong (25 < 50)
+        temp_celsius = 8'd25;
+        #20;
+        total_tests = total_tests + 1;
+        if (!fan_high_speed && !overtemp_alarm && !shutdown_signal) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 1: Normal temp (all alarms 0)");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 1: Unexpected alarm on normal temp");
+        end
+
+        // Kich ban 2: Qua nhiet canh bao (55 >= 50, < 60)
+        temp_celsius = 8'd55;
+        #20;
+        total_tests = total_tests + 1;
+        if (fan_high_speed && overtemp_alarm && !shutdown_signal) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 2: Warning temp (fan=1, alarm=1, shutdown=0)");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 2: Failed warning alarm activation");
+        end
+
+        // Kich ban 3: Nhiet do nguy hiem (65 >= 50 + 10)
+        temp_celsius = 8'd65;
+        #20;
+        total_tests = total_tests + 1;
+        if (fan_high_speed && overtemp_alarm && shutdown_signal) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 3: Critical temp (fan=1, alarm=1, shutdown=1)");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 3: Failed shutdown signal activation");
+        end
+
+        // Kich ban 4: Ha nhiet ve binh thuong (35 < 50)
+        temp_celsius = 8'd35;
+        #20;
+        total_tests = total_tests + 1;
+        if (!fan_high_speed && !overtemp_alarm && !shutdown_signal) begin
+            passed_tests = passed_tests + 1;
+            $display("  [PASS] Scenario 4: Cooled down (all alarms 0)");
+        end else begin
+            failed_tests = failed_tests + 1;
+            $display("  [ERROR] Scenario 4: Alarms failed to clear after cooling");
+        end
+
+        #40;
+        $display("============================================================================");
+        $display("       VERIFICATION SCOREBOARD (VeriPrefer Benchmark Standard)");
+        $display("============================================================================");
+        $display("  Total Test Scenarios : %0d", total_tests);
+        $display("  Passed Assertions    : %0d", passed_tests);
+        $display("  Failed Assertions    : %0d", failed_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("============================================================================");
+        if (failed_tests == 0 && passed_tests == total_tests) begin
+            $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");
+        end else begin
+            $display("  [ERROR] TEST VERIFICATION FOR MODULE '{TenModule}' FAILED WITH %0d ERRORS!", failed_tests);
+        end
+        $display("============================================================================");
+        $finish;
+    end
+
+endmodule
+"""
+        code = VerilogLinter.sanitize_verilog_code(code)
+        out_path = os.path.join(self.ThuMucSim, f"{TenTb}.v")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return out_path
 
 if __name__ == "__main__":
     BoTao = TBGenerator("../sim")

@@ -217,20 +217,9 @@ HEADER
 }}""")
                 ChiSoHienTai += 1
 
-                # Sinh dạng sóng: Ưu tiên dữ liệu VCD thật
-                if DuLieuVcd and Ten in DuLieuVcd:
-                    CacDoanVcd = DuLieuVcd[Ten]
-                    NoiDungNode = "\n".join([f"\t\tLEVEL {Muc} FOR {Khoang:.1f};" for Muc, Khoang in CacDoanVcd])
-                    KhoiChuyenTrangThai.append(f"""TRANSITION_LIST("{Ten}")
-{{
-\tNODE
-\t{{
-\t\tREPEAT = 1;
-{NoiDungNode}
-\t}}
-}}""")
-                elif Ten.lower() in TenXungNhip:
-                    # Xung clock tuần hoàn 10ns (chu kỳ 5ns 0, 5ns 1)
+                # Sinh dạng sóng: Xung clock luôn chạy tuần hoàn suốt toàn bộ dải thời gian
+                if Ten.lower() in TenXungNhip:
+                    # Xung clock tuần hoàn 10ns (chu kỳ 5ns 0, 5ns 1) suốt toàn dải ThoiGianNs
                     ChuKy = int(ThoiGianNs // 10)
                     KhoiChuyenTrangThai.append(f"""TRANSITION_LIST("{Ten}")
 {{
@@ -243,6 +232,17 @@ HEADER
 \t\t\tLEVEL 0 FOR 5.0;
 \t\t\tLEVEL 1 FOR 5.0;
 \t\t}}
+\t}}
+}}""")
+                elif DuLieuVcd and Ten in DuLieuVcd:
+                    CacDoanVcd = DuLieuVcd[Ten]
+                    NoiDungNode = "\n".join([f"\t\tLEVEL {Muc} FOR {Khoang:.1f};" for Muc, Khoang in CacDoanVcd])
+                    KhoiChuyenTrangThai.append(f"""TRANSITION_LIST("{Ten}")
+{{
+\tNODE
+\t{{
+\t\tREPEAT = 1;
+{NoiDungNode}
 \t}}
 }}""")
                 elif Ten.lower() in TenChanReset:

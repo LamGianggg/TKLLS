@@ -31,9 +31,27 @@ def clean_identifier(VanBan):
 
 class SpecAnalyzer:
     def __init__(self, DuongDanSpec):
-        self.spec_path = DuongDanSpec
-        if os.path.exists(DuongDanSpec):
-            with open(DuongDanSpec, "r", encoding="utf-8-sig", errors="replace") as TepTin:
+        DuongDanGiaiQuyet = DuongDanSpec
+        if isinstance(DuongDanSpec, str) and not os.path.exists(DuongDanGiaiQuyet):
+            ThuMucHienTai = os.path.dirname(os.path.abspath(__file__))
+            ThuMucGoc = os.path.abspath(os.path.join(ThuMucHienTai, ".."))
+            TenFile = os.path.basename(DuongDanSpec)
+            CacUngVien = [
+                DuongDanSpec,
+                os.path.join(ThuMucHienTai, DuongDanSpec),
+                os.path.join(ThuMucHienTai, "..", DuongDanSpec),
+                os.path.join(ThuMucGoc, "specs", TenFile),
+                os.path.join(os.getcwd(), DuongDanSpec),
+                os.path.join(os.getcwd(), "specs", TenFile),
+            ]
+            for UngVien in CacUngVien:
+                if os.path.exists(UngVien):
+                    DuongDanGiaiQuyet = os.path.abspath(UngVien)
+                    break
+
+        self.spec_path = DuongDanGiaiQuyet
+        if os.path.exists(DuongDanGiaiQuyet):
+            with open(DuongDanGiaiQuyet, "r", encoding="utf-8-sig", errors="replace") as TepTin:
                 self.content = TepTin.read().lstrip('\ufeff')
         else:
             self.content = str(DuongDanSpec).lstrip('\ufeff')
@@ -128,6 +146,10 @@ class SpecAnalyzer:
             return "STEPPER_MOTOR"
         if any(TuKhoa in VanBan for TuKhoa in ["may giat", "washing", "washing_machine", "giat tu dong"]):
             return "WASHING_MACHINE"
+        if any(TuKhoa in VanBan for TuKhoa in ["nhiet do", "temperature", "temp_celsius", "max_temp_limit", "overtemp", "giam sat nhiet do"]):
+            return "TEMPERATURE_MONITOR"
+        if any(TuKhoa in VanBan for TuKhoa in ["giai ma", "decoder", "address decoder", "address_decoder", "giai ma dia chi", "bo giai ma", "mach giai ma"]):
+            return "DECODER"
         if any(TuKhoa in VanBan for TuKhoa in ["bao chay", "bao trom", "smart home", "nha thong minh", "smoke_gas", "motion_pir"]):
             return "SMART_ALARM"
         if any(TuKhoa in VanBan for TuKhoa in ["pwm", "do rong xung", "duty cycle", "xung pwm"]):
@@ -345,6 +367,8 @@ class SpecAnalyzer:
             "SHIFT_REG": f"Thanh ghi dịch dữ liệu ({TenModule})",
             "SEQUENCE_DETECTOR": f"Bộ phát hiện chuỗi tuần tự ({TenModule})",
             "DIGITAL_LOCK": f"Hệ thống khóa mã số an ninh ({TenModule})",
+            "DECODER": f"Bộ giải mã địa chỉ / dữ liệu ({TenModule})",
+            "TEMPERATURE_MONITOR": f"Hệ thống giám sát và cảnh báo nhiệt độ ({TenModule})",
             "CUSTOM_FSM": f"Máy trạng thái hữu hạn tùy biến ({TenModule})",
             "CUSTOM_LOGIC": f"Mạch kỹ thuật số tự do ({TenModule})"
         }
@@ -365,6 +389,17 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
-    DuongDan = sys.argv[1] if len(sys.argv) > 1 else "../specs/a.txt"
+    if len(sys.argv) > 1:
+        DuongDan = sys.argv[1]
+    else:
+        ThuMucHienTai = os.path.dirname(os.path.abspath(__file__))
+        UngVien1 = os.path.join(ThuMucHienTai, "..", "specs", "a.txt")
+        UngVien2 = os.path.join(os.getcwd(), "specs", "a.txt")
+        if os.path.exists(UngVien1):
+            DuongDan = os.path.abspath(UngVien1)
+        elif os.path.exists(UngVien2):
+            DuongDan = os.path.abspath(UngVien2)
+        else:
+            DuongDan = "specs/a.txt"
     BoPhanTich = SpecAnalyzer(DuongDan)
     print(json.dumps(BoPhanTich.to_dict(), indent=2, ensure_ascii=False))
