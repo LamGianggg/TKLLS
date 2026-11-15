@@ -2,7 +2,7 @@
 Module: run_spec2rtl.py
 Description: Master CLI Orchestrator for Spec2RTL & Prompt2Silicon Framework.
 Complete End-to-End Pipeline:
-  1. Natural Language Spec Ingestion (specs/*.txt)
+  1. Natural Language Spec Ingestion (specs/*.txt, specs/*.md)
   2. Synthesizable Verilog RTL Auto-Generation (src/*.v)
   3. Automated Self-Checking Testbench Generation (sim/*.v)
   4. Industrial EDA Simulation & Verification (ModelSim batch flow)
@@ -444,7 +444,7 @@ def main():
     print("   Pipeline Flow: SPEC -> GENERATE -> REVIEW -> SHIP")
     print("=" * 80)
 
-    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".txt")])
+    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".txt") or f.endswith(".md")])
     bm_suites = get_benchmark_suites(base_dir)
 
     # Parse arguments: support positional ('python run_spec2rtl.py benchmark', 'all', '1') and flags
@@ -467,8 +467,8 @@ def main():
         "b3": "veriprefer", "veriprefer": "veriprefer",
     }
 
-    has_spec_a = any(s.lower() in ["a", "a.txt"] for s in available_specs)
-    has_spec_b = any(s.lower() in ["b", "b.txt"] for s in available_specs)
+    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
+    has_spec_b = any(s.lower() in ["b", "b.txt", "b.md"] for s in available_specs)
 
     # Check for benchmark execution (CLI flags or arguments)
     target_bm = args.benchmark_suite
@@ -552,7 +552,7 @@ def main():
     else:
         matched = None
         for s in available_specs:
-            if s.lower() == spec_target.lower() or s.lower() == f"{spec_target.lower()}.txt":
+            if s.lower() == spec_target.lower() or s.lower() == f"{spec_target.lower()}.txt" or s.lower() == f"{spec_target.lower()}.md":
                 matched = s
                 break
         if not matched:
@@ -563,6 +563,10 @@ def main():
 
         if matched:
             target_path = os.path.join(specs_dir, matched)
+        elif os.path.exists(os.path.join(specs_dir, f"{spec_target}.txt")):
+            target_path = os.path.join(specs_dir, f"{spec_target}.txt")
+        elif os.path.exists(os.path.join(specs_dir, f"{spec_target}.md")):
+            target_path = os.path.join(specs_dir, f"{spec_target}.md")
         else:
             target_path = os.path.join(specs_dir, spec_target)
 

@@ -29,27 +29,27 @@
 ### SLIDE 3: MỤC TIÊU & ĐỊNH HƯỚNG CỦA ĐỒ ÁN
 * **Tiêu đề**: Mục Tiêu Đề Tài & Định Hướng Phương Pháp
 * **Nội dung**:
-  * **Mục tiêu**: Xây dựng luồng tự động hóa hoàn toàn từ đặc tả văn bản (`.txt`) $\rightarrow$ Mạch tổng hợp hoàn chỉnh trên FPGA Altera Cyclone II.
+  * **Mục tiêu**: Xây dựng luồng tự động hóa hoàn toàn từ đặc tả văn bản tự nhiên đa định dạng (`.txt`, `.md`, prompt kỹ thuật) $\rightarrow$ Mạch tổng hợp hoàn chỉnh trên FPGA Altera Cyclone II.
   * **Định hướng tiếp cận**:
     - **Không pre-train mò mẫm**: Tiếp cận theo mô hình **Compound AI System** (Hệ thống AI đa thành phần).
     - **Chưng cất tri thức miền**: Tích hợp kho tri thức 539 vi mạch chuẩn công nghiệp (VerilogDB, RTLLM, VerilogEval).
     - **EDA-in-the-Loop**: Đưa trực tiếp ModelSim và Quartus II vào làm "Giám khảo chân lý" kiểm tra tự động.
 * **Lời thoại (45s)**:
-  > *"Định hướng của đồ án không phải là cố gắng huấn luyện một mô hình ngôn ngữ từ đầu hàng tỷ tham số, mà là xây dựng một hệ thống AI kỹ thuật công nghiệp có kỷ luật. Hệ thống chưng cất các quy tắc phần cứng chuẩn thành bộ khung bất biến, và sử dụng chính các công cụ EDA tiêu chuẩn làm thước đo kiểm định."*
+  > *"Định hướng của đồ án không phải là cố gắng huấn luyện một mô hình ngôn ngữ từ đầu hàng tỷ tham số, mà là xây dựng một hệ thống AI kỹ thuật công nghiệp có kỷ luật. Hệ thống tiếp nhận linh hoạt các bản đặc tả kỹ thuật bằng ngôn ngữ tự nhiên từ file văn bản (.txt, .md) hoặc nhập trực tiếp, chưng cất các quy tắc phần cứng chuẩn thành bộ khung bất biến, và sử dụng chính các công cụ EDA tiêu chuẩn làm thước đo kiểm định."*
 
 ---
 
 ### SLIDE 4: KIẾN TRÚC TỔNG THỂ HỆ THỐNG
 * **Tiêu đề**: Kiến Trúc Hệ Thống Spec2RTL 4 Bước Chuẩn Hóa
 * **Hình vẽ / Sơ đồ luồng**:
-  $$\text{SPEC (.txt)} \xrightarrow{\text{B1: Parse}} \text{Contract} \xrightarrow{\text{B2: Gen}} \text{RTL & TB} \xrightarrow{\text{B3: Review}} \text{EDA Simulator} \xrightarrow{\text{B4: Ship}} \text{BDF + Project}$$
+  $$\text{SPEC (.txt, .md, prompt)} \xrightarrow{\text{B1: Parse}} \text{Contract} \xrightarrow{\text{B2: Gen}} \text{RTL & TB} \xrightarrow{\text{B3: Review}} \text{EDA Simulator} \xrightarrow{\text{B4: Ship}} \text{BDF + Project}$$
 * **Nội dung 4 khối chính**:
-  1. **Spec Analyzer**: Trích xuất tên Entity, bảng chân I/O, độ rộng bus và phân loại họ mạch.
+  1. **Spec Analyzer**: Đọc và chuẩn hóa đặc tả từ mọi định dạng văn bản tự nhiên (`.txt`, `.md`, hoặc prompt tự do); trích xuất tên Entity, bảng chân I/O, độ rộng bus và phân loại họ mạch.
   2. **RTL & TB Generator**: Sinh mã Verilog synthesizable và Testbench tự kiểm tra (Self-checking Scoreboard).
   3. **EDA Reviewer**: Chạy batch mode ModelSim (`vlog/vsim`) và đo đạc tài nguyên Quartus II (`quartus_map`).
   4. **Packaging & Shipper**: Tạo tự động Symbol (`.bsf`), Schematic (`.bdf`), Waveform (`.vwf`), và Dự án Quartus (`.qpf/.qsf`).
 * **Lời thoại (45s)**:
-  > *"Kiến trúc của hệ thống chia thành 4 chặng độc lập. Mỗi chặng đều có hợp đồng giao diện chặt chẽ: Chặng 1 phân tích đề bài; Chặng 2 sinh code Verilog và Testbench; Chặng 3 đưa thẳng vào ModelSim biên dịch và chạy mô phỏng; và Chặng 4 tự động đóng gói toàn bộ dự án để kỹ sư có thể mở ngay trên Quartus II."*
+  > *"Kiến trúc của hệ thống chia thành 4 chặng độc lập. Mỗi chặng đều có hợp đồng giao diện chặt chẽ: Chặng 1 đọc và phân tích đề bài từ file txt, md hoặc nhập liệu tùy ý; Chặng 2 sinh code Verilog và Testbench; Chặng 3 đưa thẳng vào ModelSim biên dịch và chạy mô phỏng; và Chặng 4 tự động đóng gói toàn bộ dự án để kỹ sư có thể mở ngay trên Quartus II."*
 
 ---
 
@@ -58,7 +58,7 @@
 * **Bảng các bước thực thi**:
   | Chặng | Tên bước | Công cụ phụ trách | Đầu ra kỹ thuật |
   | :--- | :--- | :--- | :--- |
-  | **Bước 1** | Spec Ingestion | `spec_analyzer.py` | Bảng chân I/O JSON bất biến (Hardware Contract) |
+  | **Bước 1** | Spec Ingestion | `spec_analyzer.py` | Tiếp nhận `.txt`, `.md` hoặc văn bản tự do $\rightarrow$ Bảng chân I/O JSON (Hardware Contract) |
   | **Bước 2** | RTL & TB Gen | `rtl_generator.py`, `tb_generator.py` | `src/{entity}.v`, `sim/tb_{entity}.v`, Test Harness |
   | **Bước 3** | Review & Audit | `simulator.py`, `port_auditor.py` | Log ModelSim 10.1d, Bảng Scoreboard 100% PASS |
   | **Bước 4** | Packaging | `bdf_generator.py`, `vwf_generator.py` | `quartus/{entity}.bdf`, `.bsf`, `.qpf`, `.vwf`, HTML |
@@ -111,7 +111,7 @@
 ### SLIDE 9: KỊCH BẢN DEMO THỰC TẾ TRÊN MÁY (LIVE DEMO WORKFLOW)
 * **Tiêu đề**: Kịch Bản Trình Diễn Trực Tiếp (Live Demo)
 * **Quy trình 3 bước demo cho Hội đồng**:
-  1. **Bước 1**: Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) (Đồng hồ bấm giờ 0-9 kèm LED 7 đoạn).
+  1. **Bước 1**: Mở file đặc tả (ví dụ [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) hoặc file `.md` bất kỳ) mô tả Đồng hồ bấm giờ 0-9 kèm LED 7 đoạn.
   2. **Bước 2**: Chạy lệnh `demo.bat` $\rightarrow$ chọn bài [3].
   3. **Bước 3**: Xem trực tiếp kết quả:
      - Console ModelSim in ra: `Functional Accuracy: 100.0 PERCENT (PASS)`.
