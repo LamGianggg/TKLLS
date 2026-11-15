@@ -173,26 +173,26 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
 
     if cat == "SOC_AI" or analyzer.is_30_percent_architecture():
         print("\n" + "=" * 80)
-        print("   [TRIẾT LÝ PHÂN TÁCH 70% - 30%]: BÁO HIỆU GIỚI HẠN KIẾN TRÚC PHẦN CỨNG")
+        print("   [CHIẾN LƯỢC PHÂN TÁCH KIẾN TRÚC]: BÁO HIỆU GIỚI HẠN KIẾN TRÚC PHẦN CỨNG")
         print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
         print("=" * 80)
         print(" -> [TRẠNG THÁI: TỪ CHỐI TỔNG HỢP NGUYÊN KHỐI / ARCHITECTURAL BOUNDARY]")
-        print(f" -> Phân loại vi mạch: NHÓM 30% KIẾN TRÚC CỐT LÕI ({mod_name.upper()} / SOC COMPLEX)")
+        print(f" -> Phân loại vi mạch: NHÓM VI KIẾN TRÚC CỐT LÕI ({mod_name.upper()} / SOC COMPLEX)")
         print("\n[LÝ DO BÁO THẤT BẠI TỰ ĐỘNG]:")
-        print("  1. Theo quy chuẩn công nghiệp vi mạch và Triết lý phân tách 70% vs 30%:")
+        print("  1. Theo quy chuẩn công nghiệp vi mạch và Chiến lược phân tách kiến trúc:")
         print("     Các hệ thống phức tạp (SoC đa phân hệ, AI Accelerator Core, Systolic Array NPU, DMA)")
         print("     tuyệt đối KHÔNG ĐƯỢC sinh nguyên khối (monolithic) chỉ bằng 1 câu prompt.")
         print("  2. Việc ép sinh nguyên khối sẽ phá vỡ tính phân cấp vi kiến trúc, gây ảo giác timing")
         print("     và không thể tối ưu hóa vật lý trên FPGA Altera Cyclone II.")
         print("\n[HƯỚNG DẪN GIẢI PHÁP CHUẨN CÔNG NGHIỆP]:")
-        print("  * Bước 1: Hãy phân tách hệ thống thành các khối linh kiện 70% độc lập:")
+        print("  * Bước 1: Hãy phân tách hệ thống thành các khối linh kiện phổ thông độc lập:")
         print("            - Khối tính toán: MAC Unit (nhân dồn), ReLU (kích hoạt phi tuyến)")
         print("            - Khối điều khiển: FSM trạng thái, Vector Counter (bộ đếm vector)")
         print("            - Khối bộ nhớ & bus: Thanh ghi đệm, RAM 16x4, TriState buffer")
-        print("  * Bước 2: Dùng Spec2RTL tự động sinh từng khối con trong 1-2 giây (xuất file Symbol .bsf).")
+        print("  * Bước 2: Dùng Spec2RTL tự động sinh từng khối con (xuất file Symbol .bsf).")
         print("  * Bước 3: Kỹ sư ghép nối các symbol .bsf vào Sơ đồ nguyên lý phân cấp (Quartus BDF).")
         print("=" * 80)
-        print(">>> [SPEC2RTL STATUS: FAILED (REJECTED BY 70/30 ARCHITECTURAL GUARD)] <<<\n")
+        print(">>> [SPEC2RTL STATUS: FAILED (REJECTED BY ARCHITECTURAL BOUNDARY GUARD)] <<<\n")
         return False, 0.0, mod_name, None, {}
 
     elif cat in KNOWN_SYSTEMS:
