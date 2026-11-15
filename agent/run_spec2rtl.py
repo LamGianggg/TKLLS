@@ -99,9 +99,12 @@ def setup_quartus_and_bdf(q_dir, project_name, top_entity, primary_rtl, all_rtl_
 
     # 3.5. Generate Quartus II Vector Waveform File (.vwf)
     vwf_path = os.path.join(q_dir, "Waveform.vwf")
+    vwf_entity_path = os.path.join(q_dir, f"Waveform_{top_entity}.vwf")
     vwf_gen = VWFGenerator()
     if os.path.exists(primary_rtl):
         vwf_gen.generate_vwf_from_rtl(primary_rtl, vwf_path)
+        try: shutil.copy2(vwf_path, vwf_entity_path)
+        except Exception: pass
         if not any("VECTOR_WAVEFORM_FILE" in l for l in qsf_lines):
             qsf_lines.append('set_global_assignment -name VECTOR_WAVEFORM_FILE Waveform.vwf')
             with open(qsf_path, "w", encoding="utf-8") as f:
@@ -306,6 +309,7 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     # Generate interactive HTML Waveform and 1-Click Launchers
     vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
     html_path = os.path.join(sim_dir, "waveform.html")
+    html_entity_path = os.path.join(sim_dir, f"waveform_{top_entity}.html")
     bat_sim = os.path.join(sim_dir, "view_waveform.bat")
     bat_root = os.path.join(base_dir, "view_waveform.bat")
 
@@ -315,6 +319,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     vis = WaveformVisualizer()
     if os.path.exists(vcd_path):
         vis.generate_html_viewer(vcd_path, html_path, f"{top_entity.replace('_', ' ').title()} Simulation Waveform")
+        try: shutil.copy2(html_path, html_entity_path)
+        except Exception: pass
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim)
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root)
 
