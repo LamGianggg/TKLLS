@@ -12,8 +12,8 @@ if exist "D:\altera\13.0sp1\modelsim_ase\win32aloem\vsim.exe" (
     start "" "D:\altera\13.0sp1\modelsim_ase\win32aloem\vsim.exe" -novopt work.tb_stopwatch -do "add wave -r /*; run -all; wave zoom full;"
     echo -> [OK] Da mo cua so song truc quan trong ModelSim GUI!
 ) else (
-    echo -> [Luu y] Khong tim thay ModelSim GUI, dang mo Waveform HTML truc tiep tren trinh duyet...
-    start "" "D:\altera\13.0sp1\BTVN\Do_An_3\sim\waveform.html"
+    echo -> [Luu y] Khong tim thay ModelSim GUI!
+    echo -> Ban co the mo file quartus/Waveform.vwf truc tiep trong Quartus II Waveform Editor.
 )
 
 echo.

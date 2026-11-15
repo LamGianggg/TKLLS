@@ -306,10 +306,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     spec_ports = analyzer.extract_ports()
     PortAuditor.audit(spec_ports, primary_rtl, bsf_path, bdf_path)
 
-    # Generate interactive HTML Waveform and 1-Click Launchers
+    # 1-Click Graphical Waveform Launchers (ModelSim GUI)
     vcd_path = os.path.join(sim_dir, f"{top_entity}.vcd")
-    html_path = os.path.join(sim_dir, "waveform.html")
-    html_entity_path = os.path.join(sim_dir, f"waveform_{top_entity}.html")
     bat_sim = os.path.join(sim_dir, "view_waveform.bat")
     bat_root = os.path.join(base_dir, "view_waveform.bat")
 
@@ -317,10 +315,6 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
     m_bin = modelsim_info.get("bin_dir") if modelsim_info else ""
 
     vis = WaveformVisualizer()
-    if os.path.exists(vcd_path):
-        vis.generate_html_viewer(vcd_path, html_path, f"{top_entity.replace('_', ' ').title()} Simulation Waveform")
-        try: shutil.copy2(html_path, html_entity_path)
-        except Exception: pass
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_sim)
     vis.generate_view_launcher(m_bin, sim_dir, top_name, bat_root)
 
@@ -328,11 +322,6 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         print(f"\n[ModelSim GUI]: Đang khởi động cửa sổ sóng đồ họa trên màn hình...")
         vsim_exe = os.path.join(m_bin, "vsim.exe")
         subprocess.Popen([vsim_exe, "-novopt", f"work.{top_name}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=sim_dir)
-
-    if open_web and os.path.exists(html_path):
-        import webbrowser
-        print(f"\n[Web Waveform Viewer]: Đang tự động mở biểu đồ sóng trên trình duyệt...")
-        webbrowser.open(os.path.abspath(html_path))
 
     # Step 4.5: VerilogDB Hardware Synthesis & Resource Utilization Profiling
     print(f"\n[Step 4.5] Profiling Hardware Synthesis Resource Footprint (VerilogDB Standard)...")
@@ -350,9 +339,8 @@ def run_single_spec(spec_path, base_dir, open_gui=False, use_harness=False, open
         if vwf_path and os.path.exists(vwf_path):
             print(f" 2. Quartus VWF   : Open Quartus II -> {vwf_path} (Sóng xung nhịp trong Quartus Waveform Editor)")
         print(f" 3. 1-Click GUI   : Nhấp đúp chuột vào 'view_waveform.bat' (Mở trực tiếp cửa sổ sóng trong ModelSim)")
-        print(f" 4. Web Waveform  : Nhấp đúp chuột vào '{html_path}' (Xem dạng sóng đồ họa tương tác trên trình duyệt)")
-        print(f" 5. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
-        print(f" 6. Raw VCD Data  : {vcd_path}")
+        print(f" 4. RTL Viewer    : Open Quartus II -> {qpf_path} -> Tools -> Netlist Viewers -> RTL Viewer")
+        print(f" 5. Raw VCD Data  : {vcd_path}")
         return True, elapsed, top_entity, bdf_path, metrics
     else:
         print(f"\n>>> [SPEC2RTL STATUS: FAILED] <<<")

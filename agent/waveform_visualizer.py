@@ -307,8 +307,8 @@ if exist "{vsim_exe}" (
     start "" "{vsim_exe}" -novopt work.{top_module} -do "add wave -r /*; run -all; wave zoom full;"
     echo -> [OK] Da mo cua so song truc quan trong ModelSim GUI!
 ) else (
-    echo -> [Luu y] Khong tim thay ModelSim GUI, dang mo Waveform HTML truc tiep tren trinh duyet...
-    start "" "{os.path.join(sim_dir, 'waveform.html')}"
+    echo -> [Luu y] Khong tim thay ModelSim GUI!
+    echo -> Ban co the mo file quartus/Waveform.vwf truc tiep trong Quartus II Waveform Editor.
 )
 
 echo.
