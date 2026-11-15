@@ -2,7 +2,7 @@
 Module: run_spec2rtl.py
 Description: Master CLI Orchestrator for Spec2RTL & Prompt2Silicon Framework.
 Complete End-to-End Pipeline:
-  1. Natural Language Spec Ingestion (specs/*.md)
+  1. Natural Language Spec Ingestion (specs/*.txt)
   2. Synthesizable Verilog RTL Auto-Generation (src/*.v)
   3. Automated Self-Checking Testbench Generation (sim/*.v)
   4. Industrial EDA Simulation & Verification (ModelSim batch flow)
@@ -441,10 +441,10 @@ def main():
     print("=" * 80)
     print("   Spec2RTL & Prompt2Silicon Autonomous Hardware Generation Pipeline")
     print("   Based on NVIDIA Research (arXiv:2506.13905) & ISCAS 2026 (arXiv:2601.13815)")
-    print("   Benchmarking: VerilogEval (NVIDIA), RTLLM (HKUST), VeriPrefer (CityU HK)")
+    print("   Pipeline Flow: SPEC -> GENERATE -> REVIEW -> SHIP")
     print("=" * 80)
 
-    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".md") or f.endswith(".txt")])
+    available_specs = sorted([f for f in os.listdir(specs_dir) if f.endswith(".txt")])
     bm_suites = get_benchmark_suites(base_dir)
 
     # Parse arguments: support positional ('python run_spec2rtl.py benchmark', 'all', '1') and flags
@@ -461,24 +461,21 @@ def main():
     user_input = args.spec_flag or args.spec_pos
 
     SUITE_MAP = {
-        "benchmark": "all", "benchmarks": "all", "bm": "all", "b": "all",
+        "benchmark": "all", "benchmarks": "all", "bm": "all",
         "b1": "verilog_eval", "verilog_eval": "verilog_eval",
         "b2": "rtllm", "rtllm": "rtllm",
         "b3": "veriprefer", "veriprefer": "veriprefer",
     }
 
-    has_spec_a = any(s.lower() in ["a", "a.txt", "a.md"] for s in available_specs)
-    has_spec_b = any(s.lower() in ["b", "b.txt", "b.md"] for s in available_specs)
+    has_spec_a = any(s.lower() in ["a", "a.txt"] for s in available_specs)
+    has_spec_b = any(s.lower() in ["b", "b.txt"] for s in available_specs)
 
     # Check for benchmark execution (CLI flags or arguments)
     target_bm = args.benchmark_suite
     if not target_bm and user_input:
         u_low = user_input.lower()
         if u_low in SUITE_MAP:
-            if u_low in ["b", "bm"] and has_spec_b:
-                target_bm = None
-            else:
-                target_bm = user_input
+            target_bm = user_input
 
     if target_bm:
         suite_id = SUITE_MAP.get(target_bm.lower(), target_bm.lower())
@@ -497,16 +494,11 @@ def main():
         for idx, s in enumerate(available_specs):
             desc = get_spec_description(s, specs_dir)
             print(f"  [{idx+1}] {s:<22} -> {desc}")
-        print(f"  [ALL] Chạy TẤT CẢ ({len(available_specs)} bài toán core lần lượt)")
-        print("\n[CÁC BỘ BENCHMARK HỌC THUẬT TIÊU CHUẨN (benchmarks/)]:")
-        print(f"  [B1] VerilogEval Suite  -> NVIDIA Research Benchmark ({len(bm_suites['verilog_eval']['specs'])} bài)")
-        print(f"  [B2] RTLLM Suite        -> HKUST System-level RTL Benchmark ({len(bm_suites['rtllm']['specs'])} bài)")
-        print(f"  [B3] VeriPrefer Suite   -> CityU HK Verification Feedback Benchmark ({len(bm_suites['veriprefer']['specs'])} bài)")
-        print(f"  [B]  Chạy TẤT CẢ 3 BỘ BENCHMARK HỌC THUẬT (Tổng cộng {sum(len(v['specs']) for v in bm_suites.values())} bài)")
+        print(f"  [ALL] Chạy TẤT CẢ ({len(available_specs)} bài toán lần lượt)")
 
         # Interactive selection
         try:
-            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, ALL, B1, B2, B3, hoặc B, mặc định: ALL]: ").strip()
+            choice = input(f"\n👉 Vui lòng chọn bài toán muốn chạy [1-{len(available_specs)}, ALL, mặc định: ALL]: ").strip()
         except (EOFError, KeyboardInterrupt):
             choice = "ALL"
 
@@ -560,9 +552,14 @@ def main():
     else:
         matched = None
         for s in available_specs:
-            if s.lower() == spec_target.lower() or spec_target.lower() in s.lower():
+            if s.lower() == spec_target.lower() or s.lower() == f"{spec_target.lower()}.txt":
                 matched = s
                 break
+        if not matched:
+            for s in available_specs:
+                if spec_target.lower() in s.lower():
+                    matched = s
+                    break
 
         if matched:
             target_path = os.path.join(specs_dir, matched)

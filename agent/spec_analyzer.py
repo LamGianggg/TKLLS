@@ -360,6 +360,6 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding='utf-8')
     except Exception:
         pass
-    sp = sys.argv[1] if len(sys.argv) > 1 else "../specs/soc_ai_spec.md"
+    sp = sys.argv[1] if len(sys.argv) > 1 else "../specs/a.txt"
     an = SpecAnalyzer(sp)
     print(json.dumps(an.to_dict(), indent=2, ensure_ascii=False))

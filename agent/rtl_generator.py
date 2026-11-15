@@ -1657,5 +1657,5 @@ endmodule
 
 if __name__ == "__main__":
     gen = RTLGenerator("../src")
-    name, p = gen.generate_from_spec("specs/thang_may_spec.md")
+    name, p = gen.generate_from_spec("specs/a.txt")
     print("Generated:", name, p)
