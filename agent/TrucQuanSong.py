@@ -1,5 +1,5 @@
 """
-Module: waveform_visualizer.py
+Module: TrucQuanSong.py (truoc day la waveform_visualizer.py)
 Chuc nang: Tao dang song truc quan tu ket qua mo phong EDA:
 1. File khoi dong ModelSim GUI truc quan.
 2. Trinh xem dang song HTML5/SVG tuong tac doc lap.
@@ -300,7 +300,7 @@ if exist "{ThucThiVsim}" (
         return TepBat
 
 if __name__ == "__main__":
-    from eda_finder import find_modelsim
+    from TimEda import find_modelsim
     ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     TepVcd = os.path.join(ThuMucGoc, "sim", "vending_machine.vcd")
     TepHtml = os.path.join(ThuMucGoc, "sim", "waveform.html")

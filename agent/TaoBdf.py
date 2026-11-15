@@ -1,5 +1,5 @@
 """
-Module: bdf_generator.py
+Module: TaoBdf.py (truoc day la bdf_generator.py)
 Mô tả: Tự động tạo sơ đồ nguyên lý BDF (Block Design File) và Symbol BSF.
 Tạo sơ đồ mạch chuẩn Quartus II 13.0sp1 có thể mở, chỉnh sửa và tổng hợp trực tiếp.
 """

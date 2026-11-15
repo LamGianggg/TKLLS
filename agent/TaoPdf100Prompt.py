@@ -1,5 +1,5 @@
 """
-Module: build_100_prompts_pdf.py
+Module: TaoPdf100Prompt.py (truoc day la build_100_prompts_pdf.py)
 Chuc nang: Tao file PDF chuyen nghiep chua 100 de bai dac ta thiet ke vi mach so
 bang tieng Viet, duoc dinh dang duoi dang danh sach liet ke de sao chep truc tiep.
 Dich den: docs/100_Prompt_Thiet_Ke_Mach.pdf
@@ -2233,7 +2233,7 @@ def tao_tai_lieu_pdf(DuongDanPdfXuat=None, output_pdf_path=None):
         "1. <b>Sao chép (Copy):</b> Chọn và copy toàn bộ nội dung trong khung viền của bất kỳ Prompt nào bên dưới.<br/>"
         "2. <b>Dán vào file đặc tả (Paste):</b> Tạo file văn bản trong thư mục <code>specs/</code> (ví dụ: <code>specs/test_mach.txt</code>) và dán nội dung vào.<br/>"
         "3. <b>Thực thi hệ thống:</b> Mở terminal và chạy lệnh:<br/>"
-        "&nbsp;&nbsp;&nbsp;&nbsp;<code>python agent/run_spec2rtl.py specs/test_mach.txt</code><br/>"
+        "&nbsp;&nbsp;&nbsp;&nbsp;<code>python agent/ChayChinh.py specs/test_mach.txt</code><br/>"
         "4. <b>Kiểm tra kết quả:</b> Hệ thống sẽ tự động tổng hợp mã Verilog RTL trong <code>src/</code>, "
         "chạy mô phỏng ModelSim trong <code>sim/</code>, và tự động vẽ sơ đồ nguyên lý BDF cũng như dạng sóng VWF trong <code>quartus/</code>."
     )

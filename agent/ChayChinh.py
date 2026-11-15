@@ -1,5 +1,5 @@
 """
-Module: run_spec2rtl.py
+Module: ChayChinh.py (truoc day la run_spec2rtl.py)
 Mô tả: Chương trình điều phối tự động quy trình Spec2RTL & Prompt2Silicon.
 Quy trình thực thi hoàn chỉnh:
   1. Đọc và phân tích yêu cầu đặc tả (specs/*.txt, specs/*.md)
@@ -24,20 +24,20 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-from spec_analyzer import SpecAnalyzer
-from rtl_generator import RTLGenerator
-from tb_generator import TBGenerator
-from harness_generator import HarnessGenerator
-from bdf_generator import BDFGenerator
-from port_auditor import PortAuditor
-from simulator import EDASimulator
-from reflection_loop import ReflectionAgent
-from eda_finder import find_quartus_map, find_modelsim
-from verilog_linter import VerilogLinter
-from synthesis_profiler import SynthesisProfiler
-from knowledge_matcher import KnowledgeMatcher
-from vwf_generator import VWFGenerator
-from waveform_visualizer import WaveformVisualizer
+from PhanTichSpec import SpecAnalyzer
+from TaoRtl import RTLGenerator
+from TaoTestbench import TBGenerator
+from TaoHarness import HarnessGenerator
+from TaoBdf import BDFGenerator
+from KiemToanCong import PortAuditor
+from MoPhongEda import EDASimulator
+from VongLapPhanHoi import ReflectionAgent
+from TimEda import find_quartus_map, find_modelsim
+from DonDepVerilog import VerilogLinter
+from DoTaiNguyen import SynthesisProfiler
+from TraCuuMau import KnowledgeMatcher
+from TaoVwf import VWFGenerator
+from TrucQuanSong import WaveformVisualizer
 
 def get_base_dir():
     """Tự động xác định thư mục gốc của dự án trên mọi máy tính và hệ điều hành."""

@@ -20,9 +20,9 @@
 
 * **Knowledge Distillation là gì?** Là kỹ thuật huấn luyện mạng nơ-ron bằng cách ép mô hình học sinh (Student Model) học phân phối xác suất (*soft labels / logits*) của mô hình giáo viên (Teacher Model) thông qua hàm mất mát (Loss function) và **lan truyền ngược (Backpropagation)** để cập nhật trọng số (*weights update*).
 * **Bản chất kỹ thuật của dự án này:** Thuộc nhánh **AI Agentic Workflow / Automated EDA Expert System** (Hệ tác tử AI tự động hoá EDA), kết hợp 3 trụ cột khoa học:
-  1. **RAG & Knowledge Matcher (`knowledge_matcher.py`)**: Tra cứu ngữ nghĩa trong cơ sở tri thức 308+ thiết kế mẫu từ các bộ benchmark quốc tế (**OpenAI Verilog-Eval**, **HKUST RTLLM**, **ISCAS 2026 VeriPrefer**) để lấy mẫu kiến trúc tham chiếu (*In-Context Exemplars*).
-  2. **Program Synthesis & Invariant Enforcement (`rtl_generator.py`, `tb_generator.py`)**: Tự động tổng hợp logic Verilog và Testbench theo quy chuẩn kiến trúc phần cứng (FSM, Datapath, Counter, ALU, Peripheral) và bảo toàn 100% số lượng chân I/O (*Zero-Defect Port Invariant*).
-  3. **Closed-Loop Reflection Loop (`simulator.py`, `reflection_loop.py`)**: Đưa trình mô phỏng EDA (ModelSim) vào trong vòng lặp (Simulator-in-the-Loop). Khi phát hiện lỗi cú pháp hoặc sai lệch chức năng, hệ thống đọc log chẩn đoán và tự động sửa mã nguồn (dựa trên kiến trúc **Reflexion** [arXiv:2303.11366] và **ChipNeMo** của NVIDIA [arXiv:2311.00176]).
+  1. **RAG & Knowledge Matcher (`TraCuuMau.py`)**: Tra cứu ngữ nghĩa trong cơ sở tri thức 308+ thiết kế mẫu từ các bộ benchmark quốc tế (**OpenAI Verilog-Eval**, **HKUST RTLLM**, **ISCAS 2026 VeriPrefer**) để lấy mẫu kiến trúc tham chiếu (*In-Context Exemplars*).
+  2. **Program Synthesis & Invariant Enforcement (`TaoRtl.py`, `TaoTestbench.py`)**: Tự động tổng hợp logic Verilog và Testbench theo quy chuẩn kiến trúc phần cứng (FSM, Datapath, Counter, ALU, Peripheral) và bảo toàn 100% số lượng chân I/O (*Zero-Defect Port Invariant*).
+  3. **Closed-Loop Reflection Loop (`MoPhongEda.py`, `VongLapPhanHoi.py`)**: Đưa trình mô phỏng EDA (ModelSim) vào trong vòng lặp (Simulator-in-the-Loop). Khi phát hiện lỗi cú pháp hoặc sai lệch chức năng, hệ thống đọc log chẩn đoán và tự động sửa mã nguồn (dựa trên kiến trúc **Reflexion** [arXiv:2303.11366] và **ChipNeMo** của NVIDIA [arXiv:2311.00176]).
 
 ---
 
@@ -30,13 +30,13 @@
 
 ```mermaid
 flowchart TD
-    A["Đặc Tả Ngôn Ngữ Tự Nhiên\n(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer\n(spec_analyzer.py)\nTrích xuất Port, Bus width, Phân loại mạch"]
-    B --> C["2. Hardware RAG & Knowledge Matcher\n(knowledge_matcher.py)\nSo khớp 308+ Benchmark Designs"]
-    C --> D["3. Dynamic Synthesis Engine\n(rtl_generator.py + tb_generator.py)\nSinh Verilog RTL & Self-Checking Testbench"]
-    D --> E["4. EDA Simulator in the Loop\n(simulator.py + ModelSim batch)"]
-    E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop\n(reflection_loop.py)\nĐọc log -> Tự động sửa RTL"]
+    A["Đặc Tả Ngôn Ngữ Tự Nhiên\n(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer\n(PhanTichSpec.py)\nTrích xuất Port, Bus width, Phân loại mạch"]
+    B --> C["2. Hardware RAG & Knowledge Matcher\n(TraCuuMau.py)\nSo khớp 308+ Benchmark Designs"]
+    C --> D["3. Dynamic Synthesis Engine\n(TaoRtl.py + TaoTestbench.py)\nSinh Verilog RTL & Self-Checking Testbench"]
+    D --> E["4. EDA Simulator in the Loop\n(MoPhongEda.py + ModelSim batch)"]
+    E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop\n(VongLapPhanHoi.py)\nĐọc log -> Tự động sửa RTL"]
     F --> E
-    E -->|100% Functional Pass| G["Quartus Toolchain Integration\n(bdf_generator.py + vwf_generator.py)"]
+    E -->|100% Functional Pass| G["Quartus Toolchain Integration\n(TaoBdf.py + TaoVwf.py)"]
     G --> H["Project Hoàn Chỉnh (.qpf, .bsf, .bdf, .vwf)"]
 ```
 
@@ -52,18 +52,23 @@ flowchart TD
 ```
 TKLLS/
 ├── agent/                         # Lõi tác tử điều phối Spec2RTL
-│   ├── run_spec2rtl.py            # Master CLI Orchestrator điều phối toàn bộ luồng
-│   ├── spec_analyzer.py           # Phân tích đặc tả, trích xuất cổng I/O & phân loại mạch
-│   ├── rtl_generator.py           # Bộ sinh mã Verilog RTL chuẩn synthesizable
-│   ├── tb_generator.py            # Bộ sinh Testbench tự kiểm tra (VeriPrefer standard)
-│   ├── knowledge_matcher.py       # RAG Engine truy vấn 308+ thiết kế mẫu
-│   ├── simulator.py               # Trình điều khiển mô phỏng ModelSim / Icarus Verilog
-│   ├── reflection_loop.py         # Vòng lặp phản tư tự sửa lỗi logic
-│   ├── bdf_generator.py           # Tự động xuất Symbol BSF và Sơ đồ Schematic BDF
-│   ├── vwf_generator.py           # Tự động tạo Vector Waveform VWF cho Quartus II
-│   ├── port_auditor.py            # Kiểm toán toàn vẹn cổng I/O (Zero-Defect Invariant)
-│   ├── eda_finder.py              # Tự động dò tìm ModelSim và Quartus trên ổ đĩa
-│   └── test_robustness_battery.py # Bộ kiểm thử hồi quy 20 bài toán toàn diện
+│   ├── ChayChinh.py               # Master CLI Orchestrator điều phối toàn bộ luồng
+│   ├── PhanTichSpec.py            # Phân tích đặc tả, trích xuất cổng I/O & phân loại mạch
+│   ├── TaoRtl.py                  # Bộ sinh mã Verilog RTL chuẩn synthesizable
+│   ├── TaoTestbench.py            # Bộ sinh Testbench tự kiểm tra (VeriPrefer standard)
+│   ├── TraCuuMau.py               # RAG Engine truy vấn 308+ thiết kế mẫu
+│   ├── MoPhongEda.py              # Trình điều khiển mô phỏng ModelSim / Icarus Verilog
+│   ├── VongLapPhanHoi.py          # Vòng lặp phản tư tự sửa lỗi logic
+│   ├── TaoBdf.py                  # Tự động xuất Symbol BSF và Sơ đồ Schematic BDF
+│   ├── TaoVwf.py                  # Tự động tạo Vector Waveform VWF cho Quartus II
+│   ├── KiemToanCong.py            # Kiểm toán toàn vẹn cổng I/O (Zero-Defect Invariant)
+│   ├── TimEda.py                  # Tự động dò tìm ModelSim và Quartus trên ổ đĩa
+│   ├── DoTaiNguyen.py             # Đo đạc mức tiêu thụ tài nguyên FPGA (LEs, Registers, Pins)
+│   ├── DonDepVerilog.py           # Tiền kiểm tra cú pháp và dọn dẹp mã Verilog
+│   ├── TaoHarness.py              # Sinh Hardware Test Harness và Watchdog an toàn
+│   ├── TrucQuanSong.py            # Trực quan hóa dạng sóng xung nhịp HTML5/SVG
+│   ├── TaoPdf100Prompt.py         # Biên soạn tài liệu 100 đề bài đặc tả dạng PDF
+│   └── KiemThuToanDien.py         # Bộ kiểm thử hồi quy 20 bài toán toàn diện
 ├── knowledge_base/                # Cơ sở tri thức vi mạch (RTLLM, VerilogEval, VeriPrefer)
 ├── specs/                         # Thư mục chứa các đề bài đặc tả kỹ thuật (.txt, .md)
 ├── src/                           # Mã nguồn Verilog RTL tự động sinh
@@ -85,16 +90,16 @@ Hệ thống chạy trên nền Python 3.8+ và tương thích với công cụ 
 
 ```bash
 # 1. Chạy bài toán mẫu có sẵn (ví dụ: Đồng hồ bấm giờ c.txt)
-python agent/run_spec2rtl.py specs/c.txt
+python agent/ChayChinh.py specs/c.txt
 
 # 2. Chạy bài toán và tự động mở cửa sổ sóng đồ họa ModelSim GUI
-python agent/run_spec2rtl.py specs/c.txt --gui
+python agent/ChayChinh.py specs/c.txt --gui
 
 # 3. Chạy chế độ Menu tương tác tự động quét thư mục specs/
-python agent/run_spec2rtl.py
+python agent/ChayChinh.py
 
 # 4. Chạy toàn bộ 20 bài toán kiểm thử hồi quy toàn diện
-python agent/test_robustness_battery.py
+python agent/KiemThuToanDien.py
 ```
 
 ### 5.3. Cách kiểm tra bài toán mới bất kỳ
@@ -111,7 +116,7 @@ python agent/test_robustness_battery.py
    ```
 2. Chạy lệnh:
    ```bash
-   python agent/run_spec2rtl.py specs/mach_moi.txt
+   python agent/ChayChinh.py specs/mach_moi.txt
    ```
 3. Xem kết quả tự động sinh trong `src/`, `sim/`, và `quartus/`.
 
@@ -120,9 +125,9 @@ python agent/test_robustness_battery.py
 ## 6. Các Định Dạng Kết Quả Xuất Ra Nghiệm Thu
 
 Sau khi hoàn tất, hệ thống cung cấp 4 hình thức kiểm tra trực quan cho kỹ sư và giảng viên:
-1. **Quartus II Schematic Diagram (`quartus/sch_<tên_mạch>.bdf`)**: Mở trong Quartus II (`File -> Open`) để xem sơ đồ khối nguyên lý mạch điện tử đã được vẽ sẵn và nối dây hoàn chỉnh.
-2. **Quartus II Vector Waveform (`quartus/Waveform.vwf`)**: Mở trực tiếp trong Quartus II Waveform Editor để xem dạng sóng xung nhịp và chạy Functional Simulation.
-3. **ModelSim Waveform GUI (`--gui`)**: Thêm cờ `--gui` khi chạy lệnh (ví dụ: `python agent/run_spec2rtl.py specs/c.txt --gui`) để ModelSim tự động mở cửa sổ sóng đồ họa Waveform trực quan trên màn hình.
+1. **Quartus II Schematic Diagram (`quartus/<tên_mạch>/sch_<tên_mạch>.bdf`)**: Mở trong Quartus II (`File -> Open`) để xem sơ đồ khối nguyên lý mạch điện tử đã được vẽ sẵn và nối dây hoàn chỉnh.
+2. **Quartus II Vector Waveform (`quartus/<tên_mạch>/Waveform.vwf`)**: Mở trực tiếp trong Quartus II Waveform Editor để xem dạng sóng xung nhịp và chạy Functional Simulation.
+3. **ModelSim Waveform GUI (`--gui`)**: Thêm cờ `--gui` khi chạy lệnh (ví dụ: `python agent/ChayChinh.py specs/c.txt --gui`) để ModelSim tự động mở cửa sổ sóng đồ họa Waveform trực quan trên màn hình.
 4. **Quartus RTL Netlist Viewer**: Mở project `.qpf` trong Quartus II $\to$ chọn `Tools -> Netlist Viewers -> RTL Viewer` để xem sơ đồ mức cổng logic và flip-flop tổng hợp vật lý.
 
 ---

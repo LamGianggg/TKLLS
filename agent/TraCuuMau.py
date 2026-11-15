@@ -1,5 +1,5 @@
 """
-Module: knowledge_matcher.py
+Module: TraCuuMau.py (truoc day la knowledge_matcher.py)
 Chuc nang: Tra cuu va tim kiem thiet ke mau tu co so du lieu phan cung.
 Ho tro he thong nhan dien mach, trich xuat cong, ma RTL chuan va testbench.
 """

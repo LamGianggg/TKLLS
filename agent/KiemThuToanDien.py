@@ -1,5 +1,5 @@
 """
-Module: test_robustness_battery.py
+Module: KiemThuToanDien.py (truoc day la test_robustness_battery.py)
 Chuc nang: Bo kiem thu tu dong kiem tra do on dinh va toan ven cua Spec2RTL & Prompt2Silicon.
 Kiem tra 20 thiet ke phan cung khac nhau ve:
   - Nhan dien day du cac cong, khong thua thieu cong.
@@ -17,11 +17,11 @@ ThuMucAgent = os.path.dirname(os.path.abspath(__file__))
 if ThuMucAgent not in sys.path:
     sys.path.insert(0, ThuMucAgent)
 
-from spec_analyzer import SpecAnalyzer
-from rtl_generator import RTLGenerator
-from bdf_generator import BDFGenerator
-from port_auditor import PortAuditor
-from verilog_linter import VerilogLinter
+from PhanTichSpec import SpecAnalyzer
+from TaoRtl import RTLGenerator
+from TaoBdf import BDFGenerator
+from KiemToanCong import PortAuditor
+from DonDepVerilog import VerilogLinter
 
 DANH_SACH_SPEC_THU_NGHIEM = [
     # 1. Dong ho bam gio 0-9 kem LED 7 doan

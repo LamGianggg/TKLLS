@@ -1,12 +1,12 @@
 """
-Module: reflection_loop.py
+Module: VongLapPhanHoi.py (truoc day la reflection_loop.py)
 Mô tả: Vòng lặp phản hồi tự sửa lỗi (Self-Healing Reflection Loop).
 Bắt lỗi từ trình biên dịch / mô phỏng ModelSim và tự động vá mã Verilog để đạt 100% PASS.
 """
 
 import os
 import re
-from verilog_linter import VerilogLinter
+from DonDepVerilog import VerilogLinter
 
 class ReflectionAgent:
     def __init__(self, BoMoPhong):
