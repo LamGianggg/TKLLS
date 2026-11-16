@@ -1,9 +1,12 @@
-# Bộ Giải Mã 3 Sang 8 (decoder_3to8)
+# Bộ Phát UART TX 8-bit (uart_tx_8bit)
 ## 1. Đầu vào (Inputs):
-• [2:0] a: Địa chỉ ngõ vào 3-bit
-• en: Cho phép giải mã
+• clk: Xung nhịp hệ thống
+• rst: Reset tích cực cao
+• tx_start: Xung kích hoạt truyền byte
+• [7:0] tx_data: Dữ liệu 8-bit cần truyền
 ## 2. Đầu ra (Outputs):
-• [7:0] y: Tuyến ngõ ra 8-bit active-high
+• tx_serial: Đường truyền nối tiếp TX (mặc định mức 1 khi rảnh)
+• tx_busy: Báo bộ phát đang bận truyền dữ liệu
 ## 3. Hoạt động / Logic mong muốn:
-• Khi en = 1: y = (1 << a).
-• Khi en = 0: y = 8'b00000000
+• Khung truyền chuẩn 8-N-1: 1 Start bit (mức 0), 8 Data bits (truyền từ LSB đến MSB), 1 Stop bit (mức 1).
+• tx_busy = 1 trong suốt quá trình truyền

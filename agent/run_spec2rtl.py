@@ -27,7 +27,6 @@ if hasattr(sys.stderr, 'reconfigure'):
 from spec_analyzer import SpecAnalyzer
 from rtl_generator import RTLGenerator
 from tb_generator import TBGenerator
-from harness_generator import HarnessGenerator
 from bdf_generator import BDFGenerator
 from port_auditor import PortAuditor
 from simulator import EDASimulator
@@ -35,7 +34,6 @@ from reflection_loop import ReflectionAgent
 from eda_finder import find_quartus_map, find_modelsim
 from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
-from knowledge_matcher import KnowledgeMatcher
 from vwf_generator import VWFGenerator
 
 def get_base_dir():
@@ -166,23 +164,6 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     print(NoiDungSpec.strip()[:350] + ("..." if len(NoiDungSpec) > 350 else ""))
     print("-" * 80)
 
-    # Bước 1.5: Truy vấn cơ sở tri thức phần cứng (RAG)
-    print(f"[Bước 1.5] Truy vấn cơ sở tri thức phần cứng (RAG Engine)...")
-    BoTraCuuKb = KnowledgeMatcher()
-    MucKhop, LoaiKhop, DoTinCay, ViDuTuongDong = BoTraCuuKb.search(NoiDungSpec, top_k=3)
-    if MucKhop:
-        print(f" -> Trạng thái tri thức: [{LoaiKhop}] Khớp (Độ tin cậy: {DoTinCay*100:.1f}%)")
-        print(f" -> Nguồn thiết kế     : {MucKhop.get('source', 'Hardware KB')}")
-        print(f" -> Mã nhận diện       : {MucKhop.get('id')} ({MucKhop.get('name')})")
-        print(f" -> Phân loại vi mạch  : {MucKhop.get('category')}")
-        if ViDuTuongDong:
-            DanhSachViDu = [v.get('name') for v in ViDuTuongDong if v.get('name') != MucKhop.get('name')]
-            if DanhSachViDu:
-                print(f" -> Mẫu thiết kế tương đồng: {', '.join(DanhSachViDu[:3])}")
-    else:
-        print(f" -> Trạng thái tri thức: [ĐẶC TẢ MỚI] - Kích hoạt chế độ sinh vi mạch động")
-    print("-" * 80)
-
     # Bước 2: Tự động sinh mã RTL và Testbench
     print(f"\n[Bước 2] Tự động sinh mã nguồn Verilog RTL & Testbench...")
     BoSinhRtl = RTLGenerator(ThuMucSrc)
@@ -247,20 +228,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         _, FileTb = BoSinhTb.generate_tb_from_spec(NoiDungSpec, FileRtl, DuongDanSpec)
         print(f" -> [Auto-Gen Dynamic TB] Đã sinh: sim/{os.path.basename(FileTb)}")
 
-        FileHarness = None
-        try:
-            BoSinhHarness = HarnessGenerator(ThuMucSim)
-            TenHarness, FileHarness = BoSinhHarness.generate_harness(FileRtl)
-            print(f" -> [Auto-Gen Option A Harness] Đã sinh: sim/{os.path.basename(FileHarness)}")
-        except Exception as e:
-            print(f" -> [Harness Notice]: {e}")
-
-        if DungHarness and FileHarness and os.path.exists(FileHarness):
-            DanhSachVerilog = [FileRtl, FileHarness]
-            print(f" -> [Chế độ Test Harness]: Mô phỏng với '{TenHarness}'")
-        else:
-            DanhSachVerilog = [FileRtl, FileTb]
-
+        DanhSachVerilog = [FileRtl, FileTb]
         DanhSachFileRtl = [FileRtl]
         FileRtlChinh = FileRtl
 
@@ -276,7 +244,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
                 ThuMucQuartus = get_circuit_quartus_dir(ThuMucGoc, TenMach)
 
     for FileV in DanhSachVerilog:
-        if (os.path.basename(FileV).startswith("tb_") or os.path.basename(FileV).startswith("harness_")) and os.path.exists(FileV):
+        if os.path.basename(FileV).startswith("tb_") and os.path.exists(FileV):
             with open(FileV, "r", encoding="utf-8", errors="replace") as TepTin:
                 NoiDungTb = re.sub(r"//.*", "", TepTin.read())
                 NoiDungTb = re.sub(r"/\*.*?\*/", "", NoiDungTb, flags=re.DOTALL)

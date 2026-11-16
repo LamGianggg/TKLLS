@@ -180,6 +180,39 @@
 
 ---
 
+### SLIDE 8B: PHÂN TÍCH GIỚI HẠN THỰC NGHIỆM & CA THẤT BẠI ĐIỂN HÌNH
+* **Tiêu đề**: Giới Hạn Của Phương Pháp Mẫu Cứng & Phân Tích Hiện Tượng "Chân Lơ Lửng"
+* **Nội dung hiển thị trên slide**:
+  - **Khảo sát trên 100 đề bài chuẩn hóa (`100_Prompt_Thiet_Ke_Mach.pdf`)**:
+    * **~38% bài toán thành công hoàn hảo**: Nằm trong 25 mẫu mạch kinh điển (Counter, Timer, ALU, FSM Vending...).
+    * **~62% bài toán rơi vào giới hạn**: Các mạch mới (như `button_debouncer`, MUX/DEMUX đa ngõ vào, SPI...) rơi vào hàm sinh generic.
+  - **Bằng chứng thực nghiệm trên Quartus Netlist Viewer (`button_debouncer`)**:
+    * Chân `btn_in` bị cô lập hoàn toàn (dangling pin), không có dây nối vào logic.
+    * Hai Flip-Flop ngõ ra chỉ tự đảo trạng thái theo clock ($Q \Leftarrow \sim Q$).
+    * Testbench ngây thơ vẫn báo **PASS 100% giả tạo** vì không có kiểm tra ngữ nghĩa.
+* **Lời thoại thuyết trình (45s)**:
+  > *"Tuy nhiên, với tinh thần nghiên cứu khoa học trung thực, nhóm nhận thấy phương pháp sinh mã theo mẫu cứng (Template) đã chạm trần giới hạn. Khi thử nghiệm trên 100 đề bài chuẩn hóa, hệ thống giải quyết rất tốt khoảng 38% bài toán quen thuộc, nhưng với 62% bài toán mới lạ, hệ thống bộc lộ nhược điểm.*  
+  > *Điển hình như mạch khử rung phím `button_debouncer` trên hình: Chân `btn_in` bị trơ trọi một mình, Flip-Flop tự lật vô nghĩa, nhưng Testbench vẫn báo PASS giả. Điều này chứng minh rằng: **Chúng ta không thể ngồi viết tay hàng nghìn template, mà bắt buộc phải có AI hiểu ngữ nghĩa phần cứng**."*
+
+---
+
+### SLIDE 8C: ĐỊNH HƯỚNG MỚI: CHƯNG CẤT TRI THỨC (KNOWLEDGE DISTILLATION)
+* **Tiêu đề**: Hướng Đột Phá Tiếp Theo: Chưng Cất Tri Thức Sang Mô Hình Cục Bộ 3B
+* **Nội dung hiển thị trên slide (3 trụ cột giải pháp)**:
+  1. **Chưng cất từ Large Model sang Small Language Model (SLM)**:
+     - Dùng DeepSeek-R1 / Claude (Teacher) sinh dữ liệu chuỗi tư duy phần cứng (CoT) từ bộ *VerilogDB*.
+     - Dùng chính bộ khung ModelSim & Quartus hiện tại làm **Bộ lọc chân lý (Truth Oracle)** để lọc lấy 1.000 mẫu sạch 100%.
+     - Huấn luyện mô hình cục bộ **`Qwen2.5-Coder-3B`** bằng LoRA/DPO (*VeriPrefer*) chạy offline 100%, bảo mật tuyệt đối tài sản trí tuệ (IP Security).
+  2. **Nâng cấp Linter dựa trên Cây cú pháp (AST Parser)**:
+     - Tích hợp PyVerilog / Verilator Lint để triệt tiêu hoàn toàn lỗi chốt ẩn (Latch) và chân hở mạch.
+  3. **Kiểm định có kịch bản & Assertions (SVA)**:
+     - Tự động sinh SystemVerilog Assertions để chứng minh toán học mạch an toàn tuyệt đối.
+* **Lời thoại thuyết trình (40s)**:
+  > *"Từ những hạn chế thực tế đó, nhóm định hướng giai đoạn tiếp theo là **Chưng cất tri thức (Knowledge Distillation)**: Tận dụng toàn bộ luồng kiểm định EDA ModelSim và Quartus hiện tại làm môi trường thẩm định dữ liệu, huấn luyện mô hình nhỏ Qwen-3B chạy offline ngay trên máy tính phòng lab.*  
+  > *Mô hình nhỏ này sẽ thay thế hoàn toàn các template cứng, tự động đọc hiểu và nối dây chính xác cho mọi đề tài bất kỳ mà vẫn đảm bảo tính bảo mật chip cho doanh nghiệp bán dẫn."*
+
+---
+
 ### SLIDE 9: TỔNG KẾT & GIÁ TRỊ ĐÓNG GÓP
 * **Tiêu đề**: Kết Luận: Hiện Thực Hóa Thiết Kế Vi Mạch Thông Minh
 * **Nội dung hiển thị trên slide (3 đóng góp cốt lõi)**:

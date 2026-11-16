@@ -25,17 +25,6 @@ class EDASimulator:
             # 2. Dò tìm Icarus Verilog dự phòng
             self.iverilog = find_iverilog()
 
-    def run_builtin_python_verifier(self, ModuleDau):
-        """Mô phỏng dự phòng: thông báo người dùng cài đặt ModelSim hoặc Icarus."""
-        ThongBaoLoi = "Cần cài đặt ModelSim hoặc Icarus Verilog để chạy mô phỏng phần cứng thực tế."
-        return {
-            "stage": "simulate",
-            "success": False,
-            "passed": False,
-            "errors": [ThongBaoLoi],
-            "log": f"[THÔNG BÁO EDA]: Không tìm thấy ModelSim hoặc Icarus Verilog. {ThongBaoLoi}"
-        }
-
     def run_iverilog_flow(self, DanhSachFileVerilog, ModuleDau):
         """Biên dịch và chạy mô phỏng bằng Icarus Verilog."""
         FileVvpDauRa = os.path.join(self.sim_dir, f"{ModuleDau}.vvp")
@@ -129,4 +118,11 @@ class EDASimulator:
         elif self.iverilog:
             return self.run_iverilog_flow(DanhSachFileVerilog, ModuleDau)
         else:
-            return self.run_builtin_python_verifier(ModuleDau)
+            ThongBaoLoi = "Không tìm thấy công cụ mô phỏng phần cứng (ModelSim hoặc Icarus Verilog)."
+            return {
+                "stage": "simulate",
+                "success": False,
+                "passed": False,
+                "errors": [ThongBaoLoi],
+                "log": f"[THÔNG BÁO EDA]: {ThongBaoLoi} Vui lòng cài đặt ModelSim hoặc Icarus Verilog để chạy mô phỏng."
+            }

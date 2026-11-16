@@ -9,7 +9,6 @@ import os
 import re
 from spec_analyzer import SpecAnalyzer
 from verilog_linter import VerilogLinter
-from harness_generator import HarnessGenerator
 
 class TBGenerator:
     """Bo tao testbench tu dong cho cac mach Verilog."""
@@ -18,13 +17,6 @@ class TBGenerator:
         self.ThuMucSim = sim_dir if sim_dir is not None else ThuMucSim
         self.sim_dir = self.ThuMucSim
         os.makedirs(self.ThuMucSim, exist_ok=True)
-        self.BoTaoHarness = HarnessGenerator(self.ThuMucSim)
-        self.harness_gen = self.BoTaoHarness
-
-    def generate_harness(self, DuongDanRtl=None, rtl_path=None):
-        """Tao wrapper phan cung chuan hoa Option A Harness cho mach RTL."""
-        TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
-        return self.BoTaoHarness.generate_harness(TepRtl)
 
     def _extract_ports_from_rtl(self, DuongDanRtl):
         """Trich xuat danh sach ten cong thuc te (chu thuong) tu file Verilog RTL."""

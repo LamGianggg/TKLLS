@@ -8,8 +8,9 @@ Thư mục này chứa toàn bộ tài liệu hướng dẫn, kịch bản thuy�
 
 | Tên Tài Liệu | Định Dạng | Mô Tả Chi Tiết |
 | :--- | :--- | :--- |
+| **Giải Thích Luồng Chạy Các File .Py** | `Giai_Thich_Luong_Chay_Cac_File_Py.pdf` | Bản thuyết minh kỹ thuật chi tiết toàn bộ các module trong `agent/`: sơ đồ luồng, phân tích từng hàm, dữ liệu vào/ra và cơ chế tương tác với ModelSim/Quartus. |
 | **100 Prompt Thiết Kế Mạch Số** | `100_Prompt_Thiet_Ke_Mach.pdf` | Tuyển tập 100 đề bài đặc tả kỹ thuật vi mạch số chuẩn hóa, phân loại theo 10 nhóm chủ đề. Trình bày dạng danh sách liệt kê kèm khối văn bản chuẩn để sao chép trực tiếp vào chạy thử nghiệm. |
-| **Kịch Bản Slide Báo Cáo** | `Kich_Ban_Slide_Bao_Cao.md` | Kịch bản chi tiết cho buổi bảo vệ đồ án trước hội đồng: lời thoại thuyết trình từng slide, ánh xạ mã nguồn `.py`, đối sánh học thuật và giải trình phản biện. |
+| **Kịch Bản Slide Báo Cáo** | `Kich_Ban_Slide_Bao_Cao.md` | Kịch bản chi tiết cho buổi bảo vệ đồ án trước hội đồng: lời thoại thuyết trình từng slide, ánh xạ mã nguồn `.py`, phân tích ca thất bại thực nghiệm và lộ trình chưng cất tri thức. |
 
 ---
 

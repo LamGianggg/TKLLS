@@ -236,20 +236,6 @@ class KnowledgeMatcher:
 
         return MauTotNhat, LoaiKhop, round(DoTinCayCaoNhat, 3), MauDuyNhat
 
-    def get_reflection_guidance(self, ThongBaoLoi=None, error_message=None):
-        """Tra cuu huong dan sua loi EDA dua tren quy tac phan chieu."""
-        NoiDungLoi = error_message if error_message is not None else (ThongBaoLoi or "")
-        DanhSachGoiY = []
-        for QuyTac in self.QuyTacPhanChieu:
-            MauLoi = QuyTac.get("pattern", "")
-            if re.search(MauLoi, NoiDungLoi, re.IGNORECASE):
-                DanhSachGoiY.append({
-                    "error_type": QuyTac.get("error_type"),
-                    "diagnosis": QuyTac.get("diagnosis"),
-                    "remedy": QuyTac.get("remedy")
-                })
-        return DanhSachGoiY
-
 if __name__ == "__main__":
     BoTraCuu = KnowledgeMatcher()
     print("=" * 75)

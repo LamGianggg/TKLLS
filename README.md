@@ -13,24 +13,25 @@
 
 ---
 
-## 2. Kiến Trúc Hoạt Động 4 Bước (Pipeline Architecture)
+## 2. Kiến Trúc Hoạt Động (Pipeline Architecture)
 
 ```mermaid
 flowchart TD
-    A["Đặc Tả Ngôn Ngữ Tự Nhiên\n(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer\n(spec_analyzer.py)\nTrích xuất Port, Bus width, Phân loại mạch"]
-    B --> C["2. Hardware RAG & Knowledge Matcher\n(knowledge_matcher.py)\nSo khớp 308+ Benchmark Designs"]
-    C --> D["3. Dynamic Synthesis Engine\n(rtl_generator.py + tb_generator.py)\nSinh Verilog RTL & Self-Checking Testbench"]
+    A["Đặc Tả Ngôn Ngữ Tự Nhiên\n(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer\n(spec_analyzer.py)\nTrích xuất Port, Bus width, Complexity Guard"]
+    B --> C["2. Dynamic Synthesis Engine\n(rtl_generator.py + tb_generator.py)\nSinh Verilog RTL & Self-Checking Testbench"]
+    C --> D["3. Verilog Static Linter\n(verilog_linter.py)\nLàm sạch & Tiền kiểm tra cú pháp"]
     D --> E["4. EDA Simulator in the Loop\n(simulator.py + ModelSim batch)"]
     E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop\n(reflection_loop.py)\nĐọc log -> Tự động sửa RTL"]
     F --> E
     E -->|100% Functional Pass| G["Quartus Toolchain Integration\n(bdf_generator.py + vwf_generator.py)"]
     G --> H["Project Hoàn Chỉnh (.qpf, .bsf, .bdf, .vwf)"]
+    H --> I["Kiểm Toán Cổng & Báo Cáo Tài Nguyên\n(port_auditor.py + synthesis_profiler.py)"]
 ```
 
-1. **Bước 1 - Phân tích đặc tả (Ingestion & Port Analysis):** Bóc tách chính xác tên cổng, độ rộng bit (ví dụ: `[3:0] count`), hướng `input`/`output` và nhận diện loại mạch qua `spec_analyzer.py`.
-2. **Bước 2 - Tra cứu tri thức phần cứng (Hardware RAG):** Truy vấn cơ sở tri thức để ánh xạ kiến trúc tối ưu qua `knowledge_matcher.py`.
-3. **Bước 3 - Tổng hợp RTL & Testbench:** Sinh mã nguồn Verilog chuẩn synthesizable (`rtl_generator.py`) và bộ testbench tự kiểm tra với Verification Scoreboard (`tb_generator.py`).
-4. **Bước 4 - Mô phỏng phản tư & Xuất Quartus II:** ModelSim biên dịch và kiểm thử qua `simulator.py` & `reflection_loop.py`. Khi đạt 100% PASS, hệ thống tự động xuất sơ đồ nguyên lý BDF (`bdf_generator.py`) và dạng sóng Vector Waveform VWF (`vwf_generator.py`) nạp sẵn vào Quartus II.
+1. **Bước 1 - Phân tích đặc tả (Ingestion & Port Analysis):** Bóc tách chính xác tên cổng, độ rộng bit (ví dụ: `[3:0] count`), hướng `input`/`output` và kiểm tra ranh giới kiến trúc qua `spec_analyzer.py`.
+2. **Bước 2 - Tổng hợp RTL & Testbench:** Sinh mã nguồn Verilog chuẩn synthesizable (`rtl_generator.py`) và bộ testbench tự kiểm tra với Verification Scoreboard (`tb_generator.py`).
+3. **Bước 3 - Kiểm tra tĩnh & Dọn dẹp:** Làm sạch mã nguồn, loại bỏ ký tự markdown rác và tiền kiểm tra cú pháp với `verilog_linter.py`.
+4. **Bước 4 - Mô phỏng phản tư & Xuất Quartus II:** ModelSim biên dịch và kiểm thử qua `simulator.py` & `reflection_loop.py`. Khi đạt 100% PASS, hệ thống tự động xuất sơ đồ nguyên lý BDF (`bdf_generator.py`) và dạng sóng Vector Waveform VWF (`vwf_generator.py`) nạp sẵn vào Quartus II, đồng thời đối soát cổng (`port_auditor.py`) và đo đạc tài nguyên FPGA (`synthesis_profiler.py`).
 
 ---
 
@@ -38,12 +39,11 @@ flowchart TD
 
 ```
 TKLLS/
-├── agent/                         # Lõi tác tử điều phối Spec2RTL
+├── agent/                         # Lõi tác tử điều phối Spec2RTL (14 module sạch)
 │   ├── run_spec2rtl.py            # Master CLI Orchestrator điều phối toàn bộ luồng
-│   ├── spec_analyzer.py           # Phân tích đặc tả, trích xuất cổng I/O & phân loại mạch
+│   ├── spec_analyzer.py           # Phân tích đặc tả, trích xuất cổng I/O & ranh giới kiến trúc
 │   ├── rtl_generator.py           # Bộ sinh mã Verilog RTL chuẩn synthesizable
 │   ├── tb_generator.py            # Bộ sinh Testbench tự kiểm tra (VeriPrefer standard)
-│   ├── knowledge_matcher.py       # RAG Engine truy vấn 308+ thiết kế mẫu
 │   ├── simulator.py               # Trình điều khiển mô phỏng ModelSim / Icarus Verilog
 │   ├── reflection_loop.py         # Vòng lặp phản tư tự sửa lỗi logic
 │   ├── bdf_generator.py           # Tự động xuất Symbol BSF và Sơ đồ Schematic BDF
@@ -52,14 +52,14 @@ TKLLS/
 │   ├── eda_finder.py              # Tự động dò tìm ModelSim và Quartus trên ổ đĩa
 │   ├── synthesis_profiler.py      # Đo đạc mức tiêu thụ tài nguyên FPGA (LEs, Registers, Pins)
 │   ├── verilog_linter.py          # Tiền kiểm tra cú pháp và dọn dẹp mã Verilog
-│   ├── harness_generator.py       # Sinh Hardware Test Harness và Watchdog an toàn
-│   └── test_robustness_battery.py # Bộ kiểm thử hồi quy 20 bài toán toàn diện
+│   ├── knowledge_matcher.py       # Bộ nhớ tri thức so khớp ngữ nghĩa đặc tả vi mạch
+│   └── test_robustness_battery.py # Bộ kiểm thử hồi quy các bài toán toàn diện
 ├── knowledge_base/                # Cơ sở tri thức vi mạch (RTLLM, VerilogEval, VeriPrefer)
 ├── specs/                         # Thư mục chứa các đề bài đặc tả kỹ thuật (.txt, .md)
 ├── src/                           # Mã nguồn Verilog RTL tự động sinh
-├── sim/                           # Môi trường mô phỏng (Testbench, file VCD, batch launcher)
+├── sim/                           # Môi trường mô phỏng (Testbench, file VCD)
 ├── quartus/                       # Project Quartus II (.qpf, .qsf), Symbol (.bsf), Sơ đồ (.bdf), Sóng (.vwf)
-└── docs/                          # Tài liệu báo cáo, kịch bản thuyết trình, 100 Prompt tuyển tập (PDF)
+└── docs/                          # Tài liệu báo cáo, giải thích luồng mã nguồn, 100 Prompt tuyển tập
 ```
 
 ---
@@ -117,8 +117,22 @@ Sau khi hoàn tất, hệ thống cung cấp 4 hình thức kiểm tra trực qu
 
 ---
 
-## 6. Kết Quả Thực Nghiệm
+## 6. Kết Quả Thực Nghiệm & Đánh Giá Giới Hạn
 
-Hệ thống đã vượt qua bộ kiểm thử tự động toàn diện:
-* **20/20 Test Cases PASS (100.0%)** trên toàn bộ các lớp mạch: Bộ đếm (Up/Down, Gray, Ring, BCD), Khóa số FSM, Động cơ bước, UART TX, SPI Slave, CRC-8, Khử nhiễu phím (Debounce), Dò cạnh xung (Edge Detector), Đèn giao thông, Máy bán nước, ALU 4-bit, v.v.
-* **100% Port Integrity**: Không xảy ra hiện tượng mất chân, sai độ rộng bus hoặc chân ma (*Phantom ports*).
+Hệ thống đã hoàn thiện toàn bộ luồng tự động hóa công cụ EDA:
+* **Hạ tầng kiểm định khép kín (Closed-Loop EDA)**: Tự động chạy ModelSim, trích xuất log lỗi, tự động sửa mã Verilog (Reflection Loop), tự động xuất sơ đồ nguyên lý BDF và dạng sóng VWF cho Quartus II mà không cần thao tác thủ công trên giao diện.
+* **Đánh giá trên bộ 100 đề bài chuẩn hóa (`docs/100_Prompt_Thiet_Ke_Mach.pdf`)**:
+  * **~38% Bài toán đạt chuẩn 100%**: Bao phủ xuất sắc các bài toán thuộc 25 họ mạch kinh điển (Counter, Timer, ALU, FSM Vending Machine, Traffic Light, Elevator, UART TX, PWM...).
+  * **~62% Bài toán bộc lộ giới hạn của phương pháp Template/Rule-based**: Với các mạch hoàn toàn mới (ví dụ: `button_debouncer`, MUX/DEMUX nhiều ngõ vào, SPI Master, Arbiter), cơ chế sinh generic rơi vào tình trạng sinh mạch giả lập hoặc bỏ quên ngõ vào (dangling input pins). Đây là bằng chứng thực nghiệm rõ ràng nhất chứng minh phương pháp mẫu cứng đã chạm trần giới hạn.
+
+---
+
+## 7. Định Hướng Phát Triển Tiếp Theo: Chưng Cất Tri Thức (Knowledge Distillation)
+
+Để mở rộng hệ thống đạt độ bao phủ $100\%$ mà không cần viết tay hàng nghìn template, giai đoạn tiếp theo tập trung vào:
+1. **Chưng cất tri thức (Knowledge Distillation) sang Small Language Models (SLM)**:
+   * Sử dụng các mô hình suy luận lớn (DeepSeek-R1 / Claude 3.5 Sonnet) làm Teacher để tạo tập dữ liệu huấn luyện chuỗi tư duy (Reasoning CoT) từ ngân hàng đề *VerilogDB* ([arXiv:2507.13369](https://arxiv.org/pdf/2507.13369)).
+   * Dùng chính bộ khung ModelSim và Quartus hiện tại làm **Bộ lọc chân lý (Truth Oracle)**: chỉ giữ lại các mẫu đạt $100\%$ PASS.
+   * Huấn luyện mô hình cục bộ **`Qwen2.5-Coder-3B`** bằng LoRA / DPO (*VeriPrefer* [arXiv:2504.15804](https://arxiv.org/pdf/2504.15804)) để chạy offline $100\%$ trong mạng nội bộ phòng lab, giải quyết bài toán **bảo mật sở hữu trí tuệ phần cứng (IP Security)**.
+2. **Nâng cấp Linter từ Regex sang Cây Cú Pháp (AST Parser)**: Tích hợp PyVerilog hoặc Verilator Lint để kiểm tra cấu trúc cú pháp, triệt tiêu hoàn toàn lỗi chốt ẩn (latch) và chân lơ lửng.
+3. **Kiểm định có kịch bản & SystemVerilog Assertions (SVA)**: Tự động phát sinh các thuộc tính an toàn phần cứng để chứng minh tính đúng đắn toán học của mạch.
