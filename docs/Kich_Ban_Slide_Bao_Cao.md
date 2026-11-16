@@ -143,44 +143,21 @@
 
 ---
 
-### SLIDE 7: KẾT QUẢ THỰC NGHIỆM ĐO ĐẠC TRÊN CHIP FPGA CYCLONE II
-* **Tiêu đề**: Kết Quả Thực Nghiệm: Bảo Toàn Cổng & Đo Đạc Tài Nguyên Thật
-* **Nội dung hiển thị trên slide (Kèm công cụ kiểm định)**:
-  - **Bộ kiểm thử hồi quy tự động [`test_robustness_battery.py`]**:
-    * Thử nghiệm tự động trên đa dạng các họ mạch chuẩn công nghiệp (Đồng hồ số, Khóa số điện tử, Động cơ bước, UART, ALU, Gray Counter, SPI, CRC...).
-    * Tỷ lệ hoàn thành: **Toàn bộ kịch bản kiểm thử đều đạt yêu cầu (PASS)**.
-    * Lỗi chân cắm (Phantom/Missing Ports): **0 lỗi (Bảo toàn 100% cổng giao tiếp)**.
-  - **Tài nguyên đo đạc thực tế trên FPGA Cyclone II (EP2C35F672C6)**:
-    | Mạch thí nghiệm | Số phần tử Logic (LEs) | Số Flip-Flop (FFs) | Chân I/O | Trạng thái tổng hợp Quartus |
-    | :--- | :--- | :--- | :--- | :--- |
-    | **Đồng hồ bấm giờ 0-9 + LED 7 đoạn** | **11 LEs** | **4 FFs** | 14 Pins | **Tối ưu, Netlist sạch, 0 chốt ẩn** |
-    | **Khóa số mật mã an toàn** | **27 LEs** | **8 FFs** | 11 Pins | **Tối ưu, Netlist sạch, 0 chốt ẩn** |
-    | **Bộ điều khiển động cơ bước 4 pha** | **8 LEs** | **3 FFs** | 7 Pins | **Tối ưu, Netlist sạch, 0 chốt ẩn** |
-* **Lời thoại thuyết trình (40s)**:
-  > *"Để chứng minh tính khả thi, em đã cho chạy bộ kiểm thử tự động `test_robustness_battery.py` trên nhiều họ mạch phần cứng từ cơ bản đến phức tạp. Kết quả đạt độ chính xác cao, không có bất kỳ chân cắm nào bị ảo giác hay mất tín hiệu.*  
-  > *Khi tiến hành tổng hợp trên dòng chip FPGA Altera Cyclone II, các mạch đều tối ưu tài nguyên rất sạch: ví dụ mạch Đồng hồ bấm giờ chỉ tốn 11 Logic Elements và 4 Flip-Flop, không sinh ra chốt ẩn, thời gian sinh mạch và kiểm tra toàn trình diễn ra tức thì."*
-
----
-
-### SLIDE 8: KỊCH BẢN TRÌNH DIỄN TRỰC TIẾP (LIVE DEMO 3 BƯỚC)
-* **Tiêu đề**: Kịch Bản Trình Diễn Thực Tế Tại Chỗ (3 Bước Đơn Giản)
+### SLIDE 7: DEMO
+* **Tiêu đề**: DEMO
 * **Nội dung hiển thị trên slide**:
-  - **Bước 1: Soạn đề bài tự nhiên**:
-    * Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt) (Đồng hồ bấm giờ 0-9 giây kèm giải mã LED 7 đoạn).
-  - **Bước 2: Chạy hệ thống tự động**:
-    * Chạy lệnh: `python agent/run_spec2rtl.py specs/c.txt --gui`
-    * Các module được kích hoạt tự động theo chuỗi: `spec_analyzer` $\rightarrow$ `rtl_generator` $\rightarrow$ `simulator` (ModelSim) $\rightarrow$ `bdf_generator` (Quartus).
-  - **Bước 3: Chiêm ngưỡng kết quả đa phương tiện**:
-    * Màn hình ModelSim tự động mở cửa sổ Waveform: Xung nhịp đếm 0..9 và mã LED 7 đoạn chạy mượt mà.
-    * Mở file `quartus/sch_stopwatch.bdf`: Xem sơ đồ mạch nguyên lý với các cổng I/O rõ ràng trên Quartus II.
-* **Lời thoại thuyết trình (35s)**:
-  > *"Sau đây em xin phép được thực hiện demo trực tiếp trên máy tính:  
-  > Em chỉ cần mở file văn bản mô tả đề bài mạch Đồng hồ bấm giờ và chạy một câu lệnh ngắn: `python agent/run_spec2rtl.py specs/c.txt --gui`.  
-  > Ngay lập tức, màn hình console sẽ hiển thị quá trình ModelSim chạy mô phỏng đạt kết quả PASS, cửa sổ sóng ModelSim tự động bật lên, và file sơ đồ BDF đã được tạo sẵn để Thầy Cô kiểm tra trực tiếp trong Quartus II."*
+  # DEMO
+* **Kịch bản thực thi trực tiếp**:
+  1. Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt).
+  2. Chạy lệnh: `python agent/run_spec2rtl.py specs/c.txt --gui`
+  3. Quan sát: Cửa sổ ModelSim Waveform GUI tự động hiển thị dạng sóng xung nhịp.
+  4. Mở Quartus II xem sơ đồ mạch nguyên lý: `quartus/bcd_to_7seg_anode/sch_bcd_to_7seg_anode.bdf`.
+* **Lời thoại thuyết trình (15s)**:
+  > *"Sau đây em xin phép được thực hiện demo trực tiếp toàn bộ luồng chạy của hệ thống trên máy tính."*
 
 ---
 
-### SLIDE 8B: PHÂN TÍCH GIỚI HẠN THỰC NGHIỆM & CA THẤT BẠI ĐIỂN HÌNH
+### SLIDE 8: PHÂN TÍCH GIỚI HẠN THỰC NGHIỆM & CA THẤT BẠI ĐIỂN HÌNH
 * **Tiêu đề**: Giới Hạn Của Phương Pháp Mẫu Cứng & Phân Tích Hiện Tượng "Chân Lơ Lửng"
 * **Nội dung hiển thị trên slide**:
   - **Khảo sát trên 100 đề bài chuẩn hóa (`100_Prompt_Thiet_Ke_Mach.pdf`)**:
@@ -196,7 +173,7 @@
 
 ---
 
-### SLIDE 8C: ĐỊNH HƯỚNG MỚI: CHƯNG CẤT TRI THỨC (KNOWLEDGE DISTILLATION)
+### SLIDE 9: ĐỊNH HƯỚNG MỚI: CHƯNG CẤT TRI THỨC (KNOWLEDGE DISTILLATION)
 * **Tiêu đề**: Hướng Đột Phá Tiếp Theo: Chưng Cất Tri Thức Sang Mô Hình Cục Bộ 3B
 * **Nội dung hiển thị trên slide (3 trụ cột giải pháp)**:
   1. **Chưng cất từ Large Model sang Small Language Model (SLM)**:
@@ -213,7 +190,7 @@
 
 ---
 
-### SLIDE 9: TỔNG KẾT & GIÁ TRỊ ĐÓNG GÓP
+### SLIDE 10: TỔNG KẾT & GIÁ TRỊ ĐÓNG GÓP
 * **Tiêu đề**: Kết Luận: Hiện Thực Hóa Thiết Kế Vi Mạch Thông Minh
 * **Nội dung hiển thị trên slide (3 đóng góp cốt lõi)**:
   1. **Khép kín quy trình**: Giải quyết trọn vẹn luồng từ văn bản mô tả $\rightarrow$ Code RTL $\rightarrow$ Testbench $\rightarrow$ Mô phỏng $\rightarrow$ Sơ đồ mạch BDF.
