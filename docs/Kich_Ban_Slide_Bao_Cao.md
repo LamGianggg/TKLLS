@@ -4,40 +4,49 @@
 
 ---
 
-### SƠ ĐỒ LUỒNG HOẠT ĐỘNG & CÁC MODULE PHẦN MỀM (.PY) ĐẢM NHIỆM
+### SƠ ĐỒ KIẾN TRÚC HOẠT ĐỘNG TOÀN TRÌNH (PIPELINE ARCHITECTURE - CHIỀU NGANG)
+
+![Sơ đồ kiến trúc luồng hoạt động Spec2RTL (Chiều ngang)](images/pipeline_architecture_horizontal.png)
+
+```mermaid
+flowchart LR
+    A["Đặc Tả Kỹ Thuật<br/>(specs/*.txt, prompt)"] --> B["Giai Đoạn 1: Phân Tích Cổng & Tri Thức<br/>• spec_analyzer.py (Bóc tách Port, Bus)<br/>• knowledge_matcher.py (Tra cứu DB)"]
+    B --> C["Giai Đoạn 2: Sinh RTL & Testbench<br/>• rtl_generator.py (Verilog chuẩn)<br/>• tb_generator.py (Scoreboard test)<br/>• verilog_linter.py (Quét chốt ẩn)"]
+    C --> D["Giai Đoạn 3: Mô Phỏng EDA ModelSim<br/>• simulator.py (vlog & vsim batch)<br/>• synthesis_profiler.py (Đo LEs, Pins)"]
+    D -->|Lỗi syntax / Assert Fail| E["Phản Tư Tự Sửa Lỗi<br/>(reflection_loop.py)<br/>Đọc log ns ➔ Sửa code Verilog"]
+    E --> C
+    D -->|100% Functional Pass| F["Giai Đoạn 4: Bàn Giao & Trực Quan Hóa<br/>• bdf_generator.py (Sơ đồ Quartus BDF)<br/>• vwf_generator.py (Sóng Vector VWF)<br/>• port_auditor.py (Kiểm toán chân 1:1)"]
+
+    classDef inputNode fill:#f1f5f9,stroke:#475569,stroke-width:2px;
+    classDef stage1 fill:#e0f2fe,stroke:#0284c7,stroke-width:2px;
+    classDef stage2 fill:#e0e7ff,stroke:#4338ca,stroke-width:2px;
+    classDef stage3 fill:#fef3c7,stroke:#d97706,stroke-width:2px;
+    classDef stage4 fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
+    classDef reflectNode fill:#fee2e2,stroke:#dc2626,stroke-width:2px;
+
+    class A inputNode;
+    class B stage1;
+    class C stage2;
+    class D stage3;
+    class E reflectNode;
+    class F stage4;
+```
 
 ```text
-                     ĐẶC TẢ YÊU CẦU (Natural Language Spec: .txt, .md, prompt)
-                                                │
-                                                ▼ [spec_analyzer.py]
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [BƯỚC 1: CHIẾN LƯỢC TỐI ƯU CÔNG SỨC - Phân Tách Hạ Tầng Phổ Thông vs Kiến Trúc Cốt Lõi] │
-│  - Phân loại vi mạch: [knowledge_matcher.py] tra cứu kho vi mạch chuẩn (hardware_db)    │
-│  - Khối phổ thông (FSM, Counter, ALU, FIFO, Bus): Tự động hóa hoàn toàn bằng AI         │
-│  - Khối vi kiến trúc cốt lõi (SoC AI Core, MAC Unit): Dành trọn thời gian cho kỹ sư    │
-└───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼ [rtl_generator.py, tb_generator.py]
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [BƯỚC 2: ĐỘNG CƠ THỰC THI SPEC2RTL - Spec -> RTL -> Testbench]                          │
-│  - Sinh Verilog synthesizable chuẩn sạch không chốt ẩn: [rtl_generator.py]              │
-│  - Sinh Testbench tự kiểm tra (Self-checking Scoreboard): [tb_generator.py]             │
-│  - Quét cú pháp tĩnh chuẩn VerilogDB: [verilog_linter.py]                                │
-└───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼ [simulator.py, reflection_loop.py]
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [BƯỚC 3: KIỂM CHỨNG & TỰ SỬA LỖI - Vòng Lặp Phản Hồi EDA Khép Kín (Closed-Loop)]        │
-│  - Gọi ModelSim biên dịch và mô phỏng ngầm (CLI batch): [simulator.py]                  │
-│  - Đọc log lỗi sai lệch nano-giây -> Tự động sửa mã Verilog: [reflection_loop.py]        │
-│  - Đo đạc tài nguyên thực tế trên chip Cyclone II: [synthesis_profiler.py]              │
-└───────────────────────────────────────────────┬─────────────────────────────────────────┘
-                                                ▼ [bdf_generator.py, vwf_generator.py]
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [BƯỚC 4: ĐẦU RA BÀN GIAO - "Trực Quan Hóa Để Kiểm Soát Thực Thể"]                       │
-│  - Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF + Tạo Symbol: [bdf_generator.py]       │
-│  - Thanh tra đối chiếu chéo 4 chiều bảo toàn chân cắm 1:1: [port_auditor.py]            │
-│  - Xuất file kiểm tra dạng sóng Vector Waveform Quartus: [vwf_generator.py]             │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-               [Tổng điều phối luồng toàn trình: run_spec2rtl.py & eda_finder.py]
+===========================================================================================================================================================
+                                              SƠ ĐỒ LUỒNG THIẾT KẾ VI MẠCH CHIỀU NGANG (PANORAMIC WIDESCREEN PIPELINE)
+===========================================================================================================================================================
+[ ĐẶC TẢ KỸ THUẬT ] ──► [ GĐ 1: PHÂN TÍCH CỔNG ] ──► [ GĐ 2: SINH RTL & TB ] ──► [ GĐ 3: MÔ PHỎNG MODELSIM ] ──────(100% PASS)──────► [ GĐ 4: BÀN GIAO QUARTUS ]
+ (specs/*.txt, prompt)    spec_analyzer.py             rtl_generator.py            simulator.py (vlog/vsim)                                 bdf_generator.py (.bdf)
+                          knowledge_matcher.py         tb_generator.py             synthesis_profiler.py (LEs/Pins)                         vwf_generator.py (.vwf)
+                                                       verilog_linter.py                         │                                          port_auditor.py (1:1)
+                                                              ▲                                  │ (Lỗi mô phỏng / Assertion Failed)
+                                                              └──────────────────────────────────┘
+                                                                    [ PHẢN TƯ TỰ SỬA LỖI ]
+                                                                      reflection_loop.py
+===========================================================================================================================================================
+                                [ ĐIỀU PHỐI TOÀN TRÌNH: run_spec2rtl.py  |  TỰ TÌM CÔNG CỤ EDA: eda_finder.py ]
+===========================================================================================================================================================
 ```
 
 ---
@@ -97,7 +106,7 @@
   - **Quy trình 3 pha tự động**:
     1. *Nhận dạng đặc tả [`spec_analyzer.py`]*: Đọc yêu cầu từ file `.txt`, `.md` hoặc văn bản tự do. Tự động bóc tách: Tên module, danh sách chân cắm, độ rộng bus bit, và chức năng hoạt động.
     2. *Sinh mã phần cứng [`rtl_generator.py`]*: Tạo mã Verilog synthesizable chuẩn công nghiệp. Kích hoạt cơ chế `RTLPortEnforcer` ép buộc danh sách chân cắm phải khớp từng cổng với đề bài, loại trừ hoàn toàn chân ma.
-    3. *Sinh Testbench tự kiểm tra [`tb_generator.py` & `harness_generator.py`]*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai (Self-checking Scoreboard).
+    3. *Sinh Testbench tự kiểm tra [`tb_generator.py`]*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai (Self-checking Scoreboard).
     4. *Quét tĩnh cú pháp [`verilog_linter.py`]*: Rà soát triệt tiêu sớm chốt ẩn (inferred latches) trước khi nạp vào bộ mô phỏng.
   - **Thời gian xử lý**: Toàn bộ quá trình diễn ra hoàn toàn tự động chỉ trong vài giây!
 * **Lời thoại thuyết trình (45s)**:

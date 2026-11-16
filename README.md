@@ -15,17 +15,18 @@
 
 ## 2. Kiến Trúc Hoạt Động (Pipeline Architecture)
 
+![Kiến trúc hoạt động Spec2RTL (Horizontal Pipeline Architecture)](docs/images/pipeline_architecture_horizontal.png)
+
 ```mermaid
-flowchart TD
-    A["Đặc Tả Ngôn Ngữ Tự Nhiên\n(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer\n(spec_analyzer.py)\nTrích xuất Port, Bus width, Complexity Guard"]
-    B --> C["2. Dynamic Synthesis Engine\n(rtl_generator.py + tb_generator.py)\nSinh Verilog RTL & Self-Checking Testbench"]
-    C --> D["3. Verilog Static Linter\n(verilog_linter.py)\nLàm sạch & Tiền kiểm tra cú pháp"]
-    D --> E["4. EDA Simulator in the Loop\n(simulator.py + ModelSim batch)"]
-    E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop\n(reflection_loop.py)\nĐọc log -> Tự động sửa RTL"]
-    F --> E
-    E -->|100% Functional Pass| G["Quartus Toolchain Integration\n(bdf_generator.py + vwf_generator.py)"]
-    G --> H["Project Hoàn Chỉnh (.qpf, .bsf, .bdf, .vwf)"]
-    H --> I["Kiểm Toán Cổng & Báo Cáo Tài Nguyên\n(port_auditor.py + synthesis_profiler.py)"]
+flowchart LR
+    A["Đặc Tả Ngôn Ngữ Tự Nhiên<br/>(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer<br/>(spec_analyzer.py)<br/>• Trích xuất Port, Bus<br/>• Tra cứu Hardware DB"]
+    B --> C["2. Dynamic Synthesis Engine<br/>(rtl_generator.py + tb_generator.py)<br/>• Sinh Verilog RTL synthesizable<br/>• Sinh Self-Checking Testbench"]
+    C --> D["3. Verilog Static Linter<br/>(verilog_linter.py)<br/>• Làm sạch & Quét chốt ẩn"]
+    D --> E["4. EDA Simulator in the Loop<br/>(simulator.py + ModelSim batch)"]
+    E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop<br/>(reflection_loop.py)<br/>Đọc log ns ➔ Tự động sửa RTL"]
+    F --> C
+    E -->|100% Functional Pass| G["5. Quartus Toolchain Integration<br/>(bdf_generator.py + vwf_generator.py)<br/>• Xuất Project (.qpf, .bsf, .bdf, .vwf)"]
+    G --> H["Kiểm Toán Cổng & Báo Cáo Tài Nguyên<br/>(port_auditor.py + synthesis_profiler.py)<br/>• Bảo toàn chân 1:1 (Port Invariant)<br/>• Đo đạc LEs, FFs trên Cyclone II"]
 ```
 
 1. **Bước 1 - Phân tích đặc tả (Ingestion & Port Analysis):** Bóc tách chính xác tên cổng, độ rộng bit (ví dụ: `[3:0] count`), hướng `input`/`output` và kiểm tra ranh giới kiến trúc qua `spec_analyzer.py`.
