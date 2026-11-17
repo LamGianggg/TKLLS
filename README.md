@@ -128,15 +128,41 @@ Hệ thống đã hoàn thiện toàn bộ luồng tự động hóa công cụ 
 
 ---
 
-## 7. Định Hướng Phát Triển Tiếp Theo: Chưng Cất Tri Thức (Knowledge Distillation)
+## 7. Định Hướng Phát Triển Tiếp Theo: Chưng Cất Tri Thức (Knowledge Distillation) & Tinh Chỉnh Mô Hình (Fine-Tuning)
 
-Để mở rộng hệ thống đạt độ bao phủ $100\%$ mà không cần viết tay hàng nghìn template, giai đoạn tiếp theo tập trung vào:
-1. **Chưng cất tri thức (Knowledge Distillation) sang Small Language Models (SLM)**:
-   * Sử dụng các mô hình suy luận lớn (DeepSeek-R1 / Claude 3.5 Sonnet) làm Teacher để tạo tập dữ liệu huấn luyện chuỗi tư duy (Reasoning CoT) từ ngân hàng đề *VerilogDB* ([arXiv:2507.13369](https://arxiv.org/pdf/2507.13369)).
-   * Dùng chính bộ khung ModelSim và Quartus hiện tại làm **Bộ lọc chân lý (Truth Oracle)**: chỉ giữ lại các mẫu đạt $100\%$ PASS.
-   * Huấn luyện mô hình cục bộ **`Qwen2.5-Coder-3B`** bằng LoRA / DPO (*VeriPrefer* [arXiv:2504.15804](https://arxiv.org/pdf/2504.15804)) để chạy offline $100\%$ trong mạng nội bộ phòng lab, giải quyết bài toán **bảo mật sở hữu trí tuệ phần cứng (IP Security)**.
-2. **Nâng cấp Linter từ Regex sang Cây Cú Pháp (AST Parser)**: Tích hợp PyVerilog hoặc Verilator Lint để kiểm tra cấu trúc cú pháp, triệt tiêu hoàn toàn lỗi chốt ẩn (latch) và chân lơ lửng.
-3. **Kiểm định có kịch bản & SystemVerilog Assertions (SVA)**: Tự động phát sinh các thuộc tính an toàn phần cứng để chứng minh tính đúng đắn toán học của mạch.
+Để mở rộng hệ thống đạt độ bao phủ $100\%$ các bài toán vi mạch mà không cần viết tay hàng nghìn template, đồng thời triệt tiêu hoàn toàn lỗi chân lơ lửng (dangling pins) và chốt ẩn (inferred latches), nhóm triển khai **Kế hoạch 2 tuần với 6 thành viên (chia 3 nhóm song song, chi phí 0 VNĐ)**:
+
+### 7.1. Ba Nhánh Triển Khai Song Song (Phân công 6 Thành viên)
+
+1. **Nhóm 1: Chuẩn Bị Dữ Liệu & Thẩm Định Chân Lý (2 Thành viên)**
+   * **Mục tiêu:** Xây dựng tập dữ liệu sạch gồm **1.000 mẫu vi mạch chuẩn hóa** từ *VerilogDB* ([arXiv:2507.13369](https://arxiv.org/pdf/2507.13369)) và ngân hàng 100 Prompt của đề tài.
+   * **Cơ chế:** Dùng mô hình suy luận lớn (DeepSeek-R1 / Gemini) làm Teacher sinh chuỗi tư duy phần cứng (CoT: Phân tích I/O $\to$ FSM $\to$ Verilog synthesizable $\to$ Testbench).
+   * **Bộ lọc chân lý (Truth Oracle):** Dùng chính `simulator.py` chạy ngầm ModelSim batch để thẩm định 100% mẫu; loại bỏ toàn bộ code lỗi cú pháp hoặc fail assertion.
+   * **Định dạng bàn giao:** Đóng gói đúng cấu trúc 3 trường `(instruction, input, output)` theo file mẫu chuẩn tại [`training/dataset_schema_standard.json`](training/dataset_schema_standard.json).
+
+2. **Nhóm 2: Huấn Luyện AI Cục Bộ & Fine-Tuning (2 Thành viên)**
+   * **Mục tiêu:** Thực hiện **Chưng cất tri thức (Knowledge Distillation) thông qua kỹ thuật Fine-Tuning (Supervised Fine-Tuning - SFT với LoRA 4-bit)** để mô hình chạy offline $100\%$ bảo mật tuyệt đối tài sản trí tuệ (IP Security).
+   * **Hạ tầng & Chi phí:** Dùng thư viện tối ưu **Unsloth** chạy trên **Google Colab GPU T4 miễn phí (0 VNĐ)**. Thời gian huấn luyện 1.000 mẫu chỉ mất **~15 đến 25 phút**.
+   * **Notebook hoàn chỉnh:** Đã lập trình và kiểm thử thành công tại [`training/train_spec2rtl_qwen3b_colab.ipynb`](training/train_spec2rtl_qwen3b_colab.ipynb).
+   * **Thực nghiệm đối sánh 2 phiên bản mô hình (Ablation Study):**
+     * **Bản 1.5B (`Qwen2.5-Coder-1.5B`)**: Siêu nhẹ (~1GB RAM lượng tử hóa 4-bit), chạy trực tiếp trên CPU máy tính phòng lab trường hoặc nhúng lên kit FPGA/Raspberry Pi không cần card GPU rời.
+     * **Bản 3B (`Qwen2.5-Coder-3B`)**: Tăng cường năng lực suy luận chuỗi dài (Reasoning) cho các khối vi kiến trúc phức tạp (FSM đa tầng, bộ điều khiển bus, FIFO).
+
+3. **Nhóm 3: Kỹ Thuật Vi Mạch & AST Linter (2 Thành viên)**
+   * **Mục tiêu:** Nâng cấp `agent/verilog_linter.py` từ Regex sang Cây cú pháp trừu tượng (**Abstract Syntax Tree - AST Parser**) sử dụng thư viện **PyVerilog**.
+   * **Bộ phát hiện chân lơ lửng (Dangling Pin Detector):** Quét toàn bộ cây cú pháp trong khối `always`/`assign`, bắt chết lỗi cổng `input` bị cô lập (triệt tiêu dứt điểm ca lỗi như `button_debouncer`).
+   * **Bộ triệt tiêu chốt ẩn (Inferred Latch Detector):** Duyệt các câu lệnh điều kiện `if/case` trong khối tổ hợp `always @(*)`, ép buộc phải có đầy đủ nhánh gán mặc định (`else` / `default`).
+   * **Đo kiểm thực nghiệm:** Phối hợp đo đạc tỷ lệ Pass@1 trên toàn bộ 100 đề bài vi mạch và đo tài nguyên tiêu thụ trên chip Altera Cyclone II.
+
+---
+
+### 7.2. Lộ Trình 2 Tuần Về Đích (Roadmap)
+
+| Thời Gian | Nhóm 1 (Dữ Liệu) | Nhóm 2 (Fine-Tuning AI) | Nhóm 3 (AST Linter & Vi Mạch) |
+| :--- | :--- | :--- | :--- |
+| **Tuần 1** | Lọc dữ liệu VerilogDB + ModelSim thẩm định ra 1.000 mẫu sạch. | Dựng xong Colab Unsloth LoRA & test dummy run thành công *(Đã xong)*. | Xây dựng bộ quét cây cú pháp PyVerilog AST bắt chốt ẩn & chân lơ lửng. |
+| **Tuần 2** | Bàn giao file `dataset_1000_clean.json`. | Bấm nút Fine-Tune mô hình 1.5B & 3B trên Colab (15-20 phút), xuất GGUF. | Tích hợp model đã train vào `agent/run_spec2rtl.py`, chạy benchmark 100 bài toán. |
+| **Nghiệm thu** | \multicolumn{3}{c|}{Tổng hợp số liệu thực nghiệm, hoàn thiện Slide báo cáo và file báo cáo đồ án nộp Thầy.} |
 
 ---
 
