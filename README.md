@@ -137,3 +137,94 @@ Hệ thống đã hoàn thiện toàn bộ luồng tự động hóa công cụ 
    * Huấn luyện mô hình cục bộ **`Qwen2.5-Coder-3B`** bằng LoRA / DPO (*VeriPrefer* [arXiv:2504.15804](https://arxiv.org/pdf/2504.15804)) để chạy offline $100\%$ trong mạng nội bộ phòng lab, giải quyết bài toán **bảo mật sở hữu trí tuệ phần cứng (IP Security)**.
 2. **Nâng cấp Linter từ Regex sang Cây Cú Pháp (AST Parser)**: Tích hợp PyVerilog hoặc Verilator Lint để kiểm tra cấu trúc cú pháp, triệt tiêu hoàn toàn lỗi chốt ẩn (latch) và chân lơ lửng.
 3. **Kiểm định có kịch bản & SystemVerilog Assertions (SVA)**: Tự động phát sinh các thuộc tính an toàn phần cứng để chứng minh tính đúng đắn toán học của mạch.
+
+---
+
+## 8. Cơ Sở Khoa Học & Nguồn Gốc Ý Tưởng Từ Các Tài Liệu Nghiên Cứu (Academic References & Provenance)
+
+Hệ thống **Spec2RTL & Prompt2Silicon** được thiết kế và hiện thực hóa dựa trên việc kế thừa, tổng hợp và bản địa hóa các ý tưởng nghiên cứu đỉnh cao từ **6 tài liệu khoa học nền tảng do Giảng viên hướng dẫn (TS. Nguyễn Văn Tình) định hướng**:
+
+| STT | Tài Liệu / Bài Báo | Tác Giả & Tổ Chức | Ý Tưởng Kế Thừa Cốt Lõi | Module Hiện Thực Trong Hệ Thống |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Spec2RTL-Agent**<br/>([arXiv:2506.13905](https://arxiv.org/abs/2506.13905)) | NVIDIA Research, Cadence, Georgia Tech | Kiến trúc đa tác tử 3 pha: Understanding $\to$ Coding $\to$ Reflection | `spec_analyzer.py`, `rtl_generator.py`, `reflection_loop.py` |
+| 2 | **From RTL to Prompt Coding**<br/>([arXiv:2601.13815](https://arxiv.org/html/2601.13815v1)) | RPTU Kaiserslautern-Landau, Tiny Tapeout (ISCAS 2026) | Triết lý "Prompt Coding" - Đưa yêu cầu tự nhiên thẳng tới phần cứng | `specs/*.txt`, `100_Prompt_Thiet_Ke_Mach.pdf` |
+| 3 | **Prompt2Silicon Platform**<br/>([GitHub tukl-msd](https://github.com/tukl-msd/prompt2silicon)) | Microelectronic Systems Design Group (RPTU) | Trực quan hóa toàn trình (Visual EDA Verification: Schematic & Waveform) | `bdf_generator.py`, `vwf_generator.py`, `--gui` |
+| 4 | **Autonomous Chip Design Agents**<br/>([NVIDIA GTC 2025 S72294](https://www.nvidia.com/en-us/on-demand/session/gtc25-S72294/)) | NVIDIA Research (Haoxing Ren, ChipNeMo Team) | Hardware Agent Harness: Tích hợp công cụ EDA làm "Trọng tài chân lý" | `simulator.py`, `synthesis_profiler.py`, `eda_finder.py` |
+| 5 | **VerilogDB**<br/>([arXiv:2507.13369](https://arxiv.org/pdf/2507.13369)) | University of Florida | Ngân hàng thiết kế mẫu chuẩn hóa & Khung Linter lọc cú pháp nghiêm ngặt | `knowledge_base/`, `knowledge_matcher.py`, `verilog_linter.py` |
+| 6 | **VeriPrefer**<br/>([arXiv:2504.15804](https://arxiv.org/pdf/2504.15804)) | Ning Wang, Zhe Jiang et al. | Tự động sinh Testbench tự kiểm tra (Scoreboard) & Tối ưu bằng phản hồi mô phỏng | `tb_generator.py`, `reflection_loop.py` (Vòng lặp sửa lỗi) |
+
+---
+
+### Chi Tiết Từng Tài Liệu & Vị Trí Kế Thừa Cụ Thể Trong Hệ Thống:
+
+#### 1. Spec2RTL-Agent: Automated Hardware Code Generation from Complex Specifications Using LLM Agent Systems
+* **Đường dẫn**: [https://arxiv.org/abs/2506.13905](https://arxiv.org/abs/2506.13905)
+* **Tác giả & Tổ chức**: Zhongzhi Yu, Mingjie Liu, Michael Zimmer, Yingyan (Celine) Lin, Yong Liu, Haoxing Ren (NVIDIA Research, Cadence Design Systems, Georgia Institute of Technology).
+* **Vị trí lấy trong bài báo**:
+  * **Section III (Methodology & Agent Architecture)**: Mô hình hóa quy trình thiết kế phần cứng thành 3 vai trò tác tử tách biệt:
+    1. *Understanding Agent*: Tiếp nhận đặc tả phi cấu trúc (PDF, Text), bóc tách danh sách cổng I/O, độ rộng bus và các ràng buộc logic.
+    2. *Coding Agent*: Sinh mã phần cứng có cấu trúc chặt chẽ, loại bỏ hoàn toàn việc "bịa" chân tín hiệu (Port Hallucination).
+    3. *Reflection Agent*: Quan sát lỗi biên dịch/mô phỏng để tự động sửa mã Verilog lặp đi lặp lại.
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * `agent/spec_analyzer.py`: Đóng vai trò *Understanding Agent* trích xuất tên module, bảng chân cắm `inputs`/`outputs` kèm độ rộng bit.
+  * `agent/rtl_generator.py`: Tích hợp cơ chế `RTLPortEnforcer` đóng vai trò *Coding Agent* ép mã Verilog sinh ra phải khớp 100% cổng với đặc tả.
+  * `agent/reflection_loop.py`: Đóng vai trò *Reflection Agent* tự động bắt lỗi cú pháp và lỗi assertion để vá lại code.
+
+---
+
+#### 2. From RTL to Prompt Coding: Empowering the Next Generation of Chip Designers through LLMs
+* **Đường dẫn**: [https://arxiv.org/html/2601.13815v1](https://arxiv.org/html/2601.13815v1)
+* **Tác giả & Tổ chức**: Lukas Krupp, Matthew Venn, Norbert Wehn (RPTU Kaiserslautern-Landau, Tiny Tapeout, IEEE ISCAS 2026).
+* **Vị trí lấy trong bài báo**:
+  * **Section I & II (Introduction & The Concept of Prompt Coding)**: Đề xuất chuyển dịch phương pháp thiết kế vi mạch truyền thống (phải gõ thủ công từng dòng mã Verilog/VHDL) sang phương pháp **"Prompt Coding"** — người kỹ sư mô tả ý đồ thiết kế bằng câu lệnh văn bản tự nhiên, hệ thống tự động sinh code synthesizable và kết nối trực tiếp với backend băng từ.
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * Chuẩn hóa cấu trúc Prompt đầu vào theo định dạng 3 phần độc lập (Inputs - Outputs - Logic) trong thư mục `specs/*.txt`, `specs/*.md`.
+  * Xây dựng tuyển tập tài liệu `docs/100_Prompt_Thiet_Ke_Mach.pdf` gồm 100 đề bài vi mạch kinh điển chuẩn hóa phục vụ đo kiểm năng lực "Prompt Coding".
+
+---
+
+#### 3. Prompt2Silicon Platform (Open-Source Hardware Workflow)
+* **Đường dẫn**: [https://github.com/tukl-msd/prompt2silicon](https://github.com/tukl-msd/prompt2silicon)
+* **Tác giả & Tổ chức**: Microelectronic Systems Design Group (MSD - TU Kaiserslautern / RPTU).
+* **Vị trí lấy trong dự án**:
+  * **Triết lý thiết kế (Holistic Frontend-to-Backend & Visual Simulation)**: Không để kết quả dừng lại ở các đoạn mã Verilog dạng text rời rạc khó kiểm soát, mà phải cung cấp công cụ trực quan hóa (Visual EDA Feedback) tức thì để người thiết kế "nhìn thấy" mạch điện tử và dạng sóng logic.
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * `agent/bdf_generator.py`: Tự động biên dịch file Symbol Altera Quartus (`.bsf`) và vẽ Sơ đồ nguyên lý mạch hoàn chỉnh (`.bdf`) để mở trực tiếp trong Quartus II Schematic Editor.
+  * `agent/vwf_generator.py`: Tự động tạo file Vector Waveform (`.vwf`) và khởi chạy ModelSim Waveform GUI (`--gui`) để kỹ sư quan sát trực tiếp các xung nhịp nano-giây.
+
+---
+
+#### 4. Autonomous Chip Design Agents with LLMs (NVIDIA GTC 2025 Session S72294)
+* **Đường dẫn**: [https://www.nvidia.com/en-us/on-demand/session/gtc25-S72294/](https://www.nvidia.com/en-us/on-demand/session/gtc25-S72294/)
+* **Tác giả & Tổ chức**: Haoxing Ren, Mingjie Liu & Nhóm nghiên cứu ChipNeMo (NVIDIA Research).
+* **Vị trí lấy trong phiên báo cáo**:
+  * **Kiến trúc Hardware Agent Harness (EDA-in-the-Loop)**: Khẳng định mô hình ngôn ngữ lớn (LLM) không thể tự thiết kế vi mạch nếu thiếu môi trường thực thi phần mềm chuyên dụng (Software Harness). Phải đưa các công cụ EDA tiêu chuẩn công nghiệp vào làm "Trọng tài chân lý" để kiểm tra tính khả tổng hợp (synthesizability) và kiểm soát tài nguyên phần cứng.
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * `agent/eda_finder.py`: Tự động phát hiện môi trường EDA công nghiệp Altera Quartus II và ModelSim trên máy tính.
+  * `agent/simulator.py`: Tự động điều khiển luồng lệnh CLI batch của ModelSim (`vlog.exe`, `vsim.exe`) làm trọng tài mô phỏng.
+  * `agent/synthesis_profiler.py`: Gọi ngầm `quartus_map.exe` để tổng hợp thực tế trên chip FPGA Altera Cyclone II, đo đạc chính xác số Logic Elements, Flip-Flops và Pins.
+
+---
+
+#### 5. VerilogDB: The Largest, Highest-Quality Dataset with a Preprocessing Framework for LLM-based RTL Generation
+* **Đường dẫn**: [https://arxiv.org/pdf/2507.13369](https://arxiv.org/pdf/2507.13369)
+* **Tác giả & Tổ chức**: Paul E. Calzada, Zahin Ibnat, Mark Tehranipoor et al. (Florida Institute for Cybersecurity Research, University of Florida).
+* **Vị trí lấy trong bài báo**:
+  * **Section III (Data Collection and Preprocessing Pipeline)**: Xây dựng quy trình làm sạch mã nguồn Verilog nghiêm ngặt (Syntax Sanitization, Inferred Latch Detection) và ngân hàng lưu trữ dữ liệu thiết kế có cấu trúc để phục vụ huấn luyện và truy xuất (Retrieval-Augmented Generation).
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * `agent/verilog_linter.py`: Xây dựng bộ quét tĩnh cú pháp, làm sạch các ký tự markdown rác và rà soát triệt tiêu chốt ẩn (inferred latches) trước khi mô phỏng.
+  * `knowledge_base/` & `agent/knowledge_matcher.py`: Lưu trữ và so khớp ngữ nghĩa với cơ sở tri thức vi mạch chuẩn (`hardware_db.json`), phân loại mạch phổ thông để sinh mã chuẩn xác.
+  * Định hướng sử dụng tập dữ liệu chuẩn VerilogDB (20.392 mẫu Verilog sạch) làm dữ liệu gốc cho tiến trình Chưng cất tri thức (Knowledge Distillation) ở giai đoạn tiếp theo.
+
+---
+
+#### 6. Insights from Verification: Training a Verilog Generation LLM with Reinforcement Learning with Testbench Feedback (VeriPrefer)
+* **Đường dẫn**: [https://arxiv.org/pdf/2504.15804](https://arxiv.org/pdf/2504.15804) / [https://arxiv.org/html/2504.15804v1](https://arxiv.org/html/2504.15804v1)
+* **Tác giả & Tổ chức**: Ning Wang, Bingkun Yao, Zhe Jiang et al.
+* **Vị trí lấy trong bài báo**:
+  * **Section III & IV (Automated Testbench Generation & DPO with Testbench Feedback)**: Nhấn mạnh rằng sinh mã Verilog mà không có Testbench tự kiểm tra (Self-checking Scoreboard) là vô nghĩa. Sử dụng chính kết quả kiểm thử (Testbench Outcomes / Assertions) làm tín hiệu phản hồi để đánh giá độ chính xác chức năng (Functional Accuracy) và hướng dẫn sửa lỗi logic.
+* **Hiện thực hóa trong hệ thống của nhóm**:
+  * `agent/tb_generator.py`: Tự động sinh Testbench tự kiểm tra có gắn sẵn Verification Scoreboard theo chuẩn VeriPrefer, tự động so sánh ngõ ra và tính tỷ lệ chính xác chức năng (`Functional Accuracy: 100.0 PERCENT`).
+  * `agent/reflection_loop.py`: Lấy trực tiếp thông báo lỗi assertion từ log ModelSim để xác định sai lệch nano-giây, làm căn cứ sửa mã Verilog tự động.
+  * `agent/port_auditor.py`: Cơ chế kiểm toán toàn vẹn 4 chiều bảo đảm tính bất biến cổng (Port Invariant: $\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$).
+
