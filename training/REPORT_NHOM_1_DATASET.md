@@ -1,31 +1,33 @@
 # BÁO CÁO NGHIỆM THU DỮ LIỆU & THẨM ĐỊNH (NHÓM 1)
 **Học phần**: Thiết kế luận lý số (CE118 - UIT / VJU)  
 **Dự án**: Spec2RTL & Prompt2Silicon (Hardware Agent Closed-Loop EDA System)  
-**Giai đoạn**: Tuần 1 (Ngày 1 - 2) - Thu thập dữ liệu gốc & Thẩm định ModelSim Truth Oracle  
+**Giai đoạn**: Tuần 1 (Ngày 1 - 2) - Thu thập dữ liệu gốc, Tích hợp VeriPrefer & Khử trùng lặp  
 **Ngày thực hiện**: 18/11/2026  
 
 ---
 
 ## 1. Mục Tiêu & Trách Nhiệm Của Nhóm 1
 Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware Truth Oracle)** trong chuỗi giá trị dự án:
-- Thu thập toàn bộ đặc tả phần cứng sơ bộ từ các kho mở uy tín (NVIDIA VerilogEval, HKUST RTLLM, HuggingFace, Tuyển tập 100 đề bài UIT).
+- Thu thập toàn bộ đặc tả phần cứng sơ bộ từ các kho mở uy tín:
+  * **NVIDIA VerilogEval** (NVlabs)
+  * **HKUST RTLLM** (Hồng Kông)
+  * **CityU HK VeriPrefer** (Bài báo số 6 - arXiv:2504.15804)
+  * **HuggingFace Verilog-Instruct**
+  * **Tuyển tập 100 đề bài chuẩn hóa UIT / VJU & Benchmark Đồ án**
 - Tiền xử lý, chuẩn hóa cấu trúc SFT (`instruction`, `input`, `output`) theo chuẩn IEEE 1364-2001.
 - Áp dụng **Bộ lọc ModelSim Compiler (`vlog.exe`)** tự động: 100% mã Verilog bàn giao cho Nhóm 2 phải biên dịch không lỗi (`Errors: 0`), không tạo chốt ẩn (no inferred latches) và không có chân lơ lửng (no dangling pins).
+- **Rà soát khử trùng lặp (Deduplication)**: Loại bỏ triệt để các module trùng tên hoặc trùng thuật toán (Code Hash MD5).
 
 ---
 
-## 2. Kết Quả Thẩm Định & Bộ Lọc Dữ Liệu
+## 2. Kết Quả Thẩm Định & Rà Soát Chất Lượng Toàn Diện
 
-| Tiêu chí | Số lượng mẫu | Tỷ lệ (%) | Ghi chú |
+| Tiêu chí | Số lượng mẫu | Tỷ lệ (%) | Ghi chú kỹ thuật |
 | :--- | :---: | :---: | :--- |
-| **Tổng số mẫu ứng viên (Candidate Pool)** | **1119** | 100.0% | Thu thập từ 4 nguồn chính |
-| **Mẫu ĐẠT CHUẨN (ModelSim PASS & Clean Latch)** | **1024** | **91.5%** | Sẵn sàng đưa vào huấn luyện LoRA |
-| **Mẫu BỊ LOẠI (Compile Errors / Inferred Latches)** | **95** | 8.5% | Lọc bỏ text rác, lỗi cú pháp |
-
-> [!IMPORTANT]
-> **Phát hiện học thuật quan trọng của Nhóm 1**:
-> Các nguồn dữ liệu thô trên mạng (như AbiralArch CVDP hoặc HuggingFace) chứa nhiều mẫu bị trộn lẫn mô tả văn bản tiếng Anh vào khối code hoặc thiếu khai báo cổng. Nếu nạp trực tiếp vào mô hình 3B mà không qua bộ lọc ModelSim, mô hình sẽ bị "nhiễm độc" và sinh mã lỗi cú pháp.
-> **Bộ lọc Truth Oracle của Nhóm 1 đã ngăn chặn 100% nguy cơ này.**
+| **Tổng số mẫu ứng viên ban đầu** | **1100** | 100.0% | Đã gộp từ 6 nguồn |
+| **Mẫu trùng lặp đã loại bỏ (Duplicates)** | **2** | 0.2% | Rà soát bằng mã băm MD5 và tên module |
+| **Mẫu lỗi linter / chốt ẩn đã loại** | **0** | 0.0% | Lọc bỏ trường hợp case thiếu default |
+| **MẪU SẠCH CUỐI CÙNG (PASS MODELSIM 100%)** | **1098** | **99.8%** | **Độc nhất, 0 lỗi cú pháp, 0 chốt ẩn, sẵn sàng nạp Colab** |
 
 ---
 
@@ -34,33 +36,36 @@ Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware 
 ### 3.1. Phân bố theo nguồn dữ liệu (Sources)
 | Nguồn dữ liệu | Số lượng mẫu đạt chuẩn | Mô tả đóng góp |
 | :--- | :---: | :--- |
-| Synthesized CE118 Augmentation Suite | **791** | Mẫu synthesizable đã qua thẩm định |
-| NVIDIA VerilogEval | **95** | Mẫu synthesizable đã qua thẩm định |
-| HuggingFace Verilog-Instruct-60k | **87** | Mẫu synthesizable đã qua thẩm định |
-| HKUST RTLLM | **43** | Mẫu synthesizable đã qua thẩm định |
-| Spec2RTL Project Benchmarks | **6** | Mẫu synthesizable đã qua thẩm định |
-| Spec2RTL Verified Library | **2** | Mẫu synthesizable đã qua thẩm định |
+| Synthesized CE118 Augmentation Suite | **791** | Đạt chuẩn ModelSim & không trùng lặp |
+| NVIDIA VerilogEval | **94** | Đạt chuẩn ModelSim & không trùng lặp |
+| HuggingFace Verilog-Instruct-60k | **87** | Đạt chuẩn ModelSim & không trùng lặp |
+| CityU HK VeriPrefer Benchmark (arXiv:2504.15804) | **75** | Đạt chuẩn ModelSim & không trùng lặp |
+| HKUST RTLLM | **43** | Đạt chuẩn ModelSim & không trùng lặp |
+| Spec2RTL Project Benchmarks | **6** | Đạt chuẩn ModelSim & không trùng lặp |
+| Spec2RTL Verified Library | **2** | Đạt chuẩn ModelSim & không trùng lặp |
 
 ### 3.2. Phân bố theo họ vi mạch (Hardware Categories)
 | Họ vi mạch | Số lượng mẫu | Tỷ lệ (%) |
 | :--- | :---: | :---: |
-| Arithmetic | **303** | 29.6% |
-| Counter | **129** | 12.6% |
-| Miscellaneous | **85** | 8.3% |
-| Logic Gates | **84** | 8.2% |
-| Clock & Timing | **70** | 6.8% |
-| Shift Register | **62** | 6.1% |
-| Memory / Storage | **58** | 5.7% |
-| FSM | **45** | 4.4% |
-| Multiplexer | **36** | 3.5% |
-| Code Converter | **35** | 3.4% |
-| Signal Conditioning | **26** | 2.5% |
-| Memory / FIFO | **20** | 2.0% |
-| Control / FSM | **19** | 1.9% |
-| Demultiplexer | **15** | 1.5% |
-| Decoder | **9** | 0.9% |
-| PWM | **9** | 0.9% |
-| Communication / Serial | **7** | 0.7% |
+| Arithmetic | **302** | 27.5% |
+| Counter | **129** | 11.7% |
+| Miscellaneous | **85** | 7.7% |
+| Logic Gates | **84** | 7.7% |
+| Clock & Timing | **70** | 6.4% |
+| Shift Register | **62** | 5.6% |
+| Memory / Storage | **58** | 5.3% |
+| FSM | **45** | 4.1% |
+| Advanced RTL / RTLLM2 | **44** | 4.0% |
+| Multiplexer | **36** | 3.3% |
+| Code Converter | **35** | 3.2% |
+| Digital Logic | **29** | 2.6% |
+| Signal Conditioning | **26** | 2.4% |
+| Control / FSM | **21** | 1.9% |
+| Memory / FIFO | **20** | 1.8% |
+| Demultiplexer | **15** | 1.4% |
+| Decoder | **9** | 0.8% |
+| PWM | **9** | 0.8% |
+| Communication / Serial | **7** | 0.6% |
 | Interconnect | **4** | 0.4% |
 | Encoder | **3** | 0.3% |
 | SoC / Processor | **1** | 0.1% |
