@@ -256,10 +256,12 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     for FileV in DanhSachVerilog:
         print(f"    * {os.path.basename(FileV)}")
 
-    # Bước 2.5: Kiểm tra và dọn dẹp cú pháp Verilog
-    print(f"\n[Bước 2.5] Kiểm tra và dọn dẹp cú pháp Verilog (VerilogLinter)...")
+    # Bước 2.5: Kiểm tra tĩnh AST và dọn dẹp cú pháp Verilog
+    print(f"\n[Bước 2.5] Phân tích tĩnh AST & dọn dẹp cú pháp Verilog (VerilogLinter)...")
     for FileV in DanhSachVerilog:
         VerilogLinter.sanitize_file(FileV)
+    if FileRtlChinh and os.path.exists(FileRtlChinh):
+        VerilogLinter.lint_file(FileRtlChinh)
     print(f" -> [VerilogLinter]: Toàn bộ {len(DanhSachVerilog)} file đã được kiểm tra và chuẩn hóa.")
 
     # Bước 3: Mô phỏng và phản hồi tự sửa lỗi (Reflection Loop)
