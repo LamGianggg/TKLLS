@@ -18,9 +18,9 @@ Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware 
 
 | Tiêu chí | Số lượng mẫu | Tỷ lệ (%) | Ghi chú |
 | :--- | :---: | :---: | :--- |
-| **Tổng số mẫu ứng viên (Candidate Pool)** | **502** | 100.0% | Thu thập từ 4 nguồn chính |
-| **Mẫu ĐẠT CHUẨN (ModelSim PASS & Clean Latch)** | **407** | **81.1%** | Sẵn sàng đưa vào huấn luyện LoRA |
-| **Mẫu BỊ LOẠI (Compile Errors / Inferred Latches)** | **95** | 18.9% | Lọc bỏ text rác, lỗi cú pháp |
+| **Tổng số mẫu ứng viên (Candidate Pool)** | **1119** | 100.0% | Thu thập từ 4 nguồn chính |
+| **Mẫu ĐẠT CHUẨN (ModelSim PASS & Clean Latch)** | **1024** | **91.5%** | Sẵn sàng đưa vào huấn luyện LoRA |
+| **Mẫu BỊ LOẠI (Compile Errors / Inferred Latches)** | **95** | 8.5% | Lọc bỏ text rác, lỗi cú pháp |
 
 > [!IMPORTANT]
 > **Phát hiện học thuật quan trọng của Nhóm 1**:
@@ -34,7 +34,7 @@ Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware 
 ### 3.1. Phân bố theo nguồn dữ liệu (Sources)
 | Nguồn dữ liệu | Số lượng mẫu đạt chuẩn | Mô tả đóng góp |
 | :--- | :---: | :--- |
-| Synthesized CE118 Augmentation Suite | **174** | Mẫu synthesizable đã qua thẩm định |
+| Synthesized CE118 Augmentation Suite | **791** | Mẫu synthesizable đã qua thẩm định |
 | NVIDIA VerilogEval | **95** | Mẫu synthesizable đã qua thẩm định |
 | HuggingFace Verilog-Instruct-60k | **87** | Mẫu synthesizable đã qua thẩm định |
 | HKUST RTLLM | **43** | Mẫu synthesizable đã qua thẩm định |
@@ -44,26 +44,30 @@ Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware 
 ### 3.2. Phân bố theo họ vi mạch (Hardware Categories)
 | Họ vi mạch | Số lượng mẫu | Tỷ lệ (%) |
 | :--- | :---: | :---: |
-| Arithmetic | **86** | 21.1% |
-| Miscellaneous | **85** | 20.9% |
-| Counter | **63** | 15.5% |
-| Memory / Storage | **37** | 9.1% |
-| Multiplexer | **24** | 5.9% |
-| Control / FSM | **19** | 4.7% |
-| Shift Register | **19** | 4.7% |
-| Clock & Timing | **15** | 3.7% |
-| Demultiplexer | **12** | 2.9% |
-| FSM | **12** | 2.9% |
-| Memory / FIFO | **12** | 2.9% |
-| Decoder | **7** | 1.7% |
-| Signal Conditioning | **4** | 1.0% |
-| PWM | **4** | 1.0% |
-| Encoder | **3** | 0.7% |
-| SoC / Processor | **1** | 0.2% |
-| Communication / Serial | **1** | 0.2% |
-| Display / Decoder | **1** | 0.2% |
-| System Control / Alarm | **1** | 0.2% |
-| FSM / Security | **1** | 0.2% |
+| Arithmetic | **303** | 29.6% |
+| Counter | **129** | 12.6% |
+| Miscellaneous | **85** | 8.3% |
+| Logic Gates | **84** | 8.2% |
+| Clock & Timing | **70** | 6.8% |
+| Shift Register | **62** | 6.1% |
+| Memory / Storage | **58** | 5.7% |
+| FSM | **45** | 4.4% |
+| Multiplexer | **36** | 3.5% |
+| Code Converter | **35** | 3.4% |
+| Signal Conditioning | **26** | 2.5% |
+| Memory / FIFO | **20** | 2.0% |
+| Control / FSM | **19** | 1.9% |
+| Demultiplexer | **15** | 1.5% |
+| Decoder | **9** | 0.9% |
+| PWM | **9** | 0.9% |
+| Communication / Serial | **7** | 0.7% |
+| Interconnect | **4** | 0.4% |
+| Encoder | **3** | 0.3% |
+| SoC / Processor | **1** | 0.1% |
+| Display / Decoder | **1** | 0.1% |
+| System Control / Alarm | **1** | 0.1% |
+| FSM / Security | **1** | 0.1% |
+| Display / Video | **1** | 0.1% |
 
 ---
 
