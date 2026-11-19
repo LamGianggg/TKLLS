@@ -46,7 +46,11 @@ class VerilogLinter:
 
     @staticmethod
     def strip_comments_and_strings(code):
-        """Loại bỏ chú thích và chuỗi ký tự để tránh báo sai linter."""
+        """Loại bỏ chú thích, chuỗi ký tự và bóc tách block markdown (nếu có)."""
+        # Trích xuất mã Verilog nếu được bao bọc trong block markdown
+        m_code = re.search(r'```(?:verilog)?\s*([\s\S]*?)```', code)
+        if m_code:
+            code = m_code.group(1)
         code = re.sub(r"//.*$", "", code, flags=re.MULTILINE)
         code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
         code = re.sub(r'"(?:\\.|[^"\\])*"', '""', code)
@@ -102,14 +106,16 @@ class VerilogLinter:
             body_logic = re.sub(r'\b(?:input|output|inout|wire|reg)\s+[^;]+;', '', body)
 
             for pin in inputs:
-                if not re.search(r'\b' + pin + r'\b', body_logic):
+                escaped_pin = re.escape(pin)
+                if not re.search(r'\b' + escaped_pin + r'\b', body_logic):
                     dangling.append(f"DANGLING_INPUT: Cổng vào '{pin}' ở module '{mod_name}' không được kết nối tới logic nào")
 
             for pin in outputs:
+                escaped_pin = re.escape(pin)
                 is_assigned = (
-                    re.search(r'\bassign\s+' + pin + r'\b', body_logic) or
-                    re.search(r'\b' + pin + r'(?:\s*\[[^\]]+\])?\s*(?:<=|=)', body_logic) or
-                    re.search(r'\.\w+\s*\(\s*' + pin + r'\s*\)', body_logic)
+                    re.search(r'\bassign\s+[^;=]*\b' + escaped_pin + r'\b[^;]*=', body_logic) or
+                    re.search(r'\b' + escaped_pin + r'(?:\s*\[[^\]]+\])?\s*(?:<=|=)', body_logic) or
+                    re.search(r'\.\w+\s*\([^)]*\b' + escaped_pin + r'\b', body_logic)
                 )
                 if not is_assigned:
                     dangling.append(f"UNASSIGNED_OUTPUT: Cổng ra '{pin}' ở module '{mod_name}' không được gán giá trị")
@@ -156,7 +162,7 @@ class VerilogLinter:
                     assigned_vars = re.findall(r'\b([A-Za-z0-9_]+)\s*(?:\[[^\]]+\])?\s*=', im.group(2))
                     prior_code = body[:im.start()]
                     for v in set(assigned_vars):
-                        if not re.search(r'\b' + v + r'\b\s*(?:\[[^\]]+\])?\s*=', prior_code):
+                        if not re.search(r'\b' + re.escape(v) + r'\b\s*(?:\[[^\]]+\])?\s*=', prior_code):
                             latches.append(f"INFERRED_LATCH: Tín hiệu '{v}' trong 'if' thiếu nhánh 'else' và không có gán mặc định")
 
         return latches, races
@@ -168,9 +174,9 @@ class VerilogLinter:
         syntax_issues = []
 
         # 1. Kiểm tra cặp từ khóa cân bằng
-        for open_kw, close_kw, name in [('begin', 'end', 'begin/end'), ('case', 'endcase', 'case/endcase'), ('module', 'endmodule', 'module/endmodule')]:
-            open_count = len(re.findall(r'\b' + open_kw + r'\b', clean))
-            close_count = len(re.findall(r'\b' + close_kw + r'\b', clean))
+        for open_kw, close_kw, name in [('begin', 'end', 'begin/end'), ('case|casex|casez', 'endcase', 'case/endcase'), ('module', 'endmodule', 'module/endmodule')]:
+            open_count = len(re.findall(r'\b(?:' + open_kw + r')\b', clean))
+            close_count = len(re.findall(r'\b(?:' + close_kw + r')\b', clean))
             if open_count != close_count:
                 syntax_issues.append(f"Lệch số lượng khối {name}: {open_count} '{open_kw}' so với {close_count} '{close_kw}'")
 
