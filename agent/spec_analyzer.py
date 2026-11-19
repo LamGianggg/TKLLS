@@ -138,7 +138,11 @@ class SpecAnalyzer:
         if "traffic" in VanBan or "giao thong" in VanBan:
             return "TRAFFIC"
 
-        if any(TuKhoa in VanBan for TuKhoa in ["khoa", "khoa so", "password", "mat khau", "digital lock", "safe lock", "an ninh", "unlock"]):
+        if any(TuKhoa in VanBan for TuKhoa in ["debounc", "khu rung", "chong rung", "button_debouncer"]):
+            return "DEBOUNCER"
+        if any(TuKhoa in VanBan for TuKhoa in ["bao chay", "bao trom", "smart home", "nha thong minh", "smoke_gas", "motion_pir", "sprinkler"]):
+            return "SMART_ALARM"
+        if any(TuKhoa in VanBan for TuKhoa in ["khoa", "khoa so", "password", "mat khau", "digital lock", "safe lock", "unlock", "ket sat"]):
             return "DIGITAL_LOCK"
         if any(TuKhoa in VanBan for TuKhoa in ["uart", "uart_tx", "truyen noi tiep", "serial tx", "tx_data", "tx_serial"]):
             return "UART_TX"
