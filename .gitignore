@@ -39,4 +39,10 @@ quartus/*web_spec_*
 quartus/WebSpec*
 sim/wlf*
 
+# Deep learning model checkpoints and weights (>100MB GitHub limit)
+models/*.zip
+models/**/*.safetensors
+models/**/*.bin
+
+
 
