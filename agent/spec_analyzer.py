@@ -124,8 +124,41 @@ class SpecAnalyzer:
 
         return False
 
+    def check_unsupported_domain(self):
+        """Phát hiện các yêu cầu nằm ngoài phạm vi logic số có thể tổng hợp (Analog, PHY Hard IP)."""
+        VanBanTho = (os.path.basename(self.spec_path) + " " + self.content)
+        VanBan = remove_vietnamese_accents(VanBanTho)
+
+        AnalogTuKhoa = [
+            "op-amp", "opamp", "khuech dai thuat toan", "mach tuong tu", "analog",
+            "bandgap", "analog pll", "khuech dai vi sai analog"
+        ]
+        for Tu in AnalogTuKhoa:
+            if Tu in VanBan:
+                return True, "ANALOG_AMS", (
+                    "Yêu cầu thiết kế Mạch Tương Tự (Analog / Mixed-Signal). "
+                    "Hệ thống Spec2RTL chuyên biệt cho Logic Số Đồng Bộ (Synthesizable Synchronous Digital Logic). "
+                    "Mạch Analog đòi hỏi công cụ SPICE / Cadence Virtuoso và định cỡ Transistor (W/L), "
+                    "không thể tổng hợp bằng trình tổng hợp FPGA/ASIC (Quartus II)."
+                )
+
+        PhyTuKhoa = ["pcie phy", "ddr phy", "ddr4 phy", "ddr5 phy", "serdes phy", "gigabit phy", "usb3 phy"]
+        for Tu in PhyTuKhoa:
+            if Tu in VanBan:
+                return True, "HIGH_SPEED_PHY", (
+                    "Yêu cầu thiết kế Khối Vật Lý Siêu Cao Tần (Gigahertz SerDes PHY). "
+                    "Khối mạch này đòi hỏi thư viện Hard Macro PDK từ nhà máy đúc chip (Foundry: TSMC, Intel, GF), "
+                    "không thể tổng hợp từ mã Soft RTL thuần túy."
+                )
+
+        return False, None, None
+
     def classify_system(self):
         """Phân loại vi mạch vào các nhóm kiến trúc phần cứng."""
+        is_unsup, cat_code, _ = self.check_unsupported_domain()
+        if is_unsup:
+            return cat_code
+
         VanBanTho = (os.path.basename(self.spec_path) + " " + self.content)
         VanBan = remove_vietnamese_accents(VanBanTho)
 

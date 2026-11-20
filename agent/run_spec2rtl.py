@@ -179,6 +179,18 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         "TRAFFIC":  ("traffic_light", "Traffic_Light", BoSinhRtl.generate_traffic_light, BoSinhTb.generate_traffic_tb),
     }
 
+    is_unsup, domain_cat, reject_reason = BoPhanTich.check_unsupported_domain()
+    if is_unsup:
+        print("\n" + "=" * 80)
+        print("   [DOMAIN GUARD]: PHÁT HIỆN YÊU CẦU NGOÀI PHẠM VI HỆ THỐNG")
+        print("=" * 80)
+        print(f" -> [TRẠNG THÁI: TỪ CHỐI TỔNG HỢP / OUT-OF-DOMAIN REJECTED]")
+        print(f" -> Nhóm vi mạch không hỗ trợ: {domain_cat}")
+        print(f" -> Lý do kỹ thuật: {reject_reason}")
+        print("=" * 80)
+        print(">>> [SPEC2RTL STATUS: REJECTED (OUT OF SCOPE)] <<<\n")
+        return False, 0.0, TenModule, None, {"rejected_reason": reject_reason, "category": domain_cat}
+
     if PhanLoai == "SOC_AI" or BoPhanTich.is_30_percent_architecture():
         print("\n" + "=" * 80)
         print("   [CHIẾN LƯỢC PHÂN TÁCH KIẾN TRÚC]: BÁO HIỆU GIỚI HẠN KIẾN TRÚC PHẦN CỨNG")
