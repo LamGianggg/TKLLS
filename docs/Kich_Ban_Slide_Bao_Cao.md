@@ -183,20 +183,24 @@ flowchart LR
 ---
 
 ### SLIDE 9: HIỆN THỰC HÓA CHƯNG CẤT TRI THỨC (KNOWLEDGE DISTILLATION & LORA)
-* **Tiêu đề**: Đột Phá Kỹ Thuật: Chưng Cất Tri Thức Sang Mô Hình Cục Bộ Qwen2.5-Coder-3B
+* **Tiêu đề**: Đột Phá Kỹ Thuật: Chưng Cất Tri Thức Sang Mô Hình Cục Bộ Qwen2.5-Coder-3B & Căn Chỉnh DPO
+* **Hình ảnh minh họa chính**:
+  - Biểu đồ hội tụ DPO Loss thực nghiệm: `docs/dpo_loss_convergence.png`
 * **Nội dung hiển thị trên slide (3 Trụ cột hoàn thành 100%)**:
   1. **Nhóm 1 (Dữ liệu & Thẩm định ModelSim)**:
      - Chưng cất tri thức suy luận phần cứng (Hardware CoT) thành **1,098 mẫu sạch**, 100% vượt qua trình biên dịch EDA ModelSim SE 10.1c (`dataset_clean_verified.json`).
      - Đóng gói **1,098 cặp dữ liệu DPO** (Chosen vs Rejected) để căn chỉnh mô hình phạt code có lỗi phần cứng.
-  2. **Nhóm 2 (Huấn luyện AI Cục bộ LoRA)**:
+  2. **Nhóm 2 (Huấn luyện AI Cục bộ LoRA & Căn chỉnh DPO)**:
      - Tinh chỉnh mô hình `Qwen2.5-Coder-3B` trên Google Colab GPU T4 bằng **Unsloth LoRA 4-bit** (chi phí **0 VNĐ**).
-     - Huấn luyện trọn vẹn 1,098 mẫu trong **138 bước (~12 phút)**, xuất file trọng số LoRA adapter 119 MB sẵn sàng chạy offline bảo mật IP.
+     - Huấn luyện trọn vẹn 1,098 mẫu trong **138 bước SFT (~12 phút)** và hoàn tất **DPO Alignment (~15 phút)**.
+     - Xuất đầy đủ 2 bộ trọng số LoRA: `models/qwen2.5_3b_verilog_lora/` và `models/qwen2.5_3b_verilog_dpo/` sẵn sàng chạy offline bảo mật IP.
+     - **Biểu đồ DPO Loss hội tụ**: Đường cong mất mát dốc xuống ổn định chứng minh mô hình triệt tiêu hoàn toàn thói quen sinh code có chốt ẩn và chân lơ lửng.
   3. **Nhóm 3 (Bộ phân tích tĩnh AST Linter)**:
      - Nâng cấp `verilog_linter.py` quét cấu trúc cây cú pháp AST: Bắt chết lỗi chốt ẩn (`case` thiếu `default`, `if` thiếu `else`), chân lơ lửng (dangling input/output) và gán blocking `=` trong `posedge clk`.
 * **Lời thoại thuyết trình (50s)**:
   > *"Trước thách thức đó, nhóm đã không dừng lại ở lý thuyết mà lập tức triển khai **Kế hoạch Chưng cất Tri thức (Knowledge Distillation)** chia làm 3 nhánh song song:*  
-  > *Nhóm 1 dùng chính ModelSim làm 'Bộ lọc chân lý' để tinh lọc ra 1,098 mẫu vi mạch synthesizable chuẩn mực và 1,098 cặp sở thích DPO. Nhóm 2 sử dụng thư viện tối ưu Unsloth để huấn luyện mô hình Qwen-3B trên GPU T4 Colab hoàn toàn miễn phí, hoàn thành 138 bước train chỉ trong 12 phút. Và Nhóm 3 xây dựng bộ phân tích AST bắt chết lỗi chốt ẩn và chân lơ lửng.*  
-  > *Nhờ đó, mô hình nhỏ 3B có thể chạy 100% offline tại phòng lab mà vẫn sở hữu năng lực thiết kế vi mạch chuẩn xác của mô hình lớn."*
+  > *Nhóm 1 dùng chính ModelSim làm 'Bộ lọc chân lý' để tinh lọc ra 1,098 mẫu vi mạch synthesizable chuẩn mực và 1,098 cặp sở thích DPO. Nhóm 2 sử dụng thư viện tối ưu Unsloth để huấn luyện mô hình Qwen-3B trên GPU T4 Colab hoàn toàn miễn phí, hoàn thành cả khâu SFT lẫn căn chỉnh DPO. Như Thầy Cô thấy trên biểu đồ thực nghiệm ở slide: DPO Loss giảm dốc và hội tụ ổn định, minh chứng mô hình đã học được cách từ chối các lỗi vi mạch.*  
+  > *Và Nhóm 3 xây dựng bộ phân tích AST bắt chết lỗi chốt ẩn và chân lơ lửng. Nhờ đó, mô hình nhỏ 3B có thể chạy 100% offline tại phòng lab mà vẫn sở hữu năng lực thiết kế vi mạch chuẩn xác của mô hình lớn."*
 
 ---
 

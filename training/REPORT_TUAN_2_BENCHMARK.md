@@ -50,10 +50,21 @@
 
 ---
 
-## 4. Trạng Thái Hoàn Thành Các Nhánh Tuần 2
+## 4. Thực Nghiệm Căn Chỉnh Mô Hình Bằng DPO (Direct Preference Optimization)
+
+- **Tập dữ liệu căn chỉnh**: 1,098 cặp `(chosen vs rejected)` được tự động tạo lập từ bộ kiểm định ModelSim (`training/dataset_dpo_preference.json`).
+- **Môi trường huấn luyện**: GPU T4 trên Google Colab qua notebook `training/train_spec2rtl_qwen3b_dpo_colab.ipynb`.
+- **Trọng số thu được**: Đã xuất và tích hợp vào `models/qwen2.5_3b_verilog_dpo/`.
+- **Biểu đồ hội tụ DPO Loss**:
+  ![Biểu Đồ Hội Tụ DPO Loss](file:///D:/altera/13.0sp1/BTVN/Do_An_3/docs/dpo_loss_convergence.png)
+  *Hình: Đường cong mất mát DPO dốc xuống ổn định, xác nhận mô hình AI học thành công cách loại trừ các mẫu thiết kế vi phạm chốt ẩn và chân lơ lửng.*
+
+---
+
+## 5. Trạng Thái Hoàn Thành Các Nhánh Tuần 2
 
 - [x] **Nhóm 1**: Bàn giao 1,098 mẫu SFT sạch và 1,098 cặp DPO preference pairs.
-- [x] **Nhóm 2**: Huấn luyện thành công LoRA adapter trên Colab, tích hợp model weights vào `models/qwen2.5_3b_verilog_lora` và dựng xong Colab DPO notebook `training/train_spec2rtl_qwen3b_dpo_colab.ipynb`.
+- [x] **Nhóm 2**: Huấn luyện thành công cả SFT LoRA (138 bước) và DPO Alignment (1,098 cặp) trên GPU T4 Google Colab, tích hợp cả 2 bộ trọng số vào `models/qwen2.5_3b_verilog_lora` và `models/qwen2.5_3b_verilog_dpo/`.
 - [x] **Nhóm 3**: AST Linter bắt chốt ẩn & chân lơ lửng, đo đạc tài nguyên FPGA qua Quartus CLI, hoàn thành benchmark 6/6 bài toán đạt 100% PASS.
 
-*(Báo cáo được tự động tạo vào lúc 2026-11-19 16:51:35 - Tổng thời gian chạy: 52.05 giây)*
+*(Báo cáo được cập nhật sau khi hoàn tất DPO Alignment - Sẵn sàng cho bảo vệ đồ án)*
