@@ -19,12 +19,12 @@
 
 | ID | Tên Vi Mạch (Module) | Phân Loại Kiến Trúc | ModelSim Pass@1 | AST Hardware Linter | Logic Elements (LEs) | Flip-Flops (FFs) | I/O Pins | Thời Gian Chạy |
 | :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | `uart_tx_8bit` | Bộ phát UART TX 8-bit tuần tự | **100% PASS** | 100% Sạch (0 Lỗi) | 28 LEs | 17 FFs | 13 Pins | 17.94s |
-| 2 | `button_debouncer` | Mạch khử rung phím bấm (Case study Thầy chỉ ra) | **100% PASS** | 100% Sạch (0 Lỗi) | 6 LEs | 6 FFs | 5 Pins | 7.0s |
-| 3 | `bcd_to_7seg_anode` | Bộ giải mã BCD sang LED 7 đoạn Anode | **100% PASS** | 100% Sạch (0 Lỗi) | 7 LEs | 0 FFs | 11 Pins | 11.48s |
-| 4 | `canh_bao_an_ninh_bao_chay_nha_thong_minh` | Hệ thống FSM cảnh báo an ninh & báo cháy | **100% PASS** | 100% Sạch (0 Lỗi) | 4 LEs | 4 FFs | 9 Pins | 5.09s |
-| 5 | `decoder_3to8` | Bộ giải mã địa chỉ 3 sang 8 tổ hợp | **100% PASS** | 100% Sạch (0 Lỗi) | 8 LEs | 0 FFs | 12 Pins | 4.0s |
-| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 100% Sạch (0 Lỗi) | 25 LEs | 9 FFs | 14 Pins | 6.53s |
+| 1 | `uart_tx_8bit` | Bộ phát UART TX 8-bit tuần tự | **100% PASS** | 100% Sạch (0 Lỗi) | 28 LEs | 17 FFs | 13 Pins | 19.85s |
+| 2 | `button_debouncer` | Mạch khử rung phím bấm (Case study Thầy chỉ ra) | **100% PASS** | 100% Sạch (0 Lỗi) | 6 LEs | 6 FFs | 5 Pins | 5.01s |
+| 3 | `bcd_to_7seg_anode` | Bộ giải mã BCD sang LED 7 đoạn Anode | **100% PASS** | 100% Sạch (0 Lỗi) | 7 LEs | 0 FFs | 11 Pins | 5.19s |
+| 4 | `canh_bao_an_ninh_bao_chay_nha_thong_minh` | Hệ thống FSM cảnh báo an ninh & báo cháy | **100% PASS** | 100% Sạch (0 Lỗi) | 4 LEs | 4 FFs | 9 Pins | 5.39s |
+| 5 | `decoder_3to8` | Bộ giải mã địa chỉ 3 sang 8 tổ hợp | **100% PASS** | 100% Sạch (0 Lỗi) | 8 LEs | 0 FFs | 12 Pins | 4.84s |
+| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 100% Sạch (0 Lỗi) | 25 LEs | 9 FFs | 14 Pins | 4.77s |
 
 ---
 
@@ -50,21 +50,10 @@
 
 ---
 
-## 4. Thực Nghiệm Căn Chỉnh Mô Hình Bằng DPO (Direct Preference Optimization)
-
-- **Tập dữ liệu căn chỉnh**: 1,098 cặp `(chosen vs rejected)` được tự động tạo lập từ bộ kiểm định ModelSim (`training/dataset_dpo_preference.json`).
-- **Môi trường huấn luyện**: GPU T4 trên Google Colab qua notebook `training/train_spec2rtl_qwen3b_dpo_colab.ipynb`.
-- **Trọng số thu được**: Đã xuất và tích hợp vào `models/qwen2.5_3b_verilog_dpo/`.
-- **Biểu đồ hội tụ DPO Loss**:
-  ![Biểu Đồ Hội Tụ DPO Loss](file:///D:/altera/13.0sp1/BTVN/Do_An_3/docs/dpo_loss_convergence.png)
-  *Hình: Đường cong mất mát DPO dốc xuống ổn định, xác nhận mô hình AI học thành công cách loại trừ các mẫu thiết kế vi phạm chốt ẩn và chân lơ lửng.*
-
----
-
-## 5. Trạng Thái Hoàn Thành Các Nhánh Tuần 2
+## 4. Trạng Thái Hoàn Thành Các Nhánh Tuần 2
 
 - [x] **Nhóm 1**: Bàn giao 1,098 mẫu SFT sạch và 1,098 cặp DPO preference pairs.
-- [x] **Nhóm 2**: Huấn luyện thành công cả SFT LoRA (138 bước) và DPO Alignment (1,098 cặp) trên GPU T4 Google Colab, tích hợp cả 2 bộ trọng số vào `models/qwen2.5_3b_verilog_lora` và `models/qwen2.5_3b_verilog_dpo/`.
+- [x] **Nhóm 2**: Huấn luyện thành công LoRA adapter trên Colab, tích hợp model weights vào `models/qwen2.5_3b_verilog_lora` và dựng xong Colab DPO notebook `training/train_spec2rtl_qwen3b_dpo_colab.ipynb`.
 - [x] **Nhóm 3**: AST Linter bắt chốt ẩn & chân lơ lửng, đo đạc tài nguyên FPGA qua Quartus CLI, hoàn thành benchmark 6/6 bài toán đạt 100% PASS.
 
-*(Báo cáo được cập nhật sau khi hoàn tất DPO Alignment - Sẵn sàng cho bảo vệ đồ án)*
+*(Báo cáo được tự động tạo vào lúc 2026-11-22 11:22:10 - Tổng thời gian chạy: 45.06 giây)*
