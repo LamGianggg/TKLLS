@@ -151,6 +151,24 @@ class SpecAnalyzer:
                     "không thể tổng hợp từ mã Soft RTL thuần túy."
                 )
 
+        # Phát hiện nội dung không liên quan đến thiết kế phần cứng vi mạch (Out-of-Domain / Irrelevant Input)
+        TuKhoaPhanCung = [
+            "mach", "circuit", "module", "port", "cong", "chan", "pin", "input", "output", "inout",
+            "wire", "reg", "clk", "clock", "rst", "reset", "fsm", "trang thai", "state", "bit",
+            "logic", "dem", "counter", "alu", "nhan", "cong", "tru", "chia", "shift", "dich",
+            "mux", "demux", "giai ma", "decoder", "ma hoa", "encoder", "thang may", "elevator",
+            "giao thong", "traffic", "ban nuoc", "vending", "khoa", "lock", "uart", "spi", "i2c",
+            "pwm", "ram", "rom", "dma", "soc", "npu", "fpga", "verilog", "hdl", "rtl", "7seg",
+            "led", "sensor", "cam bien", "nhiet do", "bao chay", "bao dong", "step motor", "debounc",
+            "chong rung", "so do", "datapath", "register", "flip flop"
+        ]
+        if not any(Tu in VanBan for Tu in TuKhoaPhanCung) and not self.extract_ports():
+            return True, "IRRELEVANT_INPUT", (
+                "Văn bản đầu vào không chứa bất kỳ thông tin, tín hiệu I/O hoặc yêu cầu thiết kế logic vi mạch nào. "
+                "Hệ thống Spec2RTL & Prompt2Silicon chuyên biệt cho thiết kế vi mạch kỹ thuật số (ví dụ: bộ đếm, FSM, ALU, UART, v.v.). "
+                "Vui lòng cung cấp mô tả mạch phần cứng để tiếp tục."
+            )
+
         return False, None, None
 
     def classify_system(self):

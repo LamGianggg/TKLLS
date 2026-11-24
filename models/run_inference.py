@@ -18,6 +18,25 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
     print("=" * 80)
     print(f"[*] Thư mục LoRA Adapter: {model_dir}")
 
+    # 1. Kiểm tra Domain Guard (Chặn các câu hỏi không liên quan, văn bản rác, hoặc mạch Analog)
+    ThuMucGoc = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ThuMucAgent = os.path.join(ThuMucGoc, "agent")
+    if ThuMucAgent not in sys.path:
+        sys.path.insert(0, ThuMucAgent)
+    try:
+        from spec_analyzer import SpecAnalyzer
+        bo_phan_tich = SpecAnalyzer(spec_text)
+        is_unsup, cat_code, reason = bo_phan_tich.check_unsupported_domain()
+        if is_unsup:
+            print("\n" + "=" * 80)
+            print(f"   [DOMAIN GUARD]: TỪ CHỐI XỬ LÝ ({cat_code})")
+            print("=" * 80)
+            print(f"[*] Lý do kỹ thuật: {reason}")
+            print("=" * 80)
+            return None
+    except Exception as e:
+        pass
+
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
