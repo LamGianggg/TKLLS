@@ -89,6 +89,13 @@ class VWFGenerator:
                         if TenTinHieu not in LichSuDoiGiaTri:
                             LichSuDoiGiaTri[TenTinHieu] = []
                         LichSuDoiGiaTri[TenTinHieu].append((ThoiDiemHienTaiNs, GiaTriNhiPhan))
+
+                        # Tách bit con cho bus để ánh xạ vào SIGNAL bus con TenTinHieu[i]
+                        for ChiSo, KyTuBit in enumerate(reversed(GiaTriNhiPhan)):
+                            TenBitCon = f"{TenTinHieu}[{ChiSo}]"
+                            if TenBitCon not in LichSuDoiGiaTri:
+                                LichSuDoiGiaTri[TenBitCon] = []
+                            LichSuDoiGiaTri[TenBitCon].append((ThoiDiemHienTaiNs, KyTuBit))
             else:
                 # Tín hiệu đơn: 0+, 1!, x?
                 GiaTri = Dong[0]
@@ -113,17 +120,19 @@ class VWFGenerator:
 
             for ThoiDiem, MucMoi in DanhSachThayDoi:
                 if ThoiDiem > ThoiDiemDau:
-                    KhoangThoiGian = ThoiDiem - ThoiDiemDau
-                    MucChuan = '1' if MucHienTai in ['1', 1] else ('0' if MucHienTai in ['0', 0] else 'X')
-                    CacDoan.append((MucChuan, KhoangThoiGian))
-                    ThoiDiemDau = ThoiDiem
+                    KhoangThoiGian = round(ThoiDiem - ThoiDiemDau, 3)
+                    if KhoangThoiGian > 0.001:
+                        MucChuan = '1' if MucHienTai in ['1', 1] else ('0' if MucHienTai in ['0', 0] else 'X')
+                        CacDoan.append((MucChuan, KhoangThoiGian))
+                        ThoiDiemDau = ThoiDiem
                 MucHienTai = MucMoi
 
             # Đoạn cuối cùng đến hết ThoiGianNs
             if ThoiGianNs > ThoiDiemDau:
-                KhoangThoiGian = ThoiGianNs - ThoiDiemDau
-                MucChuan = '1' if MucHienTai in ['1', 1] else ('0' if MucHienTai in ['0', 0] else 'X')
-                CacDoan.append((MucChuan, KhoangThoiGian))
+                KhoangThoiGian = round(ThoiGianNs - ThoiDiemDau, 3)
+                if KhoangThoiGian > 0.001:
+                    MucChuan = '1' if MucHienTai in ['1', 1] else ('0' if MucHienTai in ['0', 0] else 'X')
+                    CacDoan.append((MucChuan, KhoangThoiGian))
 
             KetQuaChuyenTrangThai[Ten] = CacDoan
 
@@ -149,18 +158,35 @@ class VWFGenerator:
         KhoiCong = KhopModule.group(2)
 
         DanhSachCong = []
+        HuongHienTai = "INPUT"
+        MsbHienTai, LsbHienTai = None, None
+        TuKhoaBoQua = {"input", "output", "inout", "wire", "reg", "logic"}
+
         for Dong in KhoiCong.split(","):
             Dong = Dong.strip()
-            KhopCong = re.search(r"(input|output|inout)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", Dong)
-            if KhopCong:
-                Huong, Msb, Lsb, TenCong = KhopCong.groups()
-                DoRong = (int(Msb) - int(Lsb) + 1) if Msb and Lsb else 1
+            if not Dong:
+                continue
+            KhopHuong = re.search(r"\b(input|output|inout)\b", Dong, re.IGNORECASE)
+            if KhopHuong:
+                HuongHienTai = KhopHuong.group(1).upper()
+                KhopRong = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", Dong)
+                if KhopRong:
+                    MsbHienTai, LsbHienTai = int(KhopRong.group(1)), int(KhopRong.group(2))
+                else:
+                    MsbHienTai, LsbHienTai = None, None
+
+            KhopTen = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", Dong)
+            if KhopTen:
+                TenCong = KhopTen.group(1)
+                if TenCong.lower() in TuKhoaBoQua:
+                    continue
+                DoRong = (abs(MsbHienTai - LsbHienTai) + 1) if (MsbHienTai is not None and LsbHienTai is not None) else 1
                 DanhSachCong.append({
                     "name": TenCong,
-                    "direction": Huong.upper(),
+                    "direction": HuongHienTai,
                     "width": DoRong,
-                    "msb": int(Msb) if Msb else 0,
-                    "lsb": int(Lsb) if Lsb else 0,
+                    "msb": MsbHienTai if MsbHienTai is not None else 0,
+                    "lsb": LsbHienTai if LsbHienTai is not None else 0,
                     "is_bus": DoRong > 1
                 })
 

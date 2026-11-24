@@ -19,12 +19,12 @@
 
 | ID | Tên Vi Mạch (Module) | Phân Loại Kiến Trúc | ModelSim Pass@1 | AST Hardware Linter | Logic Elements (LEs) | Flip-Flops (FFs) | I/O Pins | Thời Gian Chạy |
 | :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | `uart_tx_8bit` | Bộ phát UART TX 8-bit tuần tự | **100% PASS** | 100% Sạch (0 Lỗi) | 28 LEs | 17 FFs | 13 Pins | 30.51s |
-| 2 | `button_debouncer` | Mạch khử rung phím bấm (Case study Thầy chỉ ra) | **100% PASS** | 100% Sạch (0 Lỗi) | 6 LEs | 6 FFs | 5 Pins | 8.26s |
-| 3 | `bcd_to_7seg_anode` | Bộ giải mã BCD sang LED 7 đoạn Anode | **100% PASS** | 100% Sạch (0 Lỗi) | 7 LEs | 0 FFs | 11 Pins | 5.43s |
-| 4 | `canh_bao_an_ninh_bao_chay_nha_thong_minh` | Hệ thống FSM cảnh báo an ninh & báo cháy | **100% PASS** | 100% Sạch (0 Lỗi) | 4 LEs | 4 FFs | 9 Pins | 4.68s |
-| 5 | `decoder_3to8` | Bộ giải mã địa chỉ 3 sang 8 tổ hợp | **100% PASS** | 100% Sạch (0 Lỗi) | 8 LEs | 0 FFs | 12 Pins | 4.44s |
-| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 100% Sạch (0 Lỗi) | 25 LEs | 9 FFs | 14 Pins | 7.45s |
+| 1 | `uart_tx_8bit` | Bộ phát UART TX 8-bit tuần tự | **100% PASS** | 100% Sạch (0 Lỗi) | 28 LEs | 17 FFs | 13 Pins | 26.5s |
+| 2 | `button_debouncer` | Mạch khử rung phím bấm (Case study Thầy chỉ ra) | **100% PASS** | 100% Sạch (0 Lỗi) | 6 LEs | 6 FFs | 5 Pins | 7.65s |
+| 3 | `bcd_to_7seg_anode` | Bộ giải mã BCD sang LED 7 đoạn Anode | **100% PASS** | 100% Sạch (0 Lỗi) | 7 LEs | 0 FFs | 11 Pins | 4.81s |
+| 4 | `canh_bao_an_ninh_bao_chay_nha_thong_minh` | Hệ thống FSM cảnh báo an ninh & báo cháy | **100% PASS** | 100% Sạch (0 Lỗi) | 4 LEs | 4 FFs | 9 Pins | 4.82s |
+| 5 | `decoder_3to8` | Bộ giải mã địa chỉ 3 sang 8 tổ hợp | **100% PASS** | 100% Sạch (0 Lỗi) | 8 LEs | 0 FFs | 12 Pins | 6.56s |
+| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 100% Sạch (0 Lỗi) | 25 LEs | 9 FFs | 14 Pins | 4.55s |
 
 ---
 
@@ -56,4 +56,4 @@
 - [x] **Nhóm 2**: Huấn luyện thành công LoRA adapter trên Colab, tích hợp model weights vào `models/qwen2.5_3b_verilog_lora` và dựng xong Colab DPO notebook `training/train_spec2rtl_qwen3b_dpo_colab.ipynb`.
 - [x] **Nhóm 3**: AST Linter bắt chốt ẩn & chân lơ lửng, đo đạc tài nguyên FPGA qua Quartus CLI, hoàn thành benchmark 6/6 bài toán đạt 100% PASS.
 
-*(Báo cáo được tự động tạo vào lúc 2026-11-24 13:53:44 - Tổng thời gian chạy: 60.78 giây)*
+*(Báo cáo được tự động tạo vào lúc 2026-11-24 17:23:43 - Tổng thời gian chạy: 54.89 giây)*

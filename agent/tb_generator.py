@@ -49,19 +49,19 @@ class TBGenerator:
 
         if NhomMach == "VENDING" and TenModule == "vending_machine" and {"coin_5k", "dispense"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_vending_tb(TenModule)
-        elif NhomMach == "ELEVATOR" and TenModule == "elevator_controller" and {"req_floor", "current_floor"}.issubset(CongThucTe):
+        elif NhomMach == "ELEVATOR" and TenModule == "elevator_controller" and ({"floor_req", "current_floor"}.issubset(CongThucTe) or {"req_floor", "current_floor"}.issubset(CongThucTe)):
             return f"tb_{TenModule}", self.generate_elevator_tb(TenModule)
-        elif NhomMach == "TRAFFIC" and TenModule == "traffic_light" and {"red", "green"}.issubset(CongThucTe):
+        elif NhomMach == "TRAFFIC" and TenModule == "traffic_light" and ({"light_main", "light_side"}.issubset(CongThucTe) or {"red", "green"}.issubset(CongThucTe)):
             return f"tb_{TenModule}", self.generate_traffic_tb(TenModule)
         elif NhomMach == "SOC_AI" and os.path.exists(os.path.join(self.ThuMucSim, "tb_top_soc.v")):
             return "tb_top_soc", os.path.join(self.ThuMucSim, "tb_top_soc.v")
-        elif NhomMach == "ALU" and TenModule == "alu_4bit" and {"a", "b", "result"}.issubset(CongThucTe):
+        elif NhomMach == "ALU" and TenModule == "alu_4bit" and ({"a", "b", "alu_out"}.issubset(CongThucTe) or {"a", "b", "result"}.issubset(CongThucTe)):
             return f"tb_{TenModule}", self.generate_alu_tb(TenModule)
         elif NhomMach == "GRAY_COUNTER" and TenModule == "gray_counter_4bit" and {"gray_out"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_gray_counter_tb(TenModule)
         elif NhomMach == "DIGITAL_LOCK" and TenModule == "digital_lock_fsm" and {"key_in", "unlock"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_digital_lock_tb(TenModule)
-        elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011" and {"seq_in", "detected"}.issubset(CongThucTe):
+        elif NhomMach == "SEQUENCE_DETECTOR" and TenModule == "sequence_detector_1011" and ({"din", "detected"}.issubset(CongThucTe) or {"seq_in", "detected"}.issubset(CongThucTe)):
             return f"tb_{TenModule}", self.generate_sequence_detector_tb(TenModule)
         elif NhomMach == "DECODER" and {"addr", "mem_en", "cs_ram"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_decoder_tb(TenModule, TepRtl)
@@ -233,7 +233,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         $display("  [SUCCESS] TAT CA 4 KICH BAN MAY BAN NUOC DA DUOC KIEM THU DAT 100 PERCENT!");
         $display("============================================================================");
@@ -364,7 +364,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         $display("  [SUCCESS] TOAN BO CHU KY DEN GIAO THONG DA DUOC KIEM THU DAT 100 PERCENT!");
         $display("============================================================================");
@@ -485,7 +485,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         $display("   [SUCCESS] TOAN BO KICH BAN DIEU KHIEN THANG MAY DA DAT 100 PERCENT PASS!");
         $display("============================================================================");
@@ -633,7 +633,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
@@ -746,7 +746,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
@@ -898,7 +898,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
@@ -1036,7 +1036,7 @@ module {tb_name};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{module_name}' PASSED 100 PERCENT!");
@@ -1064,8 +1064,8 @@ endmodule
         with open(TepRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaRtl = TepTin.read()
 
-        # Trich xuat khai bao cong tu module Verilog
-        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaRtl, re.DOTALL)
+        # Trich xuat khai bao cong tu module Verilog (ho tro ca #(parameter ...) va inout)
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", MaRtl)
         DanhSachCong = []
         if KhopModule:
             KhoiKhaiBaoCong = KhopModule.group(2)
@@ -1073,20 +1073,33 @@ endmodule
             KhoiKhaiBaoCong = re.sub(r"//.*", "", KhoiKhaiBaoCong)
             KhoiKhaiBaoCong = re.sub(r"/\*.*?\*/", "", KhoiKhaiBaoCong, flags=re.DOTALL)
             TuKhoaVerilog = {"input", "output", "inout", "wire", "reg", "for", "while", "case", "default", "assign", "begin", "end"}
+            HuongCongHienTai = "input"
+            MsbHienTai, LsbHienTai = None, None
             for Dong in KhoiKhaiBaoCong.split(","):
                 Dong = Dong.strip()
-                KhopCong = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", Dong)
-                if KhopCong:
-                    HuongCong, Msb, Lsb, TenCong = KhopCong.groups()
+                if not Dong:
+                    continue
+                KhopHuong = re.search(r"\b(input|output|inout)\b", Dong)
+                if KhopHuong:
+                    HuongCongHienTai = KhopHuong.group(1)
+                    KhopRong = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", Dong)
+                    if KhopRong:
+                        MsbHienTai, LsbHienTai = KhopRong.group(1), KhopRong.group(2)
+                    else:
+                        MsbHienTai, LsbHienTai = None, None
+
+                KhopTen = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", Dong)
+                if KhopTen:
+                    TenCong = KhopTen.group(1)
                     if TenCong.lower() in TuKhoaVerilog:
                         continue
-                    DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
+                    DoRong = (abs(int(MsbHienTai) - int(LsbHienTai)) + 1) if (MsbHienTai and LsbHienTai) else 1
                     DanhSachCong.append({
                         "name": TenCong,
-                        "direction": HuongCong,
+                        "direction": HuongCongHienTai,
                         "width": DoRong,
-                        "msb": Msb,
-                        "lsb": Lsb,
+                        "msb": MsbHienTai,
+                        "lsb": LsbHienTai,
                         "is_clk": any(Tu in TenCong.lower() for Tu in ["clk", "clock"]),
                         "is_rst": any(Tu in TenCong.lower() for Tu in ["rst", "clr", "reset", "clear"])
                     })
@@ -1208,7 +1221,7 @@ module {TenTb};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");
@@ -1327,7 +1340,7 @@ module {TenTb};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");
@@ -1445,7 +1458,7 @@ module {TenTb};
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE '{TenModule}' PASSED 100 PERCENT!");

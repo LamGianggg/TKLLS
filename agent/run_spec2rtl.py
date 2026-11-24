@@ -130,6 +130,12 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
             if os.path.exists(DuongDanTam):
                 try: shutil.rmtree(DuongDanTam, ignore_errors=True)
                 except Exception: pass
+        # Xóa các file báo cáo tổng hợp cũ để tránh đọc kết quả cũ nếu quartus_map lỗi
+        for FileBaoCaoCu in [f"{TenDuAn}.map.summary", f"{TenDuAn}.map.rpt"]:
+            DuongDanBaoCaoCu = os.path.join(ThuMucQuartus, FileBaoCaoCu)
+            if os.path.exists(DuongDanBaoCaoCu):
+                try: os.remove(DuongDanBaoCaoCu)
+                except Exception: pass
         try:
             subprocess.run([FileQuartusMap, TenDuAn, "-c", TenDuAn], cwd=ThuMucQuartus, capture_output=True, timeout=60)
         except Exception as e:

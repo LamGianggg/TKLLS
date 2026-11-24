@@ -22,11 +22,29 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
-    except ImportError:
-        print("[!] Lưu ý: Môi trường cục bộ cần cài đặt 'torch', 'transformers', 'peft'.")
-        print("    Trên môi trường Google Colab / GPU Server, mô hình chạy ở tốc độ 45 tokens/s.")
-        print("    Tham khảo mã chạy thực nghiệm tại: training/train_spec2rtl_qwen3b_dpo_colab.ipynb (Bước 6).")
-        return None
+    except (ImportError, OSError, Exception) as e:
+        print(f"[!] Không thể nạp PyTorch / Transformers ({e}).")
+        print("    Tự động chuyển tiếp (Fallback) sang bộ sinh RTL phần cứng tích hợp: agent/rtl_generator.py...")
+        try:
+            ThuMucGoc = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ThuMucAgent = os.path.join(ThuMucGoc, "agent")
+            if ThuMucAgent not in sys.path:
+                sys.path.insert(0, ThuMucAgent)
+            from rtl_generator import RTLGenerator
+            
+            generator = RTLGenerator()
+            _, file_path = generator.generate_from_spec(spec_text)
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                response = f.read()
+            print("\n" + "=" * 80)
+            print("MÃ NGUỒN VERILOG ĐƯỢC SINH BỞI FALLBACK EXPERT RTL GENERATOR:")
+            print("=" * 80)
+            print(response)
+            print("=" * 80)
+            return response
+        except Exception as fallback_err:
+            print(f"[!] Fallback thất bại: {fallback_err}")
+            return None
 
     base_model_name = "Qwen/Qwen2.5-Coder-3B-Instruct"
     print(f"[*] Đang nạp Tokenizer & Mô hình nền: {base_model_name}...")
@@ -73,7 +91,7 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
     with torch.no_grad():
         generated_ids = model.generate(
             **inputs,
-            max_new_tokens=512,
+            max_new_tokens=1024,
             temperature=0.2,
             top_p=0.9,
             do_sample=True

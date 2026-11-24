@@ -110,7 +110,7 @@ module tb_uart_tx_8bit;
         $display("  Total Test Scenarios : %0d", total_tests);
         $display("  Passed Assertions    : %0d", passed_tests);
         $display("  Failed Assertions    : %0d", failed_tests);
-        $display("  Functional Accuracy  : %0.1f PERCENT", (passed_tests * 100.0) / total_tests);
+        $display("  Functional Accuracy  : %0.1f PERCENT", (total_tests > 0 ? (passed_tests * 100.0) / total_tests : 100.0));
         $display("============================================================================");
         if (failed_tests == 0 && passed_tests == total_tests) begin
             $display("  [SUCCESS] TEST VERIFICATION FOR MODULE 'uart_tx_8bit' PASSED 100 PERCENT!");

@@ -14,35 +14,35 @@ class PortAuditor:
         if not CongSpec or not os.path.exists(DuongDanRtl):
             return True
 
-        # 1. Trích xuất cổng từ mã RTL Verilog
+        # 1. Trích xuất cổng từ mã RTL Verilog (hỗ trợ cả parameter #(...) và inout)
         with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaRtl = TepTin.read()
-        MauModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaRtl, re.DOTALL)
+        MauModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", MaRtl)
         CongRtl = {}
         if MauModule:
             ChuoiCong = re.sub(r"//.*", "", MauModule.group(2))
             ChuoiCong = re.sub(r"/\*.*?\*/", "", ChuoiCong, flags=re.DOTALL)
             for Dong in ChuoiCong.split(","):
-                MauCong = re.search(r"(input|output)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", Dong.strip())
+                MauCong = re.search(r"(input|output|inout)\s+(?:wire|reg)?\s*(?:\[\s*(\d+)\s*:\s*(\d+)\s*\])?\s*([A-Za-z0-9_]+)", Dong.strip())
                 if MauCong:
                     Huong, Msb, Lsb, TenCong = MauCong.groups()
                     DoRong = abs(int(Msb) - int(Lsb)) + 1 if (Msb and Lsb) else 1
                     CongRtl[TenCong.lower()] = {"name": TenCong, "dir": Huong, "width": DoRong}
 
-        # 2. Trích xuất cổng từ file Symbol BSF của Quartus
+        # 2. Trích xuất cổng từ file Symbol BSF của Quartus (chỉ lấy trong khối (port ...), bỏ qua tên module và inst)
         CongBsf = set()
         if os.path.exists(DuongDanBsf):
             with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
                 NoiDungBsf = TepTin.read()
-            for Ten in re.findall(r'\(text\s+"([A-Za-z0-9_]+)(?:\[.*?\])?"', NoiDungBsf):
-                CongBsf.add(Ten.lower())
+            for KhopPort in re.finditer(r'\(port[\s\S]*?\(text\s+"([A-Za-z0-9_]+)(?:\[.*?\])?"', NoiDungBsf):
+                CongBsf.add(KhopPort.group(1).lower())
 
-        # 3. Trích xuất chân tín hiệu từ sơ đồ BDF
+        # 3. Trích xuất chân tín hiệu từ sơ đồ BDF (hỗ trợ input, output, bidir)
         ChanBdf = set()
         if os.path.exists(DuongDanBdf):
             with open(DuongDanBdf, "r", encoding="utf-8", errors="replace") as TepTin:
                 NoiDungBdf = TepTin.read()
-            for KhopChan in re.finditer(r'\(pin\s*\n\s*\((?:input|output)\)\s*.*?\n\s*\(text\s+"(?:INPUT|OUTPUT)".*?\n\s*\(text\s+"([A-Za-z0-9_]+)', NoiDungBdf, re.DOTALL):
+            for KhopChan in re.finditer(r'\(pin\s+\((?:input|output|bidir)\)[\s\S]*?\(text\s+"(?:INPUT|OUTPUT|BIDIR)"[\s\S]*?\(text\s+"([A-Za-z0-9_]+)', NoiDungBdf):
                 ChanBdf.add(KhopChan.group(1).lower())
 
         DanhSachDong = []

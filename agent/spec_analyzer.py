@@ -166,7 +166,7 @@ class SpecAnalyzer:
             return "SOC_AI"
         if "vend" in VanBan or "ban nuoc" in VanBan:
             return "VENDING"
-        if "thang" in VanBan or "elevator" in VanBan:
+        if any(TuKhoa in VanBan for TuKhoa in ["thang may", "elevator", "lift_ctrl", "cabin_floor"]):
             return "ELEVATOR"
         if "traffic" in VanBan or "giao thong" in VanBan:
             return "TRAFFIC"
@@ -175,7 +175,7 @@ class SpecAnalyzer:
             return "DEBOUNCER"
         if any(TuKhoa in VanBan for TuKhoa in ["bao chay", "bao trom", "smart home", "nha thong minh", "smoke_gas", "motion_pir", "sprinkler"]):
             return "SMART_ALARM"
-        if any(TuKhoa in VanBan for TuKhoa in ["khoa", "khoa so", "password", "mat khau", "digital lock", "safe lock", "unlock", "ket sat"]):
+        if any(TuKhoa in VanBan for TuKhoa in ["khoa so", "khoa dien tu", "khoa ma", "password", "mat khau", "digital lock", "safe lock", "unlock", "ket sat"]):
             return "DIGITAL_LOCK"
         if any(TuKhoa in VanBan for TuKhoa in ["uart", "uart_tx", "truyen noi tiep", "serial tx", "tx_data", "tx_serial"]):
             return "UART_TX"
@@ -231,8 +231,8 @@ class SpecAnalyzer:
             "wire", "reg", "logic", "ra", "vao"
         }
 
-        # 1. Trích xuất từ bảng Markdown
-        MauBang = r"\|\s*`?\*?\*?([A-Za-z0-9_]+)\*?\*?`?\s*\|\s*([A-Za-z\s]+)\s*\|\s*([^\|]+)\|\s*([^\|]+)\|"
+        # 1. Trích xuất từ bảng Markdown (hỗ trợ cả tiếng Việt 'Đầu vào', 'Đầu ra' có dấu)
+        MauBang = r"\|\s*`?\*?\*?([A-Za-z0-9_]+)\*?\*?`?\s*\|\s*([^\|]+)\|\s*([^\|]+)\|\s*([^\|]+)\|"
         for KhopBang in re.finditer(MauBang, self.content):
             Ten, Huong, ChuoiRong, MoTa = KhopBang.groups()
             TenSach = Ten.strip()
@@ -245,8 +245,8 @@ class SpecAnalyzer:
                 elif KhopBit:
                     DoRong = int(KhopBit.group(1))
 
-                HuongSach = Huong.strip().lower()
-                HuongChuan = "output" if any(TuKhoa in HuongSach for TuKhoa in ["out", "ra", "output"]) else "input"
+                HuongSach = remove_vietnamese_accents(Huong.strip().lower())
+                HuongChuan = "output" if any(TuKhoa in HuongSach for TuKhoa in ["out", "ra", "output", "dau ra", "ngo ra"]) else "input"
                 DanhSachCong.append({
                     "name": TenSach,
                     "direction": HuongChuan,

@@ -36,26 +36,26 @@ class SynthesisProfiler:
             MauHoChip = re.search(r"Family\s*:\s*([^\n\r]+)", NoiDung)
             if MauHoChip: ThongSo["family"] = MauHoChip.group(1).strip()
 
-            MauLe = re.search(r"Total logic elements\s*:\s*(\d+)", NoiDung)
-            if MauLe: ThongSo["logic_elements"] = int(MauLe.group(1))
+            MauLe = re.search(r"Total logic elements\s*:\s*([\d,]+)", NoiDung)
+            if MauLe: ThongSo["logic_elements"] = int(MauLe.group(1).replace(",", ""))
 
-            MauToHop = re.search(r"Total combinational functions\s*:\s*(\d+)", NoiDung)
-            if MauToHop: ThongSo["combinational_functions"] = int(MauToHop.group(1))
+            MauToHop = re.search(r"Total combinational functions\s*:\s*([\d,]+)", NoiDung)
+            if MauToHop: ThongSo["combinational_functions"] = int(MauToHop.group(1).replace(",", ""))
 
-            MauThanhGhiRieng = re.search(r"Dedicated logic registers\s*:\s*(\d+)", NoiDung)
-            if MauThanhGhiRieng: ThongSo["dedicated_registers"] = int(MauThanhGhiRieng.group(1))
+            MauThanhGhiRieng = re.search(r"Dedicated logic registers\s*:\s*([\d,]+)", NoiDung)
+            if MauThanhGhiRieng: ThongSo["dedicated_registers"] = int(MauThanhGhiRieng.group(1).replace(",", ""))
 
-            MauTongThanhGhi = re.search(r"Total registers\s*:\s*(\d+)", NoiDung)
-            if MauTongThanhGhi: ThongSo["total_registers"] = int(MauTongThanhGhi.group(1))
+            MauTongThanhGhi = re.search(r"Total registers\s*:\s*([\d,]+)", NoiDung)
+            if MauTongThanhGhi: ThongSo["total_registers"] = int(MauTongThanhGhi.group(1).replace(",", ""))
 
-            MauChan = re.search(r"Total pins\s*:\s*(\d+)", NoiDung)
-            if MauChan: ThongSo["total_pins"] = int(MauChan.group(1))
+            MauChan = re.search(r"Total pins\s*:\s*([\d,]+)", NoiDung)
+            if MauChan: ThongSo["total_pins"] = int(MauChan.group(1).replace(",", ""))
 
-            MauBoNho = re.search(r"Total memory bits\s*:\s*(\d+)", NoiDung)
-            if MauBoNho: ThongSo["memory_bits"] = int(MauBoNho.group(1))
+            MauBoNho = re.search(r"Total memory bits\s*:\s*([\d,]+)", NoiDung)
+            if MauBoNho: ThongSo["memory_bits"] = int(MauBoNho.group(1).replace(",", ""))
 
-            MauDsp = re.search(r"Embedded Multiplier 9-bit elements\s*:\s*(\d+)", NoiDung)
-            if MauDsp: ThongSo["dsp_blocks"] = int(MauDsp.group(1))
+            MauDsp = re.search(r"Embedded Multiplier 9-bit elements\s*:\s*([\d,]+)", NoiDung)
+            if MauDsp: ThongSo["dsp_blocks"] = int(MauDsp.group(1).replace(",", ""))
 
         return ThongSo
 
@@ -68,9 +68,13 @@ class SynthesisProfiler:
         with open(FileRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaRtl = TepTin.read()
 
-        # Đếm số bit thanh ghi reg
+        # Loại bỏ chú thích trước khi phân tích cú pháp
+        MaSach = re.sub(r"//.*", "", MaRtl)
+        MaSach = re.sub(r"/\*[\s\S]*?\*/", "", MaSach)
+
+        # Đếm số bit thanh ghi reg (bao gồm cả reg độc lập và output reg trong danh sách cổng ANSI)
         SoBitThanhGhi = 0
-        KhopThanhGhi = re.finditer(r"\breg\s+(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_,\s]+);", MaRtl)
+        KhopThanhGhi = re.finditer(r"\b(?:output\s+)?reg\s+(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_,\s]+?)(?:;|,|\))", MaSach)
         for Khop in KhopThanhGhi:
             Msb, Lsb, DanhSachBien = Khop.groups()
             DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
@@ -79,14 +83,14 @@ class SynthesisProfiler:
 
         # Đếm số chân I/O
         SoChanVaoRa = 0
-        KhopCong = re.finditer(r"\b(input|output)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", MaRtl)
+        KhopCong = re.finditer(r"\b(input|output|inout)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", MaSach)
         for Khop in KhopCong:
             _, Msb, Lsb, _ = Khop.groups()
             DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
             SoChanVaoRa += DoRong
 
-        # Ước lượng Logic Elements dựa trên toán tử logic và thanh ghi
-        SoToanTu = len(re.findall(r"(\+|\-|\*|<<|>>|&|\||\^|==|!=|<|>|<=|>=|\?)", MaRtl))
+        # Ước lượng Logic Elements dựa trên toán tử logic và thanh ghi (trên mã sạch đã lọc chú thích)
+        SoToanTu = len(re.findall(r"(\+|\-|\*|<<|>>|&|\||\^|==|!=|<|>|<=|>=|\?)", MaSach))
         UocLuongLe = max(SoBitThanhGhi + (SoToanTu * 2), 4)
 
         return {

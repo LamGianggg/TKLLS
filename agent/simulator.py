@@ -32,24 +32,67 @@ class EDASimulator:
 
         # 1. Biên dịch
         LenhBienDich = [self.iverilog["iverilog"], "-o", FileVvpDauRa] + DuongDanTuyetDoi
-        KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, capture_output=True)
+        try:
+            KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+            XuatBienDich = KetQuaBienDich.stdout.decode('utf-8', errors='replace') if KetQuaBienDich.stdout else ""
+        except subprocess.TimeoutExpired:
+            return {
+                "stage": "compile",
+                "success": False,
+                "errors": ["Quá trình biên dịch iverilog bị timeout sau 60 giây."],
+                "log": "iverilog compile timeout (60s)"
+            }
+        except Exception as e:
+            return {
+                "stage": "compile",
+                "success": False,
+                "errors": [str(e)],
+                "log": str(e)
+            }
+
         if KetQuaBienDich.returncode != 0:
             return {
                 "stage": "compile",
                 "success": False,
-                "errors": [KetQuaBienDich.stderr.decode('utf-8', errors='replace')],
-                "log": KetQuaBienDich.stderr.decode('utf-8', errors='replace')
+                "errors": [XuatBienDich],
+                "log": XuatBienDich
             }
 
         # 2. Chạy mô phỏng bằng vvp
         LenhMoPhong = [self.iverilog["vvp"], FileVvpDauRa]
-        KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, capture_output=True)
-        KetQuaXuat = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
-        CoLoi = any(TuKhoa in KetQuaXuat for TuKhoa in ["ERROR", "Error", "FAIL", "Fatal", "assert failed", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
+        try:
+            KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+            KetQuaXuat = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
+        except subprocess.TimeoutExpired:
+            return {
+                "stage": "simulate",
+                "success": False,
+                "passed": False,
+                "errors": ["Mô phỏng vvp bị treo (timeout 60 giây - có thể do vòng lặp vô hạn hoặc thiếu $finish)."],
+                "log": "vvp simulation timeout (60s)"
+            }
+        except Exception as e:
+            return {
+                "stage": "simulate",
+                "success": False,
+                "passed": False,
+                "errors": [str(e)],
+                "log": str(e)
+            }
+
+        TuKhoaLoi = [
+            "** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]",
+            "[HARNESS WATCHDOG TIMEOUT]", "[FAIL]", "FAIL:", "FAILED", "TEST FAILED", "MISMATCH"
+        ]
+        CoLoi = any(TuKhoa in KetQuaXuat for TuKhoa in TuKhoaLoi)
+        KhopThatBai = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", KetQuaXuat)
+        if KhopThatBai:
+            CoLoi = True
+
         ThanhCong = any(DauHieu in KetQuaXuat for DauHieu in ["[SUCCESS]", "PASSED", "Passed", "All tests passed", "TEST PASSED", "[HARNESS PASS]"])
         KetThucSach = KetQuaMoPhong.returncode == 0 and ("$finish" in KetQuaXuat or ThanhCong) and not CoLoi
         DatChuan = (ThanhCong or KetThucSach) and not CoLoi
-        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuat.splitlines() if any(TuKhoa in Dong for TuKhoa in ["ERROR", "Error", "FAIL", "Fatal", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
+        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuat.splitlines() if any(TuKhoa in Dong for TuKhoa in TuKhoaLoi)]
 
         return {
             "stage": "simulate",
@@ -64,7 +107,10 @@ class EDASimulator:
         ThuMucWork = os.path.join(self.sim_dir, "work")
         if not os.path.exists(ThuMucWork):
             LenhVlib = self.modelsim["vlib"]
-            subprocess.run([LenhVlib, "work"], cwd=self.sim_dir, capture_output=True, check=True)
+            try:
+                subprocess.run([LenhVlib, "work"], cwd=self.sim_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+            except Exception as e:
+                pass
 
     def run_modelsim_flow(self, DanhSachFileVerilog, ModuleDau):
         """Biên dịch và chạy mô phỏng bằng ModelSim."""
@@ -74,10 +120,28 @@ class EDASimulator:
         # 1. Biên dịch vlog
         LenhVlog = self.modelsim["vlog"]
         LenhBienDich = [LenhVlog, "-work", "work"] + DuongDanTuyetDoi
-        KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, capture_output=True)
-        KetQuaXuatVlog = KetQuaBienDich.stdout.decode('utf-8', errors='replace') if KetQuaBienDich.stdout else ""
+        try:
+            KetQuaBienDich = subprocess.run(LenhBienDich, cwd=self.sim_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+            KetQuaXuatVlog = KetQuaBienDich.stdout.decode('utf-8', errors='replace') if KetQuaBienDich.stdout else ""
+        except subprocess.TimeoutExpired:
+            return {
+                "stage": "compile",
+                "success": False,
+                "errors": ["Quá trình biên dịch vlog bị timeout sau 60 giây."],
+                "log": "vlog compile timeout (60s)"
+            }
+        except Exception as e:
+            return {
+                "stage": "compile",
+                "success": False,
+                "errors": [str(e)],
+                "log": str(e)
+            }
+
         if KetQuaBienDich.returncode != 0:
-            DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVlog.splitlines() if "** Error:" in Dong or "** Fatal:" in Dong]
+            DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVlog.splitlines() if "** Error:" in Dong or "** Fatal:" in Dong or "Error:" in Dong]
+            if not DanhSachLoi and KetQuaXuatVlog.strip():
+                DanhSachLoi = [KetQuaXuatVlog.strip()]
             return {
                 "stage": "compile",
                 "success": False,
@@ -87,11 +151,32 @@ class EDASimulator:
 
         # 2. Chạy mô phỏng vsim
         LenhVsim = self.modelsim["vsim"]
-        LenhMoPhong = [LenhVsim, "-c", "-do", "log -r /*; run -all; quit", f"work.{ModuleDau}"]
-        KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, capture_output=True)
-        KetQuaXuatVsim = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
+        LenhMoPhong = [LenhVsim, "-c", "-do", "run -all; quit", f"work.{ModuleDau}"]
+        try:
+            KetQuaMoPhong = subprocess.run(LenhMoPhong, cwd=self.sim_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
+            KetQuaXuatVsim = KetQuaMoPhong.stdout.decode('utf-8', errors='replace') if KetQuaMoPhong.stdout else ""
+        except subprocess.TimeoutExpired:
+            return {
+                "stage": "simulate",
+                "success": False,
+                "passed": False,
+                "errors": ["Mô phỏng vsim bị treo (timeout 60 giây - có thể do vòng lặp vô hạn hoặc thiếu $finish)."],
+                "log": "vsim simulation timeout (60s)"
+            }
+        except Exception as e:
+            return {
+                "stage": "simulate",
+                "success": False,
+                "passed": False,
+                "errors": [str(e)],
+                "log": str(e)
+            }
 
-        CoLoi = any(TuKhoa in KetQuaXuatVsim for TuKhoa in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])
+        TuKhoaLoi = [
+            "** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]",
+            "[HARNESS WATCHDOG TIMEOUT]", "[FAIL]", "FAIL:", "FAILED", "TEST FAILED", "MISMATCH"
+        ]
+        CoLoi = any(TuKhoa in KetQuaXuatVsim for TuKhoa in TuKhoaLoi)
         KhopThatBai = re.search(r"Failed Assertions\s*:\s*([1-9]\d*)", KetQuaXuatVsim)
         if KhopThatBai:
             CoLoi = True
@@ -100,7 +185,7 @@ class EDASimulator:
         KetThucSach = ("$finish" in KetQuaXuatVsim or "Simulation complete" in KetQuaXuatVsim or KetQuaMoPhong.returncode == 0) and not CoLoi and ("$finish" in KetQuaXuatVsim or ThanhCong)
 
         DatChuan = (ThanhCong or KetThucSach) and not CoLoi
-        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVsim.splitlines() if any(TuKhoa in Dong for TuKhoa in ["** Error:", "** Fatal:", "Error loading design", "[ERROR]", "[HARNESS FAIL]", "[HARNESS WATCHDOG TIMEOUT]"])]
+        DanhSachLoi = [Dong.strip() for Dong in KetQuaXuatVsim.splitlines() if any(TuKhoa in Dong for TuKhoa in TuKhoaLoi)]
 
         return {
             "stage": "simulate",

@@ -27,15 +27,17 @@ def find_modelsim():
     DanhSachMoiTruong = [os.environ.get("QUARTUS_ROOTDIR", ""), os.environ.get("MODELSIM_ROOT", ""), os.environ.get("ALTERA_ROOT", "")]
     for GiaTriMoiTruong in DanhSachMoiTruong:
         if GiaTriMoiTruong:
-            DuongDanThu = os.path.join(GiaTriMoiTruong, "..", "modelsim_ase", "win32aloem")
-            if os.path.exists(os.path.join(DuongDanThu, "vlog.exe")):
-                return {
-                    "bin_dir": os.path.abspath(DuongDanThu),
-                    "vlog": os.path.join(DuongDanThu, "vlog.exe"),
-                    "vsim": os.path.join(DuongDanThu, "vsim.exe"),
-                    "vlib": os.path.join(DuongDanThu, "vlib.exe"),
-                    "type": "modelsim"
-                }
+            for ThuMucModelSim in ["modelsim_ase", "modelsim_ae", "modelsim"]:
+                for SubDir in ["win32aloem", "win32", "win64"]:
+                    DuongDanThu = os.path.join(GiaTriMoiTruong, "..", ThuMucModelSim, SubDir)
+                    if os.path.exists(os.path.join(DuongDanThu, "vlog.exe")):
+                        return {
+                            "bin_dir": os.path.abspath(DuongDanThu),
+                            "vlog": os.path.join(DuongDanThu, "vlog.exe"),
+                            "vsim": os.path.join(DuongDanThu, "vsim.exe"),
+                            "vlib": os.path.join(DuongDanThu, "vlib.exe"),
+                            "type": "modelsim"
+                        }
 
     # 3. Quét tự động trên các ổ đĩa của máy tính
     for TenODia in ["C", "D", "E", "F", "G", "H"]:

@@ -26,30 +26,37 @@ def extract_verilog(text):
     return match.group(1).strip() if match else text.strip()
 
 def mutate_inject_latch(code):
-    """Đột biến tạo chốt ẩn (Inferred Latch): Xóa bỏ nhánh default trong khối case tổ hợp."""
+    """Đột biến tạo chốt ẩn (Inferred Latch): Xóa bỏ nhánh default hoặc else trong khối tổ hợp."""
+    is_comb = ("always @*" in code or "always @(*)" in code or "always @ (" in code) and not ("posedge" in code or "negedge" in code)
     if "default:" in code:
-        # Xóa nhánh default: ...
+        # Xóa nhánh default trong khối case
         mutated = re.sub(r"\bdefault\s*:.*?(?=\bendcase\b)", "", code, flags=re.DOTALL)
         return mutated, "INFERRED_LATCH (Thiếu nhánh default trong khối case tổ hợp)"
-    elif "else begin" in code:
-        # Xóa nhánh else cuối cùng
+    elif is_comb and "else begin" in code:
+        # Xóa nhánh else cuối cùng trong khối tổ hợp
         mutated = re.sub(r"\belse\s+begin\b.*?\bend\b(?=\s*\bend\b|\s*endmodule)", "", code, flags=re.DOTALL)
-        return mutated, "INFERRED_LATCH (Thiếu nhánh else gán giá trị mặc định)"
+        return mutated, "INFERRED_LATCH (Thiếu nhánh else gán giá trị mặc định trong khối tổ hợp)"
     return None, None
 
 def mutate_inject_dangling_pin(code):
     """Đột biến tạo chân lơ lửng (Dangling Pin): Tách rời tín hiệu ngõ vào khỏi logic nội vi."""
-    # Tìm tín hiệu ngõ vào dạng input wire / input reg
-    inputs = re.findall(r"\binput\s+(?:wire\s+|reg\s+)?(?:\[\d+:\d+\]\s+)?([a-zA-Z_][a-zA-Z0-9_]*)", code)
-    # Lọc bỏ clk và rst
-    candidate_inputs = [inp for inp in inputs if inp not in ["clk", "rst", "rst_n", "clock", "reset"]]
+    # Tìm tín hiệu ngõ vào dạng input wire / input reg (bỏ qua signed)
+    inputs = re.findall(r"\binput\s+(?:wire\s+|reg\s+)?(?:signed\s+)?(?:\[[^\]]+\]\s+)?([a-zA-Z_][a-zA-Z0-9_]*)", code)
+    # Lọc bỏ clk, rst, và từ khóa Verilog
+    TuKhoaBoQua = {"clk", "rst", "rst_n", "clock", "reset", "signed", "wire", "reg", "input", "output"}
+    candidate_inputs = [inp for inp in inputs if inp.lower() not in TuKhoaBoQua]
     if candidate_inputs:
         target_pin = candidate_inputs[0]
-        # Thay thế việc sử dụng target_pin bằng 1'b0 hoặc hằng số để biến target_pin thành lơ lửng
-        mutated = re.sub(rf"\b{target_pin}\b", "1'b0", code)
-        # Giữ lại khai báo cổng ban đầu
-        mutated = re.sub(r"1\'b0", target_pin, mutated, count=1)
-        return mutated, f"DANGLING_PIN (Cổng ngõ vào '{target_pin}' không được kết nối vào mạch logic)"
+        # Tách phần header cổng và thân logic để chỉ thay thế trong thân logic, giữ nguyên header
+        m_mod = re.search(r"\bmodule\s+[A-Za-z0-9_]+\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", code)
+        if m_mod:
+            header_end = m_mod.end()
+            header_part = code[:header_end]
+            body_part = code[header_end:]
+            body_mutated = re.sub(rf"\b{re.escape(target_pin)}\b", "1'b0", body_part)
+            if body_mutated != body_part:
+                mutated = header_part + body_mutated
+                return mutated, f"DANGLING_PIN (Cổng ngõ vào '{target_pin}' không được kết nối vào mạch logic)"
     return None, None
 
 def mutate_inject_blocking_assignment(code):

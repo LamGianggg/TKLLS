@@ -54,7 +54,11 @@ class RTLPortEnforcer:
         KhaiBaoCongMoi = []
         for Cong in CongSpec:
             ChuoiDoRong = f"[{Cong['width']-1}:0] " if Cong['width'] > 1 else "      "
-            KieuBien = "reg " if Cong["direction"] == "output" else "wire"
+            CoGanAssign = bool(re.search(r"\bassign\s+" + re.escape(Cong['name']) + r"\b", PhanConLai))
+            if Cong["direction"] == "output":
+                KieuBien = "wire" if CoGanAssign else "reg "
+            else:
+                KieuBien = "wire"
             KhaiBaoCongMoi.append(f"    {Cong['direction']:6} {KieuBien} {ChuoiDoRong}{Cong['name']}")
 
         HeaderMoi = f"module {TenModule} (\n" + ",\n".join(KhaiBaoCongMoi) + "\n);\n"
@@ -83,7 +87,8 @@ class RTLGenerator:
     """Bo tao ma nguon Verilog RTL tu dac ta phan cung."""
 
     def __init__(self, ThuMucSrc=None, src_dir=None):
-        self.ThuMucSrc = src_dir if src_dir is not None else ThuMucSrc
+        ThuMucMacDinh = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+        self.ThuMucSrc = src_dir if src_dir is not None else (ThuMucSrc if ThuMucSrc is not None else ThuMucMacDinh)
         self.src_dir = self.ThuMucSrc
         os.makedirs(self.ThuMucSrc, exist_ok=True)
 
@@ -1713,11 +1718,21 @@ endmodule
             rst_p = next((p for p in inputs if p.get("is_rst")), None)
             reset_resets = "\n".join([f"            {p['name']} <= {p['width']}'d0;" for p in outputs])
             logic_assigns = []
-            for p in outputs:
-                if p["width"] > 1:
-                    logic_assigns.append(f"            {p['name']} <= {p['name']} + 1'b1;")
+            for idx, p in enumerate(outputs):
+                if user_inputs:
+                    u_in = user_inputs[idx % len(user_inputs)]
+                    if u_in["width"] == 1 and p["width"] > 1:
+                        logic_assigns.append(f"            if ({u_in['name']}) {p['name']} <= {p['name']} + 1'b1;")
+                    elif p["width"] == u_in["width"]:
+                        logic_assigns.append(f"            {p['name']} <= {u_in['name']};")
+                    else:
+                        min_w = min(p["width"], u_in["width"])
+                        logic_assigns.append(f"            {p['name']} <= {{{p['name']}[{p['width']-1}:{min_w}], {u_in['name']}[{min_w-1}:0]}};")
                 else:
-                    logic_assigns.append(f"            {p['name']} <= ~{p['name']};")
+                    if p["width"] > 1:
+                        logic_assigns.append(f"            {p['name']} <= {p['name']} + 1'b1;")
+                    else:
+                        logic_assigns.append(f"            {p['name']} <= ~{p['name']};")
             logic_str = "\n".join(logic_assigns)
 
             if rst_p:
@@ -1869,7 +1884,7 @@ module {module_name} (
             {alarm_name}    <= 1'b0;
             {shutdown_name} <= 1'b0;
         end else begin
-            if ({temp_name} >= {limit_name} + {limit_w}'d10) begin
+            if ({{1'b0, {temp_name}}} >= {{1'b0, {limit_name}}} + {limit_w + 1}'d10) begin
                 {fan_name}      <= 1'b1;
                 {alarm_name}    <= 1'b1;
                 {shutdown_name} <= 1'b1;

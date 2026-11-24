@@ -20,7 +20,7 @@ class BDFGenerator:
         MaSach = re.sub(r"//.*", "", MaNguon)
         MaSach = re.sub(r"/\*.*?\*/", "", MaSach, flags=re.DOTALL)
 
-        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*\((.*?)\);", MaSach, re.DOTALL)
+        KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", MaSach)
         if not KhopModule:
             return None
 
@@ -37,7 +37,7 @@ class BDFGenerator:
             Dong = Dong.strip()
             if not Dong:
                 continue
-            KhopHuong = re.search(r"\b(input|output)\b", Dong)
+            KhopHuong = re.search(r"\b(input|output|inout)\b", Dong)
             if KhopHuong:
                 HuongHienTai = KhopHuong.group(1)
                 KhopRong = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", Dong)
@@ -94,9 +94,10 @@ class BDFGenerator:
             TenDayDu = f"{CongRa['name']}{ChuoiRong}"
             DoDayNet = 3 if CongRa["is_bus"] else 1
             ToaDoXChu = ChieuRongSymbol - 21 - len(TenDayDu)*7
+            LoaiCongBsf = "bidir" if CongRa.get("direction") == "inout" else "output"
             DongCong.append(f"""\t(port
 \t\t(pt {ChieuRongSymbol} {ToaDoY})
-\t\t(output)
+\t\t({LoaiCongBsf})
 \t\t(text "{TenDayDu}" (rect 0 0 {len(TenDayDu)*7} 12)(font "Arial" ))
 \t\t(text "{TenDayDu}" (rect {ToaDoXChu} {ToaDoY-5} {ToaDoXChu + len(TenDayDu)*7} {ToaDoY+7})(font "Arial" ))
 \t\t(line (pt {ChieuRongSymbol} {ToaDoY})(pt {ChieuRongSymbol - 16} {ToaDoY})(line_width {DoDayNet}))
@@ -127,7 +128,9 @@ the Block Editor! File corruption is VERY likely to occur.
         with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
             NoiDungBsf = TepTin.read()
 
-        KhopKichThuoc = re.search(r'\(symbol\s*\n\s*\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)
+        KhopKichThuoc = re.search(r'\(symbol\s+\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)
+        if not KhopKichThuoc:
+            KhopKichThuoc = re.search(r'\(symbol\s*\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)
         if not KhopKichThuoc:
             raise ValueError(f"File BSF không hợp lệ: {DuongDanBsf}")
 
@@ -140,9 +143,10 @@ the Block Editor! File corruption is VERY likely to occur.
         ToaDoX2 = ToaDoX + RongGoc
         ToaDoY2 = ToaDoY + CaoGoc
 
+        # Trích xuất các cổng (input, output, bidir) hỗ trợ cả thụt lề tabs/spaces và mọi định dạng xuống dòng
         DanhSachKhoiCong = re.findall(
-            r'(\(port\s*\n\s*\(pt\s+(\d+)\s+(\d+)\)\s*\n\s*\((input|output)\)\s*\n\s*\(text\s+"([^"]+)".*?\n\t\))',
-            NoiDungBsf, re.DOTALL
+            r'\(port\s+\(pt\s+(\d+)\s+(\d+)\)\s+\((input|output|bidir)\)\s+\(text\s+"([^"]+)"',
+            NoiDungBsf
         )
 
         SymbolBenTrong = NoiDungBsf[NoiDungBsf.find('(symbol'):]
@@ -154,7 +158,7 @@ the Block Editor! File corruption is VERY likely to occur.
         ChanVaoX = ToaDoX - 208
         ChanRaX = ToaDoX2 + 80
 
-        for KhoiDayDu, DiemX, DiemY, Huong, TenCong in DanhSachKhoiCong:
+        for DiemX, DiemY, Huong, TenCong in DanhSachKhoiCong:
             ToaDoCongY = ToaDoY + int(DiemY)
 
             LaBus = ('[' in TenCong and '..' in TenCong) or ('[' in TenCong and ':' in TenCong)
@@ -182,13 +186,15 @@ the Block Editor! File corruption is VERY likely to occur.
                 TheBus = " (bus)" if LaBus else ""
                 MaDayNoi.append(f"(connector (pt {ChanVaoX + 168} {ToaDoCongY}) (pt {ToaDoX} {ToaDoCongY}){TheBus})")
 
-            elif Huong == "output":
+            else:
                 ChanY = ToaDoCongY - 8
+                LoaiPin = "bidir" if Huong == "bidir" else "output"
+                NhanPin = "BIDIR" if Huong == "bidir" else "OUTPUT"
                 NetBus = "\t\t(line (pt 0 8)(pt 52 8)(line_width 3))\n" if LaBus else "\t\t(line (pt 0 8)(pt 52 8))\n"
                 HopChan = f"""(pin
-\t(output)
+\t({LoaiPin})
 \t(rect {ChanRaX} {ChanY} {ChanRaX + 176} {ChanY + 16})
-\t(text "OUTPUT" (rect 1 0 39 10)(font "Arial" (font_size 6)))
+\t(text "{NhanPin}" (rect 1 0 39 10)(font "Arial" (font_size 6)))
 \t(text "{TenCongBdf}" (rect 90 0 {90 + len(TenCongBdf)*7} 12)(font "Arial" ))
 \t(pt 0 8)
 \t(drawing

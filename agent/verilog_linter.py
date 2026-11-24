@@ -67,23 +67,35 @@ class VerilogLinter:
         body = m.group(3)
 
         inputs, outputs = [], []
-        if re.search(r'\b(input|output)\b', header):
-            # Cổng kiểu ANSI
+        if re.search(r'\b(input|output|inout)\b', header):
+            # Cổng kiểu ANSI: lưu hướng cur_dir để không bị sót các cổng phân tách bởi dấu phẩy
+            cur_dir = "input"
             for port_decl in header.split(','):
                 port_decl = port_decl.strip()
-                m_in = re.search(r'\binput\b\s*(?:wire|reg)?\s*(?:signed)?\s*(?:\[[^\]]+\])?\s*([A-Za-z0-9_]+)', port_decl)
-                if m_in:
-                    inputs.append(m_in.group(1).strip())
-                m_out = re.search(r'\boutput\b\s*(?:wire|reg)?\s*(?:signed)?\s*(?:\[[^\]]+\])?\s*([A-Za-z0-9_]+)', port_decl)
-                if m_out:
-                    outputs.append(m_out.group(1).strip())
+                if not port_decl:
+                    continue
+                if re.search(r'\binput\b', port_decl):
+                    cur_dir = "input"
+                elif re.search(r'\boutput\b', port_decl):
+                    cur_dir = "output"
+                elif re.search(r'\binout\b', port_decl):
+                    cur_dir = "inout"
+
+                m_name = re.search(r'([A-Za-z0-9_]+)\s*$', port_decl)
+                if m_name:
+                    name = m_name.group(1).strip()
+                    if name.lower() not in {"input", "output", "inout", "wire", "reg", "logic", "signed"}:
+                        if cur_dir == "input":
+                            inputs.append(name)
+                        elif cur_dir in ["output", "inout"]:
+                            outputs.append(name)
         else:
             # Cổng kiểu Legacy Verilog-1995 trong thân module
             for m_in in re.finditer(r'\binput\b\s*(?:wire|reg)?\s*(?:signed)?\s*(?:\[[^\]]+\])?\s*([^;]+);', body):
                 for name in m_in.group(1).split(','):
                     name = name.strip()
                     if name: inputs.append(name)
-            for m_out in re.finditer(r'\boutput\b\s*(?:wire|reg)?\s*(?:signed)?\s*(?:\[[^\]]+\])?\s*([^;]+);', body):
+            for m_out in re.finditer(r'\b(?:output|inout)\b\s*(?:wire|reg)?\s*(?:signed)?\s*(?:\[[^\]]+\])?\s*([^;]+);', body):
                 for name in m_out.group(1).split(','):
                     name = name.strip()
                     if name: outputs.append(name)
@@ -114,7 +126,7 @@ class VerilogLinter:
                 escaped_pin = re.escape(pin)
                 is_assigned = (
                     re.search(r'\bassign\s+[^;=]*\b' + escaped_pin + r'\b[^;]*=', body_logic) or
-                    re.search(r'\b' + escaped_pin + r'(?:\s*\[[^\]]+\])?\s*(?:<=|=)', body_logic) or
+                    re.search(r'\b' + escaped_pin + r'(?:\s*\[[^\]]+\])*\s*(?:<=|=(?!=))[^;]+;', body_logic) or
                     re.search(r'\.\w+\s*\([^)]*\b' + escaped_pin + r'\b', body_logic)
                 )
                 if not is_assigned:
@@ -133,17 +145,18 @@ class VerilogLinter:
         for sb in seq_blocks:
             sens, body = sb.group(1).strip(), sb.group(2)
             body_no_for = re.sub(r'\bfor\s*\([^;]+;[^;]+;[^)]+\)', '', body)
-            blocking_assigns = re.finditer(r'\b([A-Za-z0-9_]+(?:\s*\[[^\]]+\])?)\s*=(?!=)\s*([^;]+);', body_no_for)
+            body_no_assign = re.sub(r'\bassign\s+[^;]+;', '', body_no_for)
+            blocking_assigns = re.finditer(r'\b([A-Za-z0-9_]+(?:\s*\[[^\]]+\])*)\s*=(?!=)\s*([^;]+);', body_no_assign)
             for ba in blocking_assigns:
                 var = ba.group(1).strip()
                 races.append(f"BLOCKING_IN_SEQUENTIAL: Gán '=' cho '{var}' trong khối tuần tự @({sens}) - Nguy cơ Race Condition")
 
-        # 2. Khối tổ hợp @(*)
-        comb_blocks = re.finditer(r'\balways\s*@\s*\((?![^)]*posedge)(?![^)]*negedge)([^)]*)\)([\s\S]*?)(?=\balways\b|\bendmodule\b|$)', clean_code)
+        # 2. Khối tổ hợp @(*) hoặc @*
+        comb_blocks = re.finditer(r'\balways\s*@\s*(?:\((?![^)]*posedge)(?![^)]*negedge)[^)]*\)|\*)\s*([\s\S]*?)(?=\balways\b|\bendmodule\b|$)', clean_code)
         for cb in comb_blocks:
-            body = cb.group(2)
+            body = cb.group(1)
             # Kiểm tra gán <= trong khối tổ hợp
-            nb_assigns = re.finditer(r'\b([A-Za-z0-9_]+(?:\s*\[[^\]]+\])?)\s*<=\s*([^;]+);', body)
+            nb_assigns = re.finditer(r'\b([A-Za-z0-9_]+(?:\s*\[[^\]]+\])*)\s*<=\s*([^;]+);', body)
             for nba in nb_assigns:
                 var = nba.group(1).strip()
                 races.append(f"NONBLOCKING_IN_COMBINATIONAL: Gán '<=' cho '{var}' trong khối tổ hợp - Nên dùng '='")
@@ -158,11 +171,12 @@ class VerilogLinter:
             if_matches = re.finditer(r'\bif\s*\((.*?)\)([\s\S]*?)(?=\belse\b|\bend\b|\bendcase\b|\balways\b|$)', body)
             for im in if_matches:
                 after_if = body[im.end():]
-                if not re.match(r'^\s*else\b', after_if):
-                    assigned_vars = re.findall(r'\b([A-Za-z0-9_]+)\s*(?:\[[^\]]+\])?\s*=', im.group(2))
+                has_else = bool(re.match(r'^\s*(?:end\s*)*\s*else\b', after_if))
+                if not has_else:
+                    assigned_vars = re.findall(r'\b([A-Za-z0-9_]+)\s*(?:\[[^\]]+\])*\s*=(?!=)', im.group(2))
                     prior_code = body[:im.start()]
                     for v in set(assigned_vars):
-                        if not re.search(r'\b' + re.escape(v) + r'\b\s*(?:\[[^\]]+\])?\s*=', prior_code):
+                        if not re.search(r'\b' + re.escape(v) + r'\b\s*(?:\[[^\]]+\])*\s*=(?!=)', prior_code):
                             latches.append(f"INFERRED_LATCH: Tín hiệu '{v}' trong 'if' thiếu nhánh 'else' và không có gán mặc định")
 
         return latches, races
