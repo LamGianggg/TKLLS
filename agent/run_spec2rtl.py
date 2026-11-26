@@ -25,7 +25,7 @@ if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 from spec_analyzer import SpecAnalyzer
-from rtl_generator import RTLGenerator
+from rtl_generator import RTLGenerator, RTLPortEnforcer
 from tb_generator import TBGenerator
 from bdf_generator import BDFGenerator
 from port_auditor import PortAuditor
@@ -145,7 +145,21 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
 
     return FileQpf, FileBsf, FileBdf if DaTaoBdf else None, FileVwf
 
-def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=False, MoTrangWeb=False):
+def _extract_verilog_code(raw_text):
+    """Trích xuất mã Verilog hợp lệ (có module/endmodule) từ output mô hình AI."""
+    if not raw_text or not isinstance(raw_text, str):
+        return None
+    blocks = re.findall(r"```(?:verilog|systemverilog|v)?\s*([\s\S]*?)```", raw_text, flags=re.IGNORECASE)
+    for blk in blocks:
+        if re.search(r"\bmodule\b", blk) and re.search(r"\bendmodule\b", blk):
+            return blk.strip()
+    m = re.search(r"((?:`timescale[^\n]*\n\s*)?\bmodule\b[\s\S]*?\bendmodule\b)", raw_text)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=False, MoTrangWeb=False, DungAiChinh=False):
     """Thực thi toàn bộ quy trình Spec2RTL cho một bài toán đặc tả."""
     if not ThuMucGoc:
         ThuMucGoc = get_base_dir()
@@ -240,8 +254,32 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
                 try: os.remove(FileCu)
                 except Exception: pass
 
-        _, FileRtl = BoSinhRtl.generate_from_spec(NoiDungSpec, DuongDanSpec)
-        print(f" -> [Auto-Gen Dynamic RTL] Đã sinh: src/{os.path.basename(FileRtl)}")
+        ma_rtl_ai = None
+        if DungAiChinh:
+            try:
+                if ThuMucGoc not in sys.path:
+                    sys.path.insert(0, ThuMucGoc)
+                from models.run_inference import generate_verilog
+                print(" -> [AI Distilled + RAG] Đang thử sinh RTL bằng mô hình AI (use_rag=True)...")
+                ket_qua_ai = generate_verilog(NoiDungSpec, use_rag=True)
+                ma_rtl_ai = _extract_verilog_code(ket_qua_ai)
+                if ma_rtl_ai:
+                    DanhSachCongSpec = BoPhanTich.extract_ports()
+                    if DanhSachCongSpec:
+                        ma_rtl_ai = RTLPortEnforcer.enforce(ma_rtl_ai, DanhSachCongSpec)
+                    ma_rtl_ai = VerilogLinter.sanitize_verilog_code(ma_rtl_ai)
+                    with open(FileRtl, "w", encoding="utf-8") as TepRtl:
+                        TepRtl.write(ma_rtl_ai)
+                    print(f" -> [AI Distilled + RAG] Đã sinh & chuẩn hóa RTL: src/{os.path.basename(FileRtl)}")
+                else:
+                    print(" -> [AI Distilled + RAG] Output AI chưa có module/endmodule hợp lệ -> fallback RTLGenerator...")
+            except Exception as ai_err:
+                print(f" -> [AI Distilled + RAG] Không khả dụng ({ai_err}) -> fallback RTLGenerator...")
+                ma_rtl_ai = None
+
+        if not ma_rtl_ai:
+            _, FileRtl = BoSinhRtl.generate_from_spec(NoiDungSpec, DuongDanSpec)
+            print(f" -> [Auto-Gen Dynamic RTL] Đã sinh: src/{os.path.basename(FileRtl)}")
 
         _, FileTb = BoSinhTb.generate_tb_from_spec(NoiDungSpec, FileRtl, DuongDanSpec)
         print(f" -> [Auto-Gen Dynamic TB] Đã sinh: sim/{os.path.basename(FileTb)}")
@@ -327,6 +365,23 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     print(f"\n[Bước 4.5] Đo đạc mức độ tiêu thụ tài nguyên phần cứng...")
     ThongSoTaiNguyen = SynthesisProfiler.profile_module(ThuMucQuartus, TenDuAn, FileRtlChinh)
     print(SynthesisProfiler.format_profiler_card(ThongSoTaiNguyen, TenMach))
+
+    # Khép kín vòng nạp ngược tri thức: Synthesizability Check -> DB
+    if KetQuaMoPhong.get("passed") is True and FileRtlChinh and os.path.exists(FileRtlChinh):
+        try:
+            ket_qua_lint = VerilogLinter.lint_file(FileRtlChinh)
+            lint_hop_le = ket_qua_lint[0] if isinstance(ket_qua_lint, tuple) else bool(ket_qua_lint.get("valid"))
+            if lint_hop_le:
+                from knowledge_matcher import KnowledgeMatcher
+                with open(FileRtlChinh, "r", encoding="utf-8", errors="replace") as TepRtl:
+                    ma_rtl_da_kiem_chung = TepRtl.read()
+                da_luu_db = KnowledgeMatcher().save_verified_design(
+                    TenMach, NoiDungSpec, ma_rtl_da_kiem_chung, category=PhanLoai
+                )
+                if da_luu_db:
+                    print(f" -> [Knowledge DB]: Đã nạp ngược thiết kế '{TenMach}' đạt chuẩn vào knowledge_base/hardware_db.json.")
+        except Exception as db_err:
+            print(f" -> [Knowledge DB]: Bỏ qua nạp ngược DB ({db_err}).")
 
     # Bước 5: Đánh giá kết quả
     if KetQuaMoPhong["success"]:
@@ -442,6 +497,7 @@ def main():
     BoPhanTichThamSo.add_argument("--gui", action="store_true", help="Mở giao diện sóng đồ họa ModelSim")
     BoPhanTichThamSo.add_argument("--web", action="store_true", help="Mở dạng sóng trên trình duyệt")
     BoPhanTichThamSo.add_argument("--harness", action="store_true", help="Sử dụng Test Harness")
+    BoPhanTichThamSo.add_argument("--use-distilled", action="store_true", help="Sử dụng mô hình AI đã chưng cất kết hợp Hybrid RAG ở Bước 2")
     BoPhanTichThamSo.add_argument("--benchmark", dest="benchmark_suite", default=None, help="Chạy bộ benchmark")
     ThamSo = BoPhanTichThamSo.parse_args()
 
@@ -499,7 +555,7 @@ def main():
         DanhSachKetQuaTongHop = []
         for TenTep in DanhSachSpecs:
             DuongDanTep = os.path.join(ThuMucSpecs, TenTep)
-            ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanTep, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web)
+            ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanTep, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web, DungAiChinh=ThamSo.use_distilled)
             DanhSachKetQuaTongHop.append((TenTep, ThucThe, ThanhCong, ThoiGian, SodoBdf, ChiSo))
 
         print("\n" + "=" * 96)
@@ -557,7 +613,7 @@ def main():
         print(f"[ERROR] Không tìm thấy file đặc tả: {DuongDanMucTieu}")
         sys.exit(1)
 
-    ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanMucTieu, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web)
+    ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanMucTieu, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web, DungAiChinh=ThamSo.use_distilled)
     sys.exit(0 if ThanhCong else 1)
 
 if __name__ == "__main__":

@@ -172,23 +172,25 @@ flowchart LR
 ---
 
 ### SLIDE 8: KIẾN TRÚC HỆ THỐNG TÍCH HỢP HIỆN TẠI (HYBRID AI + EDA PIPELINE)
-* **Tiêu đề:** Kiến Trúc Tích Hợp Hiện Tại: Phối Hợp Bộ Não Chưng Cất & Đường Ống EDA Khép Kín
+* **Tiêu đề:** Kiến Trúc Tích Hợp Hiện Tại: Bản Địa Hóa Từ Fig. 3 Spec2RTL-Agent
 * **Nội dung hiển thị trên slide:**
-  - **2 lớp năng lực phối hợp minh bạch trong mã nguồn:**
-    1. **Nhánh AI Chưng cất Offline (`models/run_inference.py`):**
-       * Chạy `SpecAnalyzer.check_unsupported_domain()` $\rightarrow$ gọi `Qwen2.5-Coder-3B-Instruct` + adapter DPO `models/qwen2.5_3b_verilog_dpo/` $\rightarrow$ tự động fallback về `RTLGenerator.generate_from_spec()` nếu môi trường máy cục bộ không nạp được PyTorch/Transformers.
+  - **2 lớp năng lực phối hợp hoàn chỉnh trong mã nguồn:**
+    1. **Nhánh AI Chưng cất & Hybrid RAG (`models/run_inference.py` + `agent/knowledge_matcher.py`):**
+       * Chạy `SpecAnalyzer.check_unsupported_domain()` $\rightarrow$ truy xuất **Hybrid BM25 + 3-gram Jaccard RAG** (`use_rag=True`, `KnowledgeMatcher.format_rag_context()`) lấy Top-K mẫu từ `knowledge_base/hardware_db.json` và `training/dataset_teacher_distilled.json`.
+       * Nạp `Qwen2.5-Coder-3B-Instruct` + adapter DPO `models/qwen2.5_3b_verilog_dpo/` (GGUF/PyTorch), tự động fallback an toàn về `RTLGenerator.generate_from_spec()` nếu máy chưa có trọng số/GPU.
     2. **Nhánh Điều phối EDA Toàn trình (`agent/run_spec2rtl.py` — trong thư mục `agent/` gồm 13 module lõi/tiện ích & 2 script kiểm thử):**
-       * **Pha 1 (`spec_analyzer.py`):** Domain Guard + bóc tách cổng I/O 3 tầng *(ngoài ra `knowledge_matcher.py` là module tra cứu `knowledge_base/hardware_db.json` độc lập ngoài luồng `run_spec2rtl.py`)*.
-       * **Pha 2 (`rtl_generator.py`, `tb_generator.py`):** Định tuyến 25+ nhóm mạch, ép khớp cổng bằng `RTLPortEnforcer.enforce()`, sinh Self-Checking Testbench.
+       * **Pha 1 (`spec_analyzer.py`, `knowledge_matcher.py`):** Domain Guard + bóc tách cổng I/O 3 tầng + truy xuất RAG Hybrid BM25.
+       * **Pha 2 (`run_spec2rtl.py --use-distilled`, `rtl_generator.py`, `tb_generator.py`):** Cầu nối `--use-distilled` gọi AI chưng cất (có fallback về `RTLGenerator`), ép khớp cổng bằng `RTLPortEnforcer.enforce()`, sinh Self-Checking Testbench.
        * **Pha 3 (`verilog_linter.py`):** Kiểm tra tĩnh AST Linter trước khi mô phỏng.
-       * **Pha 4 (`simulator.py`, `reflection_loop.py`, `eda_finder.py`):** Chạy ModelSim/Icarus + tự vá lỗi vòng lặp khép kín.
-       * **Pha 5 (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py`):** Xuất Project Quartus II, Schematic BDF, Waveform VWF, kiểm toán 4 chiều & đo tài nguyên Cyclone II.
+       * **Pha 4 (`simulator.py`, `reflection_loop.py`, `eda_finder.py`):** Chạy ModelSim/Icarus + tự vá lỗi vòng lặp khép kín (`max_retries=3`).
+       * **Pha 5 (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py` + `save_verified_design()`):** Xuất Project Quartus II, Schematic BDF, Waveform VWF, kiểm toán 4 chiều, đo tài nguyên Cyclone II và **lưu ngược mẫu pass Linter + ModelSim + Quartus vào `knowledge_base/hardware_db.json`** (chống trùng MD5).
 * **Hình ảnh / Sơ đồ gợi ý:**
-  - Sơ đồ kiến trúc chiều ngang chính thức: `![Sơ đồ kiến trúc hệ thống Spec2RTL](images/pipeline_architecture_horizontal.png)` *(đường dẫn repo: `docs/images/pipeline_architecture_horizontal.png`)*.
+  - Sơ đồ kiến trúc chính thức tại Slide 8 (**bản địa hóa từ Fig. 3 của bài báo *Spec2RTL-Agent***): `![Sơ đồ kiến trúc hệ thống Spec2RTL bản địa hóa từ Fig. 3 Spec2RTL-Agent](images/spec2rtl_fig3_adapted.png)` *(đường dẫn repo: `docs/images/spec2rtl_fig3_adapted.png`)*.
+  - *Ghi chú hoàn thiện:* Đã tích hợp sẵn **RAG Hybrid BM25** (`agent/knowledge_matcher.py`), cầu nối `--use-distilled` (`agent/run_spec2rtl.py` + `use_rag` trong `models/run_inference.py`) và **vòng lưu ngược mẫu pass Quartus vào `knowledge_base/hardware_db.json`**.
 * **Lời thoại thuyết trình (~45s):**
-  > *"Sau khi có trọng số chưng cất, nhóm tích hợp mô hình vào kiến trúc hệ thống tổng thể. Em xin trình bày trung thực cấu trúc chạy hiện tại của phần mềm gồm hai lớp gắn kết chặt chẽ:*  
-  > *Một là module `models/run_inference.py` chạy trực tiếp mô hình 3B gắn adapter DPO offline để sinh Verilog từ prompt, đồng thời có cơ chế fallback an toàn về `RTLGenerator` khi chạy trên máy không có GPU.*  
-  > *Hai là đường ống điều phối trung tâm `agent/run_spec2rtl.py` kết nối toàn bộ các khâu: phân tích đặc tả, ép chuẩn chân tín hiệu với `RTLPortEnforcer`, quét AST Linter, mô phỏng sửa lỗi khép kín trên ModelSim và bàn giao sơ đồ Quartus II."*
+  > *"Sau khi có trọng số chưng cất, nhóm hoàn thiện kiến trúc tổng thể được bản địa hóa từ Fig. 3 của bài báo Spec2RTL-Agent như trên sơ đồ.*  
+  > *Ở lớp đầu vào và sinh mã, hệ thống kết hợp Domain Guard với bộ truy xuất **Hybrid BM25 RAG** trong `knowledge_matcher.py` để lấy mẫu tham khảo từ `hardware_db.json`, rồi truyền vào mô hình Qwen2.5-3B DPO qua cầu nối `--use-distilled` của `run_spec2rtl.py` (gọi `models/run_inference.py` với `use_rag=True`, vẫn có fallback an toàn về `RTLGenerator`).*  
+  > *Ở lớp kiểm chứng EDA, mã Verilog tiếp tục đi qua `RTLPortEnforcer`, AST Linter, vòng tự sửa lỗi ModelSim và xuất hồ sơ Quartus II; đặc biệt các thiết kế đạt chuẩn sau tổng hợp Quartus được lưu ngược trở lại `hardware_db.json` để làm giàu kho tri thức RAG cho các lần chạy sau."*
 
 ---
 

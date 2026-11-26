@@ -8,11 +8,33 @@ hoặc Qwen2.5-Coder LoRA DPO Adapter) để sinh mã nguồn Verilog synthesiza
 import os
 import sys
 import argparse
+import tempfile
 
 
-def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", device="auto"):
+def _fallback_rtl_generator(spec_text):
+    """Fallback về bộ sinh RTL phần cứng tích hợp khi không có model GGUF/PyTorch."""
+    print("    Tự động chuyển tiếp (Fallback) sang bộ sinh RTL phần cứng tích hợp: agent/rtl_generator.py...")
+    try:
+        from rtl_generator import RTLGenerator
+        with tempfile.TemporaryDirectory() as tmpdir:
+            generator = RTLGenerator(src_dir=tmpdir)
+            _, file_path = generator.generate_from_spec(spec_text)
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                response = f.read()
+        print("\n" + "=" * 80)
+        print("MÃ NGUỒN VERILOG ĐƯỢC SINH BỞI FALLBACK EXPERT RTL GENERATOR:")
+        print("=" * 80)
+        print(response)
+        print("=" * 80)
+        return response
+    except Exception as fallback_err:
+        print(f"[!] Fallback thất bại: {fallback_err}")
+        return None
+
+
+def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", device="auto", use_rag=True):
     """
-    Sinh mã Verilog từ đặc tả sau khi qua lớp bảo vệ Domain Guard.
+    Sinh mã Verilog từ đặc tả sau khi qua lớp bảo vệ Domain Guard và Hybrid RAG.
     Thứ tự ưu tiên: GGUF cục bộ (nhẹ RAM) -> PyTorch LoRA -> Fallback RTLGenerator.
     """
     print("=" * 80)
@@ -39,6 +61,26 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
             return None
     except Exception:
         pass
+
+    # 1.5. Truy xuất ngữ cảnh RAG từ kho tri thức (nếu bật use_rag)
+    rag_context = ""
+    if use_rag:
+        try:
+            from knowledge_matcher import KnowledgeMatcher
+            rag_context = KnowledgeMatcher().format_rag_context(spec_text, top_k=2) or ""
+            if rag_context.strip():
+                print(f"[*] Đã nạp ngữ cảnh RAG từ kho tri thức ({len(rag_context)} ký tự).")
+        except Exception as rag_err:
+            print(f"[!] Không thể truy xuất RAG ({rag_err}) -> tiếp tục không có RAG.")
+            rag_context = ""
+
+    user_message = spec_text
+    if rag_context and rag_context.strip():
+        user_message = (
+            f"{spec_text}\n\n"
+            f"### Thiết kế tham khảo từ kho tri thức (RAG):\n"
+            f"{rag_context.strip()}"
+        )
 
     system_prompt = (
         "Bạn là chuyên gia thiết kế vi mạch kỹ thuật số (Hardware Digital IC Architect). "
@@ -69,7 +111,7 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
             )
             chat_prompt = (
                 f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
-                f"<|im_start|>user\n{spec_text}<|im_end|>\n"
+                f"<|im_start|>user\n{user_message}<|im_end|>\n"
                 f"<|im_start|>assistant\n"
             )
             out = llm(chat_prompt, max_tokens=1024, temperature=0.2, top_p=0.9, stop=["<|im_end|>"])
@@ -85,51 +127,48 @@ def generate_verilog(spec_text, model_dir="models/qwen2.5_3b_verilog_dpo", devic
         except Exception as gguf_err:
             print(f"[!] Lỗi nạp GGUF ({gguf_err}) -> thử PyTorch/Fallback...")
 
-    # 3. Thử PyTorch + PEFT LoRA, fallback sang RTLGenerator nếu thiếu thư viện
+    # 3. Thử PyTorch + PEFT LoRA, fallback sang RTLGenerator nếu thiếu thư viện hoặc chưa có adapter
     try:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
     except (ImportError, OSError, Exception) as e:
         print(f"[!] Không thể nạp PyTorch / Transformers ({e}).")
-        print("    Tự động chuyển tiếp (Fallback) sang bộ sinh RTL phần cứng tích hợp: agent/rtl_generator.py...")
-        try:
-            from rtl_generator import RTLGenerator
-            generator = RTLGenerator()
-            _, file_path = generator.generate_from_spec(spec_text)
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                response = f.read()
-            print("\n" + "=" * 80)
-            print("MÃ NGUỒN VERILOG ĐƯỢC SINH BỞI FALLBACK EXPERT RTL GENERATOR:")
-            print("=" * 80)
-            print(response)
-            print("=" * 80)
-            return response
-        except Exception as fallback_err:
-            print(f"[!] Fallback thất bại: {fallback_err}")
-            return None
+        return _fallback_rtl_generator(spec_text)
+
+    if not os.path.isdir(model_dir):
+        resolved_model_dir = os.path.join(ThuMucGoc, model_dir)
+        if os.path.isdir(resolved_model_dir):
+            model_dir = resolved_model_dir
+        else:
+            print(f"[!] Không tìm thấy thư mục LoRA Adapter '{model_dir}'.")
+            return _fallback_rtl_generator(spec_text)
 
     base_model_name = "Qwen/Qwen2.5-Coder-3B-Instruct"
     print(f"[*] Đang nạp Tokenizer & Mô hình nền: {base_model_name}...")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    actual_device = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
-    print(f"[*] Thiết bị suy luận (Compute Device): {actual_device}")
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        actual_device = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
+        print(f"[*] Thiết bị suy luận (Compute Device): {actual_device}")
 
-    base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
-        torch_dtype=torch.float16 if actual_device == "cuda" else torch.float32,
-        device_map=actual_device if actual_device == "cuda" else None,
-        low_cpu_mem_usage=True,
-    )
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            torch_dtype=torch.float16 if actual_device == "cuda" else torch.float32,
+            device_map=actual_device if actual_device == "cuda" else None,
+            low_cpu_mem_usage=True,
+        )
 
-    print(f"[*] Đang nạp chồng trọng số LoRA Adapter từ {model_dir}...")
-    model = PeftModel.from_pretrained(base_model, model_dir)
-    model.eval()
+        print(f"[*] Đang nạp chồng trọng số LoRA Adapter từ {model_dir}...")
+        model = PeftModel.from_pretrained(base_model, model_dir)
+        model.eval()
+    except Exception as model_err:
+        print(f"[!] Lỗi nạp mô hình PyTorch/LoRA ({model_err}).")
+        return _fallback_rtl_generator(spec_text)
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": spec_text},
+        {"role": "user", "content": user_message},
     ]
 
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -158,6 +197,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chạy suy luận mô hình Spec2RTL LoRA/GGUF")
     parser.add_argument("--spec", type=str, default="Thiết kế bộ đếm BCD 0-59 có tín hiệu enable và reset tích cực cao.", help="Văn bản đặc tả vi mạch")
     parser.add_argument("--model_dir", type=str, default="models/qwen2.5_3b_verilog_dpo", help="Đường dẫn thư mục LoRA adapter")
+    parser.add_argument("--no-rag", action="store_true", help="Tắt truy xuất ngữ cảnh RAG từ kho tri thức")
     args = parser.parse_args()
 
-    generate_verilog(args.spec, args.model_dir)
+    generate_verilog(args.spec, args.model_dir, use_rag=not args.no_rag)

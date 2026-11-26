@@ -21,11 +21,16 @@ Người dùng chuyển từ máy cũ (4 GB RAM, `i5-6200U`, không có GPU rờ
 - Đã kiểm toán, sửa lỗi và dọn gọn cấu trúc thư mục:
   - `agent/`: 13 module điều phối/lõi (`run_spec2rtl.py`, `spec_analyzer.py`, `rtl_generator.py`, `tb_generator.py`, `verilog_linter.py`, `simulator.py`, `reflection_loop.py`, `bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py`, `eda_finder.py`, `knowledge_matcher.py`) + 2 bộ test (`test_group3_linter.py`, `test_robustness_battery.py`).
   - `benchmarks/benchmark_week2_spec2rtl.py`: chạy benchmark 6 mạch mẫu trong `specs/`, xuất báo cáo về `reports/REPORT_TUAN_2_BENCHMARK.md`.
+  - `benchmarks/benchmark_70_rag.py`: bộ benchmark truy vấn ngôn ngữ tự nhiên (né từ khóa) cho nhóm 70% khối hạ tầng phổ thông, so sánh `keyword` vs `bm25` vs `hybrid` (`Recall@1`, `Recall@3`, `MRR`) và xuất báo cáo tại `reports/REPORT_70_RAG_BENCHMARK.md`.
+  - `agent/tb_generator.py`: đã nâng cấp **Self-Checking Testbench** chuẩn Verilog-2001 (ModelSim `vlog`) cho các họ mạch nhóm 70% (**Counter/Up-Down/BCD/Gray**, **FIFO/Buffer** full–empty–data order, **Shift Register/Barrel Shifter**, **Decoder/Mux/Priority Encoder**, **ALU/Adder/Subtractor/Multiplier/Comparator**, **PWM/Timer**, **Ready/Valid handshake**) — tự đối chiếu oracle theo cổng RTL thực tế và in `[SUCCESS]` / `[FAIL]` + `$finish`.
   - Kết quả kiểm chứng gần nhất trên máy cũ:
     - `python agent/test_group3_linter.py` $\rightarrow$ **5/5 PASS**.
     - `python agent/test_robustness_battery.py` $\rightarrow$ **20/20 PASS**.
     - `reports/REPORT_TUAN_2_BENCHMARK.md` $\rightarrow$ **6/6 (100% Pass@1)** trong **54.89s** *(đã đối soát `.map.summary` trên Cyclone II: `uart_tx_8bit` là **28 LEs**, không phải 59 LEs như typo cũ)*.
 - `agent/spec_analyzer.py` đã có **Domain Guard** (`check_unsupported_domain()` chặn `ANALOG_AMS`, `HIGH_SPEED_PHY`, `IRRELEVANT_INPUT` và `is_30_percent_architecture()` chặn `SOC_AI`).
+- **Tích hợp RAG & Cầu nối AI–EDA đã hoàn thiện sẵn:**
+  - `agent/knowledge_matcher.py`: đã nâng cấp lên **Hybrid Retrieval bằng Reciprocal Rank Fusion (RRF)** kết hợp **Semantic Vector + BM25 + 3-gram Jaccard + `KHAI_NIEM_PHAN_CUNG`** (0% `torch`), tự động chọn 3 backend vector theo ưu tiên: (1) offline `fastembed` (ONNX CPU), (2) pre-computed cache `knowledge_base/hardware_embeddings.npz` (`numpy`) + `gemini-embedding-001` khi có `GEMINI_API_KEY` & mạng, (3) pure-offline `TfidfVectorizer + TruncatedSVD` (LSA fallback). Hỗ trợ `search_by_mode()`, `format_rag_context()` (Top-K từ `hardware_db.json` và `dataset_teacher_distilled.json`), và `save_verified_design()` (lưu ngược mẫu pass vào DB, chống trùng MD5).
+  - `agent/run_spec2rtl.py`: đã tích hợp sẵn cờ `--use-distilled` nối vào `models/run_inference.py` (có fallback an toàn về `RTLGenerator`) và **vòng nạp ngược mẫu pass Linter + ModelSim + Quartus vào `knowledge_base/hardware_db.json`**.
 
 ### B. Chưng cất dữ liệu đợt 1 từ Gemini Teacher (`training/`)
 - Đã tạo script [training/distill_teacher_cot.py](training/distill_teacher_cot.py) gọi Google Gemini API sinh **Teacher CoT phân tích riêng từng mạch + mã Verilog IEEE 1364-2001**, kiểm chứng qua **3 tầng Truth Oracle**:
@@ -40,8 +45,8 @@ Người dùng chuyển từ máy cũ (4 GB RAM, `i5-6200U`, không có GPU rờ
 
 ### C. Notebook Colab, Inference & Slide báo cáo
 - [training/train_spec2rtl_qwen3b_colab.ipynb](training/train_spec2rtl_qwen3b_colab.ipynb) & [training/train_spec2rtl_qwen3b_dpo_colab.ipynb](training/train_spec2rtl_qwen3b_dpo_colab.ipynb): đã đặt mặc định `MODEL_SIZE = "3B"` (có thể đổi `"0.5B"` / `"1.5B"` / `"3B"`), hỗ trợ nối tiếp SFT $\rightarrow$ DPO và tự động xuất cả **LoRA adapter** lẫn **GGUF (`q4_k_m`)**.
-- [models/run_inference.py](models/run_inference.py): đã hỗ trợ ưu tiên **Domain Guard** $\rightarrow$ **GGUF (`llama_cpp`)** $\rightarrow$ **PyTorch + PEFT** $\rightarrow$ **Fallback `RTLGenerator`**.
-- [docs/Kich_Ban_Slide_Bao_Cao.md](docs/Kich_Ban_Slide_Bao_Cao.md) & [docs/Spec2RTL_Bao_Ve_Do_An_3.html](docs/Spec2RTL_Bao_Ve_Do_An_3.html): kịch bản 14 slide và bản trình chiếu HTML 16:9 tương tác.
+- [models/run_inference.py](models/run_inference.py): đã hỗ trợ ưu tiên **Domain Guard** $\rightarrow$ **Hybrid BM25 RAG (`use_rag=True`)** $\rightarrow$ **GGUF (`llama_cpp`)** $\rightarrow$ **PyTorch + PEFT** $\rightarrow$ **Fallback `RTLGenerator`**.
+- [docs/Kich_Ban_Slide_Bao_Cao.md](docs/Kich_Ban_Slide_Bao_Cao.md) & [docs/Spec2RTL_Bao_Ve_Do_An_3.html](docs/Spec2RTL_Bao_Ve_Do_An_3.html): kịch bản 14 slide và bản trình chiếu HTML 16:9 tương tác (Slide 8 đã nhúng sơ đồ kiến trúc mới [docs/images/spec2rtl_fig3_adapted.png](docs/images/spec2rtl_fig3_adapted.png) bản địa hóa từ Fig. 3 *Spec2RTL-Agent*).
 
 ---
 
@@ -81,10 +86,12 @@ Người dùng chuyển từ máy cũ (4 GB RAM, `i5-6200U`, không có GPU rờ
    - **Teacher (`gemini-3.1-flash-lite`)** vs **Base Student (`Qwen2.5-Coder-3B` chưa train)** vs **Distilled Student (`Qwen2.5-Coder-3B` SFT + DPO)**.
 4. Tải adapter/GGUF mới và biểu đồ loss mới về máy (`models/` và `docs/dpo_loss_convergence.png`).
 
-### Bước 4: Nối Student vào luồng chạy chính `agent/run_spec2rtl.py`
-- **Lưu ý cực quan trọng:** Hiện tại `agent/run_spec2rtl.py` vẫn gọi `RTLGenerator.generate_from_spec()` (bộ sinh Python/template), còn `models/run_inference.py` đứng riêng!
-- Cần tích hợp `models/run_inference.py` vào `agent/run_spec2rtl.py` (ví dụ cờ `--use-distilled` hoặc ưu tiên model `Qwen2.5-Coder-3B` đã chưng cất khi sẵn có trên máy, sau đó vẫn bắt buộc đi qua `RTLPortEnforcer` $\rightarrow$ `VerilogLinter` $\rightarrow$ `EDASimulator` + `ReflectionAgent` $\rightarrow$ `bdf_generator`/`vwf_generator`, và có fallback an toàn về `RTLGenerator`).
-- Chạy kiểm chứng lại toàn bộ `agent/test_group3_linter.py`, `agent/test_robustness_battery.py` và `benchmarks/benchmark_week2_spec2rtl.py` (gồm cả chế độ chạy qua AI chưng cất).
+### Bước 4: Kích hoạt Student `--use-distilled` & Đo kiểm toàn trình trên máy mới
+- **Đã tích hợp sẵn trong repo (không cần code lại cầu nối):**
+  - `Hybrid BM25 RAG` (`agent/knowledge_matcher.py`), tham số `use_rag=True` trong `models/run_inference.py`, cờ `--use-distilled` + vòng nạp ngược DB trong `agent/run_spec2rtl.py`, và sơ đồ kiến trúc `docs/images/spec2rtl_fig3_adapted.png` đã được tích hợp hoàn chỉnh.
+- **Việc cần chạy trên máy mới sau Bước 1–3** *(khi đã kéo `VerilogDB`, train `Qwen2.5-Coder-3B` trên Colab và thả trọng số GGUF/LoRA vào `models/`)*:
+  1. Chạy thử luồng AI chưng cất + RAG + EDA khép kín qua `python agent/run_spec2rtl.py specs/<file>.txt --use-distilled` (hệ thống sẽ tự qua `RTLPortEnforcer` $\rightarrow$ `VerilogLinter` $\rightarrow$ `EDASimulator` + `ReflectionAgent` $\rightarrow$ `bdf_generator`/`vwf_generator` và nạp ngược mẫu pass vào `knowledge_base/hardware_db.json`).
+  2. Chạy kiểm chứng lại `agent/test_group3_linter.py`, `agent/test_robustness_battery.py`, `benchmarks/benchmark_week2_spec2rtl.py` (cả chế độ `--use-distilled`) và đo bảng **Ablation Study**.
 
 ### Bước 5: Đồng bộ Slide & Báo cáo trước khi bảo vệ
 - Cập nhật số liệu chưng cất VerilogDB mới, kết quả Ablation Study (Teacher vs Base vs Distilled 3B), và kiến trúc đã nối AI vào luồng chính trong:
