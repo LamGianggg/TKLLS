@@ -25,6 +25,9 @@ quartus/*
 
 # Raw cloned datasets for Knowledge Base
 knowledge_base/raw/
+knowledge_base/raw_verilogdb/
+*.parquet
+training/verilogdb_full_clean_pool.json
 
 # Teamwork internal scratch
 .agents/

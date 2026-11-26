@@ -16,10 +16,14 @@ Nhiệm vụ Nhóm 1 (Dữ liệu & Thẩm định):
 import os
 import re
 import json
+import argparse
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SFT_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_clean_verified.json")
+TEACHER_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_teacher_distilled.json")
 DPO_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_dpo_preference.json")
+TEACHER_DPO_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_teacher_dpo.json")
+CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, "training", "distill_checkpoint.json")
 
 def extract_verilog(text):
     match = re.search(r"```(?:verilog)?\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
@@ -66,30 +70,47 @@ def mutate_inject_blocking_assignment(code):
         return mutated, "BLOCKING_IN_SEQUENTIAL (Dùng phép gán = trong khối tuần tự gây Race Condition)"
     return None, None
 
-def build_dpo_dataset():
-    print("================================================================================")
-    print(">>> NHÓM 1: KHỞI TẠO TẬP DỮ LIỆU DPO PREFERENCE (CHOSEN VS REJECTED)")
-    print("================================================================================")
+def clean_prompt_text(text):
+    """Loại bỏ ký tự điều khiển PDF còn sót lại trong prompt."""
+    return re.split(r"\n?[\x00\s]*Sao chép khối nội dung", text or "")[0].replace("\x00", "").strip()
 
-    if not os.path.exists(SFT_DATASET_PATH):
-        print(f"[LỖI] Không tìm thấy file {SFT_DATASET_PATH}")
-        return
 
-    with open(SFT_DATASET_PATH, "r", encoding="utf-8") as f:
-        clean_items = json.load(f)
+def load_teacher_dpo_pairs():
+    """Nạp các cặp DPO thật từ quá trình Teacher Self-Correction (checkpoint hoặc tập DPO hiện có)."""
+    pairs_by_id = {}
 
-    print(f"[*] Nạp {len(clean_items)} mẫu CHOSEN đạt chuẩn ModelSim từ dataset_clean_verified.json...")
+    if os.path.exists(DPO_DATASET_PATH):
+        try:
+            with open(DPO_DATASET_PATH, "r", encoding="utf-8") as df:
+                existing_dpo = json.load(df)
+            for td in existing_dpo:
+                if td.get("id", "").startswith("dpo_teacher_") or "Self-Correction" in td.get("source", ""):
+                    item = dict(td)
+                    item["prompt"] = clean_prompt_text(item.get("prompt", ""))
+                    pairs_by_id[item["id"]] = item
+        except Exception:
+            pass
 
-    dpo_pairs = []
-    teacher_dpo_count = 0
-    ckpt_path = os.path.join(PROJECT_ROOT, "training", "distill_checkpoint.json")
-    if os.path.exists(ckpt_path):
-        with open(ckpt_path, "r", encoding="utf-8") as cf:
-            ckpt = json.load(cf)
-        for td in ckpt.get("teacher_dpo_pairs", []):
-            dpo_pairs.append(td)
-            teacher_dpo_count += 1
+    if os.path.exists(CHECKPOINT_PATH):
+        try:
+            with open(CHECKPOINT_PATH, "r", encoding="utf-8") as cf:
+                ckpt = json.load(cf)
+            for td in ckpt.get("teacher_dpo_pairs", []):
+                item = dict(td)
+                item["prompt"] = clean_prompt_text(item.get("prompt", ""))
+                pairs_by_id[item["id"]] = item
+        except Exception:
+            pass
 
+    return list(pairs_by_id.values())
+
+
+def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label):
+    """Sinh tập cặp DPO (Chosen vs Rejected) ưu tiên cặp Teacher Self-Correction + đột biến 3 lỗi RTL."""
+    print(f"\n[*] Đang tạo {label}: nạp {len(clean_items)} mẫu CHOSEN...")
+
+    dpo_pairs = list(real_teacher_dpo)
+    teacher_dpo_count = len(dpo_pairs)
     latch_count = 0
     dangling_count = 0
     blocking_count = 0
@@ -97,13 +118,14 @@ def build_dpo_dataset():
     for idx, item in enumerate(clean_items):
         item_id = item.get("id", f"sample_{idx}")
         instruction = item.get("instruction", "")
-        input_spec = item.get("input", "")
+        input_spec = clean_prompt_text(item.get("input", ""))
         chosen_output = item.get("output", "")
         chosen_code = extract_verilog(chosen_output)
+        if not chosen_code:
+            continue
 
         prompt_text = f"{instruction}\n\n{input_spec}".strip()
 
-        # Áp dụng chiến lược tạo mã REJECTED đối ứng
         rejected_code = None
         error_type = None
 
@@ -129,26 +151,22 @@ def build_dpo_dataset():
                 error_type = err
                 blocking_count += 1
 
-        # Nếu không đột biến được bằng các quy tắc trên, bắt buộc tạo lỗi sai lệch logic / cú pháp
+        # Dự phòng nếu 3 phép đột biến trên không áp dụng được
         if not rejected_code or rejected_code == chosen_code:
             if "assign " in chosen_code:
-                # Đảo ngược một phép gán để tạo lỗi chức năng (Functional Bug)
                 rejected_code = re.sub(r"\b1'b0\b", "1'b1", chosen_code, count=1)
                 if rejected_code == chosen_code:
                     rejected_code = re.sub(r"\b1'b1\b", "1'b0", chosen_code, count=1)
                 error_type = "FUNCTIONAL_BUG (Sai lệch logic ngõ ra / Inverse output polarity)"
             else:
-                # Đột biến xóa phần khởi tạo reset
                 rejected_code = chosen_code.replace("if (!rst_n)", "if (1'b0)").replace("if (rst)", "if (1'b0)")
                 error_type = "MISSING_RESET_INITIALIZATION (Không khởi tạo thanh ghi khi có tín hiệu reset)"
 
-        # Đảm bảo 100% không trùng lặp giữa chosen và rejected
         if rejected_code == chosen_code:
             rejected_code = chosen_code.replace("endmodule", "// Lỗi thiếu kết thúc module\n")
             error_type = "SYNTAX_TRUNCATED (Mã nguồn bị ngắt quãng giữa chừng)"
 
-        # Đóng gói cặp DPO chuẩn
-        dpo_entry = {
+        dpo_pairs.append({
             "id": f"dpo_{item_id}",
             "category": item.get("category", "General"),
             "source": item.get("source", "Spec2RTL"),
@@ -158,21 +176,53 @@ def build_dpo_dataset():
             "rejected": f"```verilog\n{rejected_code}\n```",
             "rejected_error_type": error_type,
             "chosen_verification": "PASS_100_MODELSIM",
-            "rejected_verification": "FAIL_LINTER_OR_SIMULATION"
-        }
-        dpo_pairs.append(dpo_entry)
+            "rejected_verification": "FAIL_LINTER_OR_SIMULATION",
+        })
 
-    with open(DPO_DATASET_PATH, "w", encoding="utf-8") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(dpo_pairs, f, ensure_ascii=False, indent=2)
 
     print("--------------------------------------------------------------------------------")
-    print(f"[THÀNH CÔNG] Đã tạo tập dữ liệu DPO Preference: {DPO_DATASET_PATH}")
+    print(f"[THÀNH CÔNG] {label}: {out_path}")
     print(f"[*] Tổng số cặp CHOSEN / REJECTED: {len(dpo_pairs)} cặp.")
     print(f"    - Cặp thật từ Teacher Self-Correction   : {teacher_dpo_count} cặp")
     print(f"    - Lỗi Chốt ẩn (Inferred Latch)            : {latch_count} cặp")
     print(f"    - Lỗi Chân lơ lửng (Dangling Pin)         : {dangling_count} cặp")
     print(f"    - Lỗi Gán chắn (Blocking Race Condition)   : {blocking_count} cặp")
     print("--------------------------------------------------------------------------------")
+    return len(dpo_pairs)
+
+
+def build_dpo_dataset(pure_teacher_only=False):
+    print("================================================================================")
+    print(">>> NHÓM 1: KHỞI TẠO TẬP DỮ LIỆU DPO PREFERENCE (CHOSEN VS REJECTED)")
+    print("================================================================================")
+
+    real_teacher_dpo = load_teacher_dpo_pairs()
+
+    if not pure_teacher_only:
+        if os.path.exists(SFT_DATASET_PATH):
+            with open(SFT_DATASET_PATH, "r", encoding="utf-8") as f:
+                clean_items = json.load(f)
+            generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, DPO_DATASET_PATH, "DPO Hợp nhất (Full)")
+        else:
+            print(f"[CẢNH BÁO] Không tìm thấy {SFT_DATASET_PATH}, bỏ qua xuất DPO hợp nhất.")
+
+    if os.path.exists(TEACHER_DATASET_PATH):
+        with open(TEACHER_DATASET_PATH, "r", encoding="utf-8") as f:
+            teacher_items = json.load(f)
+        generate_dpo_pairs_from_items(
+            teacher_items,
+            real_teacher_dpo,
+            TEACHER_DPO_DATASET_PATH,
+            "DPO 100% Thuần Gemini Teacher",
+        )
+    else:
+        print(f"[CẢNH BÁO] Không tìm thấy {TEACHER_DATASET_PATH}, bỏ qua xuất DPO thuần Teacher.")
+
 
 if __name__ == "__main__":
-    build_dpo_dataset()
+    parser = argparse.ArgumentParser(description="Xây dựng tập dữ liệu DPO Preference")
+    parser.add_argument("--pure-teacher-only", action="store_true", help="Chỉ xuất training/dataset_teacher_dpo.json")
+    args = parser.parse_args()
+    build_dpo_dataset(pure_teacher_only=args.pure_teacher_only)
