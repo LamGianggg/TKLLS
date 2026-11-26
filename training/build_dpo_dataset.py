@@ -81,6 +81,15 @@ def build_dpo_dataset():
     print(f"[*] Nạp {len(clean_items)} mẫu CHOSEN đạt chuẩn ModelSim từ dataset_clean_verified.json...")
 
     dpo_pairs = []
+    teacher_dpo_count = 0
+    ckpt_path = os.path.join(PROJECT_ROOT, "training", "distill_checkpoint.json")
+    if os.path.exists(ckpt_path):
+        with open(ckpt_path, "r", encoding="utf-8") as cf:
+            ckpt = json.load(cf)
+        for td in ckpt.get("teacher_dpo_pairs", []):
+            dpo_pairs.append(td)
+            teacher_dpo_count += 1
+
     latch_count = 0
     dangling_count = 0
     blocking_count = 0
@@ -159,6 +168,7 @@ def build_dpo_dataset():
     print("--------------------------------------------------------------------------------")
     print(f"[THÀNH CÔNG] Đã tạo tập dữ liệu DPO Preference: {DPO_DATASET_PATH}")
     print(f"[*] Tổng số cặp CHOSEN / REJECTED: {len(dpo_pairs)} cặp.")
+    print(f"    - Cặp thật từ Teacher Self-Correction   : {teacher_dpo_count} cặp")
     print(f"    - Lỗi Chốt ẩn (Inferred Latch)            : {latch_count} cặp")
     print(f"    - Lỗi Chân lơ lửng (Dangling Pin)         : {dangling_count} cặp")
     print(f"    - Lỗi Gán chắn (Blocking Race Condition)   : {blocking_count} cặp")

@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spec2RTL &amp; Prompt2Silicon — Báo Cáo Đồ Án 3 (CE118)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #070b14;
+            --color-surface: #0f172a;
+            --color-surface-2: #162036;
+            --color-border: rgba(148, 163, 184, 0.16);
+            --color-primary: #38bdf8;
+            --color-secondary: #818cf8;
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-danger: #f43f5e;
+            --color-text: #f1f5f9;
+            --color-muted: #94a3b8;
+            --font-heading: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+            --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+            --gradient-primary: linear-gradient(135deg, #38bdf8 0%, #818cf8 55%, #34d399 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #03060c;
+            color: var(--color-text);
+            font-family: var(--font-body);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* 16:9 Responsive Slide Deck */
+        .slide-deck {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--color-bg);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
+        }
+
+        @media (min-width: 900px) {
+            .slide-deck {
+                max-width: calc(100vh * 16 / 9);
+                max-height: calc(100vw * 9 / 16);
+                margin: auto;
+                position: absolute;
+                inset: 0;
+                border: 1px solid rgba(56, 189, 248, 0.14);
+                border-radius: 10px;
+            }
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            padding: 36px 52px 62px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: opacity 0.35s ease, transform 0.35s ease, visibility 0.35s;
+            background:
+                radial-gradient(circle at 85% 15%, rgba(56, 189, 248, 0.08), transparent 42%),
+                radial-gradient(circle at 12% 88%, rgba(129, 140, 248, 0.07), transparent 40%),
+                var(--color-bg);
+            overflow: hidden;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .slide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--color-border);
+            flex-shrink: 0;
+        }
+
+        .slide-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--color-primary);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 4px 12px;
+            border-radius: 999px;
+        }
+
+        .slide-section-label {
+            font-size: 12px;
+            color: var(--color-muted);
+            font-family: var(--font-mono);
+        }
+
+        h1, h2, h3 {
+            font-family: var(--font-heading);
+            letter-spacing: -0.02em;
+        }
+
+        .slide-title {
+            font-size: clamp(22px, 2.5vw, 34px);
+            line-height: 1.18;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(90deg, #f8fafc 20%, #bae6fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            flex-shrink: 0;
+        }
+
+        .hero-title {
+            font-size: clamp(28px, 3.3vw, 44px);
+            line-height: 1.15;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .slide-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 14px;
+            overflow: hidden;
+        }
+
+        /* Grid Helpers */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: stretch;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .grid-2-wide-left {
+            display: grid;
+            grid-template-columns: 1.25fr 0.95fr;
+            gap: 20px;
+            align-items: stretch;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .grid-2-wide-right {
+            display: grid;
+            grid-template-columns: 0.95fr 1.25fr;
+            gap: 20px;
+            align-items: stretch;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .card-accent-cyan { border-top: 3px solid var(--color-primary); }
+        .card-accent-indigo { border-top: 3px solid var(--color-secondary); }
+        .card-accent-green { border-top: 3px solid var(--color-success); }
+        .card-accent-amber { border-top: 3px solid var(--color-warning); }
+        .card-accent-red { border-top: 3px solid var(--color-danger); }
+
+        .card h3 {
+            font-size: clamp(14px, 1.3vw, 18px);
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card p, .card li {
+            font-size: clamp(12px, 1.05vw, 14.5px);
+            line-height: 1.48;
+            color: #cbd5e1;
+        }
+
+        ul.clean {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        ul.clean li {
+            position: relative;
+            padding-left: 16px;
+        }
+
+        ul.clean li::before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            color: #7dd3fc;
+            background: rgba(56, 189, 248, 0.1);
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+
+        pre.code-block {
+            font-family: var(--font-mono);
+            font-size: clamp(11px, 0.95vw, 13px);
+            line-height: 1.5;
+            background: #020617;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: #e2e8f0;
+            overflow: hidden;
+            white-space: pre;
+        }
+
+        .hl-line {
+            background: rgba(16, 185, 129, 0.18);
+            border-left: 3px solid var(--color-success);
+            display: block;
+            margin: 0 -14px;
+            padding: 0 11px;
+            color: #6ee7b7;
+            font-weight: 600;
+        }
+
+        /* Metric Hero Boxes */
+        .metric-card {
+            background: linear-gradient(160deg, rgba(22, 32, 54, 0.95), rgba(15, 23, 42, 0.9));
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            text-align: center;
+        }
+
+        .metric-val {
+            font-family: var(--font-heading);
+            font-size: clamp(22px, 2.4vw, 34px);
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .metric-lbl {
+            font-size: 12px;
+            color: var(--color-muted);
+            margin-top: 4px;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+        .badge-green { background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-red { background: rgba(244, 63, 94, 0.16); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+        .badge-amber { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-cyan { background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+        /* Tables */
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: clamp(11px, 0.96vw, 13.5px);
+        }
+
+        table.data-table th, table.data-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid var(--color-border);
+            text-align: left;
+        }
+
+        table.data-table th {
+            color: #93c5fd;
+            font-weight: 600;
+            background: rgba(30, 41, 59, 0.65);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        table.data-table td { color: #e2e8f0; }
+        table.data-table tr:hover td { background: rgba(56, 189, 248, 0.05); }
+
+        /* Images */
+        .img-frame {
+            background: #020617;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .img-frame img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+
+        .img-caption {
+            font-size: 11px;
+            color: var(--color-muted);
+            font-family: var(--font-mono);
+        }
+
+        /* Flow Steps */
+        .flow-step {
+            background: var(--color-surface-2);
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            border-radius: 12px;
+            padding: 14px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+        }
+
+        .step-num {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            color: #03060c;
+            font-weight: 700;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Chart Container */
+        .chart-box {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            min-height: 180px;
+            max-height: 310px;
+        }
+
+        /* Progress Bar & Navigation */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: var(--gradient-primary);
+            transition: width 0.3s ease;
+            z-index: 1200;
+        }
+
+        .nav-controls {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--color-border);
+            padding: 6px 14px;
+            border-radius: 999px;
+            z-index: 1200;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            height: 30px;
+            min-width: 30px;
+            padding: 0 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .nav-btn:hover { background: rgba(56, 189, 248, 0.22); border-color: var(--color-primary); }
+        .nav-btn.active-toggle { background: rgba(56, 189, 248, 0.28); border-color: var(--color-primary); color: #7dd3fc; }
+
+        .slide-counter {
+            font-family: var(--font-mono);
+            font-size: 12.5px;
+            color: var(--color-muted);
+            min-width: 56px;
+            text-align: center;
+        }
+
+        /* Speaker Notes Drawer */
+        .notes-drawer {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            width: min(920px, 92vw);
+            max-height: 210px;
+            overflow-y: auto;
+            background: rgba(7, 11, 20, 0.96);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 12px;
+            padding: 14px 18px;
+            z-index: 1150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.25s ease;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.75);
+        }
+
+        .notes-drawer.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .notes-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--color-primary);
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .notes-text {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: #e2e8f0;
+        }
+
+        /* Slide Index Modal */
+        .index-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 6, 12, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 1300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+        }
+        .index-modal.open { display: flex; }
+
+        .index-grid {
+            width: min(1050px, 95vw);
+            max-height: 82vh;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 12px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            padding: 20px;
+            border-radius: 14px;
+        }
+
+        .index-item {
+            background: var(--color-surface-2);
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .index-item:hover { border-color: var(--color-primary); transform: translateY(-2px); }
+        .index-item.current { border-color: var(--color-success); background: rgba(16, 185, 129, 0.1); }
+        .index-item-num { font-family: var(--font-mono); font-size: 11px; color: var(--color-primary); }
+        .index-item-title { font-size: 13px; font-weight: 600; color: #f8fafc; margin-top: 4px; line-height: 1.35; }
+
+        /* Waveform SVG Card */
+        .wave-box {
+            background: #020617;
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        /* Stagger animation when slide activates */
+        .slide.active .anim-up {
+            animation: fadeUp 0.45s ease forwards;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 899px) {
+            body { overflow-y: auto; }
+            .slide { padding: 20px 18px 72px; overflow-y: auto; }
+            .grid-2, .grid-2-wide-left, .grid-2-wide-right, .grid-3, .grid-4, .grid-5 {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        @media print {
+            body { overflow: visible; background: #070b14; }
+            .slide-deck { position: static; max-width: none; max-height: none; height: auto; overflow: visible; }
+            .slide { position: relative; opacity: 1 !important; visibility: visible !important; transform: none !important; page-break-after: always; height: 100vh; }
+            .nav-controls, .progress-bar, .notes-drawer, .index-modal { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div class="slide-deck" id="slideDeck">
+
+        <!-- SLIDE 1: TITLE -->
+        <section class="slide active" data-title="Trang tiêu đề & Mục tiêu Đồ án"
+            data-notes="Kính thưa Thầy TS. Nguyễn Văn Tình và quý Thầy Cô. Trong học phần Đồ án 3 (CE118), em xây dựng hệ thống Spec2RTL & Prompt2Silicon nhằm tự động hóa quy trình biến một bản đặc tả văn bản tự nhiên thành thiết kế phần cứng hoàn chỉnh có thể kiểm chứng ngay trên ModelSim và Quartus II. Trong buổi báo cáo hôm nay, em xin trình bày trọn vẹn lộ trình từ cách nhóm tạo ra năng lực thiết kế cho hệ thống thông qua quy trình Chưng cất Tri thức (SFT LoRA + DPO), tích hợp cùng bộ bảo vệ Domain Guard, AST Linter và vòng lặp kiểm chứng EDA khép kín, cho đến kết quả đo kiểm thực nghiệm hiện tại.">
+            <div class="slide-header">
+                <span class="slide-tag">Đồ án 3 (CE118) — Thiết kế Luận lý số</span>
+                <span class="slide-section-label">SLIDE 01 / 14</span>
+            </div>
+            <div class="slide-body">
+                <div class="grid-2-wide-left" style="align-items: center;">
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        <span class="badge badge-cyan" style="width:fit-content;">SPEC2RTL &amp; PROMPT2SILICON</span>
+                        <h1 class="hero-title">Từ Chưng Cất Tri Thức Đến Kiểm Chứng EDA Khép Kín</h1>
+                        <p style="font-size:15px; line-height:1.55; color:#cbd5e1;">
+                            Chuyển hóa đặc tả ngôn ngữ tự nhiên (<code>.txt</code>, <code>.md</code>) thành mã Verilog synthesizable chuẩn <strong>IEEE 1364-2001</strong>, tự động mô phỏng <strong>ModelSim</strong>, tự sửa lỗi và xuất sơ đồ nguyên lý <strong>Quartus II 13.0sp1</strong>.
+                        </p>
+                        <div class="card card-accent-cyan" style="padding:12px 16px;">
+                            <div class="grid-2" style="gap:10px; height:auto;">
+                                <div>
+                                    <div style="font-size:11px; color:var(--color-muted); text-transform:uppercase;">Giảng viên hướng dẫn</div>
+                                    <div style="font-size:14px; font-weight:600; color:#f8fafc;">TS. Nguyễn Văn Tình</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:11px; color:var(--color-muted); text-transform:uppercase;">Sinh viên thực hiện</div>
+                                    <div style="font-size:14px; font-weight:600; color:#f8fafc;">[Họ và tên Sinh viên]</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <span class="badge badge-green">1,098 Mẫu Sạch ModelSim</span>
+                            <span class="badge badge-cyan">1,098 Cặp DPO Alignment</span>
+                            <span class="badge badge-amber">6/6 Benchmark (54.89s)</span>
+                        </div>
+                    </div>
+                    <div class="img-frame" style="height:100%;">
+                        <img src="images/pipeline_architecture_horizontal.png" alt="Kiến trúc Spec2RTL">
+                        <span class="img-caption">docs/images/pipeline_architecture_horizontal.png</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 2: PAIN POINT & 70/30 STRATEGY -->
+        <section class="slide" data-title="Nỗi đau ngành vi mạch & Chiến lược 70/30"
+            data-notes="Thưa Thầy, câu hỏi đầu tiên đặt ra là: tại sao không dùng trực tiếp các LLM phổ thông để xin code Verilog? Thực tế cho thấy thiết kế phần cứng cực kỳ khắt khe: chỉ cần AI bịa thêm một chân tín hiệu, thiếu nhánh default gây chốt ẩn, hay bỏ quên dây nối từ một ngõ vào, mạch vẫn có thể biên dịch được nhưng chạy sai hoàn toàn trên FPGA. Vì vậy, nhóm áp dụng chiến lược phân tách 70/30: giao 70% các khối hạ tầng phổ thông như UART, FSM, bộ đếm, bộ giải mã cho hệ thống Spec2RTL tự động sinh và kiểm chứng tuyệt đối, giúp người kỹ sư dồn 100% chất xám cho 30% kiến trúc lõi tính toán chuyên sâu.">
+            <div class="slide-header">
+                <span class="slide-tag">01. Đặt vấn đề &amp; Chiến lược</span>
+                <span class="slide-section-label">reports/05_70_30_Chip_Partitioning_Commodity_AI.md</span>
+            </div>
+            <h2 class="slide-title">Nỗi Đau Ngành Vi Mạch, Giới Hạn LLM Phổ Thông &amp; Chiến Lược 70/30</h2>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        <div class="card card-accent-red">
+                            <h3>3 Lý Do LLM Đa Dụng Thất Bại Khi Viết Verilog</h3>
+                            <ul class="clean">
+                                <li><strong>Ảo giác chân tín hiệu (Port Hallucination):</strong> Tự ý thêm/bớt cổng hoặc sai độ rộng bit so với đặc tả.</li>
+                                <li><strong>Lỗi ngữ nghĩa phần cứng ngầm:</strong> Sinh chốt ẩn (<code>Inferred Latch</code>), cô lập chân vào (<code>Dangling Pin</code>), hoặc gán <code>=</code> trong khối tuần tự gây <code>Race Condition</code>.</li>
+                                <li><strong>Không có Trọng tài EDA (Open-loop):</strong> Chỉ sinh text theo xác suất, không tự biên dịch/mô phỏng trên ModelSim hay Quartus II.</li>
+                            </ul>
+                        </div>
+                        <div class="card card-accent-green">
+                            <h3>Chiến Lược Phân Tách 70 / 30</h3>
+                            <ul class="clean">
+                                <li><strong>70% Hạ tầng phổ thông (AI tự động hóa):</strong> Clock/Reset, UART/SPI/I2C, FIFO, Counter, FSM, ALU giao tiếp qua chuẩn <em>Decoupled Ready/Valid Socket</em>.</li>
+                                <li><strong>30% Kiến trúc cốt lõi (Con người tập trung):</strong> Systolic Array, khối tính INT8/BF16, PWL Activation, Ping-Pong DMA.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card card-accent-cyan" style="justify-content: space-between;">
+                        <h3>Phân Bổ Công Sức Thiết Kế Hệ Thống Chip (70/30)</h3>
+                        <div class="chart-box">
+                            <canvas id="chart7030"></canvas>
+                        </div>
+                        <p style="font-size:12.5px; color:var(--color-muted); text-align:center;">
+                            Giải phóng kỹ sư khỏi 70% khối lặp lại để tập trung tối ưu 30% lõi đột phá.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 3: BASELINE LIMITATION ~38% & BUTTON DEBOUNCER -->
+        <section class="slide" data-title="Giới hạn mẫu cứng (~38%) & Ca lỗi button_debouncer"
+            data-notes="Ở giai đoạn đầu, khi kiểm thử phương pháp dựa trên mẫu cứng trên bộ 100 đề bài chuẩn hóa của đồ án, hệ thống chỉ xử lý tốt khoảng 38% bài toán thuộc 25 họ mạch quen thuộc; 62% bài toán còn lại rơi vào giới hạn của hàm sinh generic. Đặc biệt, qua phản biện trực tiếp của Thầy Tình trên bài toán button_debouncer, nhóm thấy rõ nhược điểm chí mạng: chân btn_in bị bỏ lơ lửng không nối vào logic, nhưng testbench đơn giản vẫn báo PASS giả. Chính bài học thực nghiệm này là lý do nhóm chuyển sang xây dựng quy trình Chưng cất Tri thức và bộ phân tích tĩnh AST Linter.">
+            <div class="slide-header">
+                <span class="slide-tag">01. Đặt vấn đề &amp; Động lực chuyển hướng</span>
+                <span class="slide-section-label">docs/100_Prompt_Thiet_Ke_Mach.pdf</span>
+            </div>
+            <h2 class="slide-title">Giới Hạn Của Phương Pháp Mẫu Cứng (~38%) &amp; Ca Lỗi <code>button_debouncer</code></h2>
+            <div class="slide-body">
+                <div class="grid-2-wide-right">
+                    <div class="card card-accent-amber" style="justify-content:space-between;">
+                        <h3>Khảo Sát Trên 100 Đề Bài Chuẩn Hóa</h3>
+                        <div class="chart-box">
+                            <canvas id="chartBaseline"></canvas>
+                        </div>
+                        <div style="display:flex; justify-content:space-around; padding-top:6px;">
+                            <div style="text-align:center;">
+                                <div style="font-size:20px; font-weight:700; color:var(--color-success);">~38%</div>
+                                <div style="font-size:11.5px; color:var(--color-muted);">25 họ mạch kinh điển</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:20px; font-weight:700; color:var(--color-danger);">~62%</div>
+                                <div style="font-size:11.5px; color:var(--color-muted);">Mạch mới / biến thể</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                        <div class="card card-accent-red">
+                            <h3>Ca Thất Bại Thực Nghiệm Do TS. Nguyễn Văn Tình Chỉ Ra</h3>
+                            <ul class="clean">
+                                <li><strong>Bài toán:</strong> Mạch khử rung nút bấm <code>button_debouncer</code> (vượt ngoài 25 mẫu cứng ban đầu).</li>
+                                <li><strong>Lỗi <code>DANGLING_INPUT</code>:</strong> Chân đầu vào <code>btn_in</code> bị cô lập hoàn toàn, không đi vào logic xử lý.</li>
+                                <li><strong>Lỗ hổng kiểm chứng:</strong> Ngõ ra tự lật trạng thái giả tạo nhưng Testbench sơ sài vẫn báo <span class="badge badge-red">PASS 100% GIẢ TẠO</span>.</li>
+                            </ul>
+                        </div>
+                        <div class="card card-accent-cyan">
+                            <h3>Kết Luận Chuyển Hướng Kỹ Thuật</h3>
+                            <p>Không thể viết tay hàng nghìn template → Bắt buộc phải:</p>
+                            <ul class="clean">
+                                <li><strong>Chưng cất tri thức</strong> sang mô hình cục bộ 3B + căn chỉnh <strong>DPO</strong> né lỗi vi mạch.</li>
+                                <li>Xây dựng <strong>AST Linter</strong> bắt chết chân lơ lửng, chốt ẩn và race condition trước mô phỏng.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 4: OVERVIEW 5 STEPS KNOWLEDGE DISTILLATION -->
+        <section class="slide" data-title="Tổng quan 5 bước Chưng cất Tri thức"
+            data-notes="Để Thầy thấy rõ cách hệ thống được tạo ra từ gốc, đây là toàn cảnh 5 bước Chưng cất Tri thức của nhóm. Thay vì dùng dữ liệu thô trên mạng vốn chứa rất nhiều mã Verilog không tổng hợp được, nhóm đi từ thu thập 6 nguồn chuẩn, ép toàn bộ qua bộ lọc chân lý ModelSim để còn 1,098 mẫu sạch, rồi chủ động tiêm lỗi phần cứng để tạo 1,098 cặp DPO dạy AI biết phân biệt code đúng và code lỗi. Toàn bộ quá trình huấn luyện SFT và DPO được thực hiện miễn phí trên Colab T4 rồi đóng gói trọng số chạy offline.">
+            <div class="slide-header">
+                <span class="slide-tag">02. Quy trình tạo hệ thống (Knowledge Distillation)</span>
+                <span class="slide-section-label">training/* &amp; models/*</span>
+            </div>
+            <h2 class="slide-title">Lộ Trình Tạo Ra Hệ Thống: 5 Bước Chưng Cất Tri Thức &amp; Căn Chỉnh Phần Cứng</h2>
+            <div class="slide-body">
+                <div class="grid-4" style="margin-bottom:4px;">
+                    <div class="metric-card"><div class="metric-val">6 Nguồn</div><div class="metric-lbl">539 mẫu DB + Aug + VeriPrefer</div></div>
+                    <div class="metric-card"><div class="metric-val">1,098</div><div class="metric-lbl">Mẫu sạch pass ModelSim (99.8%)</div></div>
+                    <div class="metric-card"><div class="metric-val">1,098 Cặp</div><div class="metric-lbl">DPO Chosen vs Rejected tiêm lỗi</div></div>
+                    <div class="metric-card"><div class="metric-val">0 VNĐ</div><div class="metric-lbl">Colab T4 4-bit ➔ Offline 3B</div></div>
+                </div>
+                <div class="grid-5">
+                    <div class="flow-step">
+                        <span class="step-num">1</span>
+                        <h3 style="font-size:14px;">Thu thập &amp; CoT</h3>
+                        <p style="font-size:12px; color:#cbd5e1;">Gộp <code>hardware_db.json</code> (539), CE118 Suite (<code>prepare_dataset_group1.py</code>) &amp; <code>VeriPrefer</code> kèm CoT 3 bước.</p>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-num">2</span>
+                        <h3 style="font-size:14px;">Truth Oracle</h3>
+                        <p style="font-size:12px; color:#cbd5e1;">Biên dịch thật từng mẫu bằng <code>vlog.exe</code>, quét <code>check_linter()</code> &amp; khử trùng MD5 ➔ <strong>1,098 mẫu sạch</strong>.</p>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-num">3</span>
+                        <h3 style="font-size:14px;">DPO Tiêm Lỗi</h3>
+                        <p style="font-size:12px; color:#cbd5e1;"><code>build_dpo_dataset.py</code> đột biến tạo <strong>1,098 cặp</strong> phạt lỗi chân lơ lửng, chốt ẩn, race.</p>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-num">4</span>
+                        <h3 style="font-size:14px;">Train SFT &amp; DPO</h3>
+                        <p style="font-size:12px; color:#cbd5e1;">Unsloth 4-bit trên Colab T4: SFT LoRA (<code>lr=2e-4</code>) nối tiếp DPO (<code>beta=0.1, lr=5e-6</code>).</p>
+                    </div>
+                    <div class="flow-step">
+                        <span class="step-num">5</span>
+                        <h3 style="font-size:14px;">Đóng gói Offline</h3>
+                        <p style="font-size:12px; color:#cbd5e1;">Xuất adapter (~114.25 MB) vào <code>models/</code>, nạp suy luận qua <code>run_inference.py</code> bảo mật IP.</p>
+                    </div>
+                </div>
+                <div class="card card-accent-cyan" style="padding:10px 16px; flex-direction:row; justify-content:space-between; align-items:center;">
+                    <span style="font-size:13px; color:#e2e8f0;"><strong>Đầu ra dữ liệu chuẩn hóa:</strong> <code>training/dataset_clean_verified.json</code> (SFT) &amp; <code>training/dataset_dpo_preference.json</code> (DPO)</span>
+                    <span class="badge badge-green">PASS_100_MODELSIM_VLOG</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 5: DATA COLLECTION & MODELSIM TRUTH ORACLE -->
+        <section class="slide" data-title="Bước 1 & 2: Thu thập 6 nguồn & ModelSim Truth Oracle"
+            data-notes="Đi vào chi tiết Bước 1 và Bước 2: điểm xuất phát của nhóm là hardware_db.json gồm 539 mẫu từ 6 nguồn nghiên cứu uy tín như NVIDIA VerilogEval, VeriPrefer, RTLLM, CVDP, Verilog-Instruct-60k và thư viện nội bộ Spec2RTL. Sau đó, script prepare_dataset_group1.py mở rộng thêm các họ mạch đặc thù môn CE118 như CRC, SPI, UART, VGA, FIFO kèm chuỗi suy luận CoT 3 bước, và integrate_veriprefer.py bổ sung thêm mẫu từ VeriPrefer. Tất cả 1,100 ứng viên được đưa qua bộ lọc Truth Oracle bằng chính trình biên dịch vlog.exe của ModelSim kết hợp khử trùng lặp MD5. Kết quả giữ lại đúng 1,098 mẫu sạch trên 26 nhóm mạch, bảo đảm 100% biên dịch thành công trước khi đưa đi huấn luyện.">
+            <div class="slide-header">
+                <span class="slide-tag">02. Chưng cất dữ liệu (Nhóm 1)</span>
+                <span class="slide-section-label">training/REPORT_NHOM_1_DATASET.md</span>
+            </div>
+            <h2 class="slide-title">Bước 1 &amp; 2: Thu Thập Đa Nguồn, CoT 3 Bước &amp; Lọc ModelSim Truth Oracle</h2>
+            <div class="slide-body">
+                <div class="grid-2-wide-left">
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="card card-accent-cyan">
+                            <h3>Thu Thập 6 Nguồn Gốc &amp; CE118 Augmentation</h3>
+                            <ul class="clean">
+                                <li><strong><code>knowledge_base/hardware_db.json</code> (539 mẫu):</strong> NVIDIA VerilogEval (156), AbiralArch CVDP (119), Verilog-Instruct-60k (112), CityU HK VeriPrefer (100), HKUST RTLLM (50), Spec2RTL Lib (2).</li>
+                                <li><strong><code>prepare_dataset_group1.py</code> (3,094 dòng):</strong> Gắn <code>generate_cot_explanation()</code> 3 bước cho 6 <code>specs/*.txt</code>, 8 nhóm Full-Scale Aug, 9 nhóm Advanced CE118 (CRC, Bin↔Gray, Crossbar), &amp; Protocols/Coprocessors (SPI, UART RX, VGA, PWM, FIFO).</li>
+                                <li><strong><code>integrate_veriprefer.py</code>:</strong> Nạp thêm <code>rtllm2.json</code> (50 bài) &amp; <code>veriloghuman.json</code> (40 bài đầu) từ <code>CatIIIIIIII/VeriPrefer</code>.</li>
+                            </ul>
+                        </div>
+                        <div class="card card-accent-green">
+                            <h3>Bộ Lọc Chân Lý ModelSim (<code>filter_dataset_with_modelsim.py</code>)</h3>
+                            <ul class="clean">
+                                <li>Chạy <code>vlog.exe -work work</code> (timeout 10s, <code>returncode == 0</code>, có <code>-- Compiling</code>, không <code>** Error:</code>/<code>** Fatal:</code>).</li>
+                                <li>Quét <code>check_linter()</code> + khử trùng lặp theo <code>id</code> &amp; hash <strong>MD5</strong> code chuẩn hóa.</li>
+                                <li><strong>Kết quả:</strong> 1,100 ứng viên → loại 2 mẫu trùng (0.2%) → <strong>1,098 mẫu sạch (99.8%)</strong>, 26 categories.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card card-accent-indigo" style="justify-content:space-between;">
+                        <h3>Phân Bố 1,098 Mẫu Sạch Theo Nguồn</h3>
+                        <div class="chart-box">
+                            <canvas id="chartDatasetSources"></canvas>
+                        </div>
+                        <p style="font-size:11.5px; color:var(--color-muted);">
+                            *100% mẫu trong <code>dataset_clean_verified.json</code> đạt trạng thái <code>PASS_100_MODELSIM_VLOG</code> &amp; <code>CLEAN_0_LATCH_0_DANGLING_PIN</code>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 6: STEP 3 DPO DATASET -->
+        <section class="slide" data-title="Bước 3: Tạo 1,098 cặp DPO tiêm lỗi phần cứng"
+            data-notes="Sang Bước 3, để mô hình không mắc lại các lỗi mà Thầy đã chỉ ra như chân lơ lửng hay chốt ẩn, nhóm viết script build_dpo_dataset.py biến đổi trực tiếp 1,098 mẫu sạch thành 1,098 cặp dữ liệu DPO. Trong mỗi cặp, phần Chosen là mã chuẩn đã qua ModelSim, còn phần Rejected được tạo bằng cách cố tình tiêm 3 lỗi phần cứng phổ biến nhất: chân lơ lửng (933 cặp), chốt ẩn (86 cặp) và gán blocking trong khối tuần tự (56 cặp), cùng 23 cặp lỗi cú pháp/logic. Nhờ vậy, mô hình được dạy trực tiếp điều gì là tối kỵ trong thiết kế RTL.">
+            <div class="slide-header">
+                <span class="slide-tag">02. Căn chỉnh nhận thức phần cứng (DPO Dataset)</span>
+                <span class="slide-section-label">training/build_dpo_dataset.py ➔ dataset_dpo_preference.json</span>
+            </div>
+            <h2 class="slide-title">Bước 3: Sinh 1,098 Cặp DPO <code>Chosen vs Rejected</code> Bằng Đột Biến Tiêm Lỗi</h2>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="card card-accent-indigo">
+                            <h3>Vì Sao Phải Tiêm Lỗi Tạo DPO?</h3>
+                            <p>SFT chỉ giúp mô hình bắt chước văn phong code; theo hướng tiếp cận <strong>VeriPrefer</strong>, cần cặp đối lập <strong>Chosen / Rejected</strong> để hàm phạt DPO triệt tiêu trực tiếp các lỗi vi mạch đặc thù.</p>
+                        </div>
+                        <div class="card card-accent-amber">
+                            <h3>3 Toán Tử Đột Biến Chính (<code>build_dpo_dataset.py</code>)</h3>
+                            <ul class="clean">
+                                <li><code>mutate_inject_dangling_pin</code> (<strong>933 cặp</strong>): Cô lập tín hiệu vào/ra khỏi thân logic (bắt đúng ca lỗi <code>button_debouncer</code>).</li>
+                                <li><code>mutate_inject_latch</code> (<strong>86 cặp</strong>): Xóa nhánh <code>default:</code> hoặc <code>else</code> trong khối tổ hợp <code>always @(*)</code>.</li>
+                                <li><code>mutate_inject_blocking_assignment</code> (<strong>56 cặp</strong>): Đổi <code>&lt;=</code> thành <code>=</code> trong khối tuần tự <code>posedge clk</code>.</li>
+                                <li>Fallback lỗi cấu trúc/chức năng: <code>SYNTAX_TRUNCATED</code> (<strong>18</strong>) &amp; <code>FUNCTIONAL_BUG</code> (<strong>5</strong>).</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card card-accent-red" style="justify-content:space-between;">
+                        <h3>Phân Bố Thực Tế 1,098 Cặp DPO (<code>dataset_dpo_preference.json</code>)</h3>
+                        <div class="chart-box">
+                            <canvas id="chartDPO"></canvas>
+                        </div>
+                        <table class="data-table" style="font-size:12px;">
+                            <thead><tr><th>Nhóm lỗi bị phạt (Rejected)</th><th>Số cặp</th><th>Tỷ lệ</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>DANGLING_PIN</code></td><td>933</td><td>85.0%</td></tr>
+                                <tr><td><code>INFERRED_LATCH</code></td><td>86</td><td>7.8%</td></tr>
+                                <tr><td><code>BLOCKING_IN_SEQUENTIAL</code></td><td>56</td><td>5.1%</td></tr>
+                                <tr><td><code>SYNTAX_TRUNCATED</code> + <code>FUNCTIONAL_BUG</code></td><td>18 + 5</td><td>2.1%</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 7: STEP 4 & 5 TRAINING SFT/DPO + OFFLINE -->
+        <section class="slide" data-title="Bước 4 & 5: Huấn luyện SFT LoRA, DPO & Đóng gói Offline"
+            data-notes="Bước 4 và Bước 5 hoàn thiện bộ não AI của hệ thống với chi phí 0 đồng trên GPU T4 của Google Colab nhờ thư viện Unsloth 4-bit. Đầu tiên, mô hình Qwen2.5-Coder-3B-Instruct được huấn luyện SFT LoRA (rank 16) trên 1,098 mẫu sạch để nắm vững cấu trúc Verilog và suy luận CoT. Tiếp theo, mô hình bước vào pha DPO Alignment với hệ số beta=0.1 trên 1,098 cặp dữ liệu tiêm lỗi. Như Thầy thấy trên biểu đồ thực nghiệm dpo_loss_convergence.png: qua 137 bước huấn luyện, đường DPO Loss giảm đều đặn từ mức khởi điểm lý thuyết ~0.693 xuống còn khoảng 0.29 ở cuối chu kỳ. Sau khi train xong, hai bộ adapter LoRA (~114.25 MB mỗi bộ) được đóng gói về máy local tại thư mục models/ để chạy offline bảo mật hoàn toàn mã nguồn thiết kế.">
+            <div class="slide-header">
+                <span class="slide-tag">02. Huấn luyện AI Cục bộ (Nhóm 2)</span>
+                <span class="slide-section-label">training/*.ipynb &amp; models/</span>
+            </div>
+            <h2 class="slide-title">Bước 4 &amp; 5: Fine-Tune <code>Qwen2.5-Coder-3B</code> (SFT LoRA → DPO) &amp; Offline</h2>
+            <div class="slide-body">
+                <div class="grid-2-wide-left">
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div class="card card-accent-cyan">
+                            <h3>Cấu Hình Chung Trên Google Colab GPU T4 (0 VNĐ)</h3>
+                            <ul class="clean">
+                                <li>Base: <code>unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit</code> (<code>4-bit</code>, <code>max_seq=2048</code>).</li>
+                                <li>LoRA: <code>r=16</code>, <code>alpha=16</code>, <code>dropout=0</code>, 7 target projections, <code>adamw_8bit</code>, effective batch = <code>8</code> (<code>2×4</code>).</li>
+                            </ul>
+                        </div>
+                        <div class="grid-2" style="gap:10px; height:auto;">
+                            <div class="card card-accent-indigo">
+                                <h3>GĐ 1: SFT LoRA</h3>
+                                <p style="font-size:12px;"><code>train_spec2rtl_qwen3b_colab.ipynb</code></p>
+                                <ul class="clean" style="font-size:12px;">
+                                    <li>1,098 mẫu sạch, template <code>qwen-2.5</code></li>
+                                    <li><code>1 epoch</code>, <code>lr=2e-4</code>, <code>warmup=5</code></li>
+                                </ul>
+                            </div>
+                            <div class="card card-accent-green">
+                                <h3>GĐ 2: DPO Alignment</h3>
+                                <p style="font-size:12px;"><code>train_spec2rtl_qwen3b_dpo_colab.ipynb</code></p>
+                                <ul class="clean" style="font-size:12px;">
+                                    <li>1,098 cặp DPO, <code>ref_model=None</code></li>
+                                    <li><code>beta=0.1</code>, <code>lr=5e-6</code>, <code>max_len=1024</code></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card card-accent-amber">
+                            <h3>Đóng Gói Chạy Offline Bảo Mật IP (<code>models/</code>)</h3>
+                            <ul class="clean">
+                                <li>2 adapter độc lập: <code>models/qwen2.5_3b_verilog_lora/</code> &amp; <code>models/qwen2.5_3b_verilog_dpo/</code> (mỗi <code>adapter_model.safetensors</code> <strong>~114.25 MB</strong>, <code>peft 0.21.2</code>).</li>
+                                <li><code>models/run_inference.py</code>: Suy luận local (<code>temp=0.2, top_p=0.9</code>), có Domain Guard &amp; fallback về <code>agent/rtl_generator.py</code>.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="img-frame" style="height:100%;">
+                        <img src="dpo_loss_convergence.png" alt="Biểu đồ hội tụ DPO Loss">
+                        <span class="img-caption">docs/dpo_loss_convergence.png — 137 steps: Loss giảm ~0.693 ➔ ~0.29</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 8: CURRENT INTEGRATED ARCHITECTURE -->
+        <section class="slide" data-title="Kiến trúc hệ thống tích hợp hiện tại"
+            data-notes="Sau khi có trọng số chưng cất, nhóm tích hợp mô hình vào kiến trúc hệ thống tổng thể. Em xin trình bày trung thực cấu trúc chạy hiện tại của phần mềm gồm hai lớp gắn kết chặt chẽ: Một là module models/run_inference.py chạy trực tiếp mô hình 3B gắn adapter DPO offline để sinh Verilog từ prompt, đồng thời có cơ chế fallback an toàn về RTLGenerator khi chạy trên máy không có GPU. Hai là đường ống điều phối trung tâm agent/run_spec2rtl.py kết nối toàn bộ các khâu: phân tích đặc tả, ép chuẩn chân tín hiệu với RTLPortEnforcer, quét AST Linter, mô phỏng sửa lỗi khép kín trên ModelSim và bàn giao sơ đồ Quartus II.">
+            <div class="slide-header">
+                <span class="slide-tag">03. Kiến trúc hệ thống hiện tại</span>
+                <span class="slide-section-label">models/run_inference.py + agent/run_spec2rtl.py</span>
+            </div>
+            <h2 class="slide-title">Kiến Trúc Tích Hợp Hiện Tại: Bộ Não Chưng Cất &amp; Đường Ống EDA Khép Kín</h2>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div class="card card-accent-indigo">
+                            <h3>1. Nhánh AI Chưng Cất Offline (<code>models/run_inference.py</code>)</h3>
+                            <ul class="clean">
+                                <li>Kiểm tra <code>SpecAnalyzer.check_unsupported_domain()</code> trước khi suy luận.</li>
+                                <li>Nạp <code>Qwen2.5-Coder-3B-Instruct</code> + <code>models/qwen2.5_3b_verilog_dpo/</code>.</li>
+                                <li>Tự động fallback an toàn sang <code>RTLGenerator.generate_from_spec()</code> nếu máy thiếu PyTorch/GPU.</li>
+                            </ul>
+                        </div>
+                        <div class="card card-accent-cyan">
+                            <h3>2. Nhánh Điều Phối EDA (<code>agent/</code> — 13 module lõi + 2 script test)</h3>
+                            <ul class="clean">
+                                <li><strong>Pha 1 (<code>spec_analyzer.py</code>):</strong> Domain Guard + bóc tách cổng 3 tầng <em>(riêng <code>knowledge_matcher.py</code> là module tra cứu <code>hardware_db.json</code> độc lập ngoài luồng <code>run_spec2rtl.py</code>)</em>.</li>
+                                <li><strong>Pha 2 (<code>rtl_generator.py</code>, <code>tb_generator.py</code>):</strong> 25+ nhóm mạch, ép chân bằng <code>RTLPortEnforcer.enforce()</code>, sinh Self-Checking Testbench.</li>
+                                <li><strong>Pha 3 (<code>verilog_linter.py</code>):</strong> Quét tĩnh AST Linter trước mô phỏng.</li>
+                                <li><strong>Pha 4 (<code>simulator.py</code>, <code>reflection_loop.py</code>, <code>eda_finder.py</code>):</strong> ModelSim + tự vá lỗi.</li>
+                                <li><strong>Pha 5 (<code>bdf_generator.py</code>, <code>vwf_generator.py</code>, <code>port_auditor.py</code>, <code>synthesis_profiler.py</code>):</strong> Xuất Quartus II, BDF, VWF &amp; đo tài nguyên Cyclone II.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="img-frame" style="height:100%;">
+                        <img src="images/pipeline_architecture_horizontal.png" alt="Sơ đồ luồng Spec2RTL">
+                        <span class="img-caption">Kiến trúc đường ống toàn trình từ Spec tới Quartus II Schematic/Waveform</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 9: TWO TECHNICAL SHIELDS -->
+        <section class="slide" data-title="Hai lá chắn: Domain Guard & AST Linter"
+            data-notes="Để hệ thống không bao giờ nói bừa hay để lọt lỗi phần cứng như trước đây, nhóm xây dựng hai lớp lá chắn liên tiếp. Ở đầu vào, spec_analyzer.py kích hoạt Domain Guard hỗ trợ cả tiếng Việt có dấu và không dấu để từ chối các đề bài ngoài phạm vi RTL như mạch Analog, High-speed PHY hay văn bản phi kỹ thuật, đồng thời tách kiến trúc SoC AI lớn thay vì cố sinh nguyên khối một lần. Ở đầu ra của khâu sinh mã, verilog_linter.py đóng vai trò bộ AST Linter thuần Python hỗ trợ cả chuẩn Verilog 1995 và 2001, tự động quét sạch 3 lỗi chí mạng: chân lơ lửng, chốt ẩn và lỗi race condition trước khi đưa sang ModelSim.">
+            <div class="slide-header">
+                <span class="slide-tag">03. Kiểm soát biên &amp; Phân tích tĩnh (Nhóm 3)</span>
+                <span class="slide-section-label">agent/spec_analyzer.py &amp; agent/verilog_linter.py</span>
+            </div>
+            <h2 class="slide-title">Hai Lớp Lá Chắn Kỹ Thuật: Domain Guard &amp; AST Linter Thuần Python</h2>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div class="card card-accent-amber">
+                        <h3>Lá Chắn 1 — Domain Guard (<code>agent/spec_analyzer.py</code>)</h3>
+                        <ul class="clean">
+                            <li>Xử lý song ngữ Việt/Anh (<code>remove_vietnamese_accents</code>).</li>
+                            <li><strong><code>check_unsupported_domain()</code> chặn 3 nhóm ngoài miền RTL:</strong>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:5px;">
+                                    <span class="badge badge-red">ANALOG_AMS</span>
+                                    <span class="badge badge-red">HIGH_SPEED_PHY</span>
+                                    <span class="badge badge-red">IRRELEVANT_INPUT</span>
+                                </div>
+                            </li>
+                            <li><strong><code>is_30_percent_architecture()</code>:</strong> Chặn sinh 1-prompt nguyên khối cho hệ thống phức hợp <code>SOC_AI</code> (<code>top_soc</code>, <code>systolic array</code>, <code>dma+relu+ai</code>).</li>
+                            <li><strong><code>extract_ports()</code> 3 tầng:</strong> Bảng Markdown → Danh sách bullet/số → Văn xuôi.</li>
+                        </ul>
+                    </div>
+                    <div class="card card-accent-green">
+                        <h3>Lá Chắn 2 — AST Linter Thuần Python (<code>agent/verilog_linter.py</code>)</h3>
+                        <ul class="clean">
+                            <li><strong>Zero-dependency:</strong> Không cần build PyVerilog/C++ trên Windows; hỗ trợ cả chuẩn <strong>ANSI-2001</strong> &amp; <strong>Legacy-1995</strong>.</li>
+                            <li><strong><code>check_dangling_pins()</code>:</strong> Bắt <span class="badge badge-amber">DANGLING_INPUT</span> &amp; <span class="badge badge-amber">UNASSIGNED_OUTPUT</span>.</li>
+                            <li><strong><code>check_inferred_latches_and_races()</code>:</strong> Bắt <span class="badge badge-red">INFERRED_LATCH</span> (<code>case</code> thiếu <code>default</code>, <code>if</code> thiếu <code>else</code>), <span class="badge badge-red">BLOCKING_IN_SEQUENTIAL</span> (<code>=</code> trong <code>posedge/negedge</code>), <span class="badge badge-amber">NONBLOCKING_IN_COMBINATIONAL</span>.</li>
+                            <li><strong><code>lint_check()</code>:</strong> Kiểm tra cân bằng <code>begin/end</code>, <code>case/endcase</code>, <code>module/endmodule</code> &amp; <code>%!</code> trong <code>$display</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card" style="padding:10px 18px; background:rgba(15,23,42,0.95); flex-direction:row; justify-content:space-around; align-items:center;">
+                    <span class="badge badge-cyan">1. Prompt Đầu Vào</span>
+                    <span>➔</span>
+                    <span class="badge badge-amber">2. Domain Guard (Chặn ngoài miền)</span>
+                    <span>➔</span>
+                    <span class="badge badge-cyan">3. Sinh RTL + RTLPortEnforcer</span>
+                    <span>➔</span>
+                    <span class="badge badge-green">4. AST Linter (0 Latch, 0 Dangling, 0 Race)</span>
+                    <span>➔</span>
+                    <span class="badge badge-green">5. ModelSim EDA</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 10: CLOSED-LOOP MODELSIM & QUARTUS II -->
+        <section class="slide" data-title="Vòng lặp phản hồi ModelSim & Trực quan hóa Quartus II"
+            data-notes="Sau khi mã Verilog vượt qua AST Linter, hệ thống không tin mù quáng vào AI mà đưa ngay sang trọng tài ModelSim qua simulator.py. Nếu phát hiện sai lệch assertion hoặc lỗi biên dịch, reflection_loop.py sẽ tự động đọc log và vá code tối đa 3 vòng lặp cho tới khi đạt 100% Functional Pass. Khi mô phỏng đạt chuẩn, hệ thống tự động dựng toàn bộ hồ sơ dự án Quartus II cho chip FPGA Cyclone II EP2C35F672C6: từ sơ đồ nguyên lý .bdf, dạng sóng .vwf trích từ .vcd, đến việc kiểm toán đối chiếu 4 chiều Spec-RTL-BSF-BDF và chạy quartus_map.exe đo đạc chính xác số Logic Elements và Flip-Flops thực tế.">
+            <div class="slide-header">
+                <span class="slide-tag">03. Trọng tài EDA &amp; Bàn giao phần cứng</span>
+                <span class="slide-section-label">simulator.py • reflection_loop.py • bdf/vwf_generator.py</span>
+            </div>
+            <h2 class="slide-title">Vòng Lặp Phản Hồi ModelSim &amp; Trực Quan Hóa Trên Quartus II</h2>
+            <div class="slide-body">
+                <div class="grid-2-wide-left">
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="card card-accent-cyan">
+                            <h3>Vòng Lặp Tự Sửa Lỗi Khép Kín (<code>simulator.py</code> &amp; <code>reflection_loop.py</code>)</h3>
+                            <ul class="clean">
+                                <li><code>EDASimulator</code> gọi ModelSim/Icarus (<code>timeout=60s</code>), kiểm tra chặt biên dịch lẫn runtime (<code>FAIL</code>, <code>MISMATCH</code>, <code>Failed Assertions</code>).</li>
+                                <li><code>ReflectionAgent</code> chạy tối đa <code>max_retries=3</code> vòng tự vá lỗi (tên instance, <code>%!</code> trong <code>$display</code>, dấu phẩy, đồng bộ Testbench khớp cổng).</li>
+                            </ul>
+                        </div>
+                        <div class="card card-accent-green">
+                            <h3>Xuất Dự Án &amp; Kiểm Toán Quartus II (<code>Cyclone II EP2C35F672C6</code>)</h3>
+                            <ul class="clean">
+                                <li><code>bdf_generator.py</code> &amp; <code>vwf_generator.py</code>: Tạo <code>.qpf</code>/<code>.qsf</code>, Symbol <code>.bsf</code>, Schematic <code>.bdf</code> và <code>Waveform.vwf</code> từ file <code>.vcd</code> ModelSim.</li>
+                                <li><code>PortAuditor.audit()</code>: Đối soát bất biến 4 chiều <strong>Spec &equiv; RTL &equiv; BSF &equiv; BDF</strong>.</li>
+                                <li><code>SynthesisProfiler</code>: Chạy <code>quartus_map.exe</code> (60s) đọc <code>.map.summary</code>, có dự phòng <code>estimate_static_resources()</code>.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card card-accent-indigo" style="justify-content:space-between;">
+                        <h3>Hội Tụ Vòng Lặp VeriPrefer (50 Thiết Kế Fault-Injection)</h3>
+                        <div class="chart-box">
+                            <canvas id="chartVeriPrefer"></canvas>
+                        </div>
+                        <p style="font-size:11.5px; color:var(--color-muted); text-align:center;">
+                            Nguồn: <code>reports/06_VeriPrefer_ClosedLoop_Feedback.md</code> (44% ➔ 92% ➔ 98% ➔ 100%).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 11: CURRENT VERIFIED RESULTS -->
+        <section class="slide" data-title="Kết quả thực nghiệm & Kiểm chứng hiện tại"
+            data-notes="Đây là bảng kết quả thực nghiệm tổng hợp trên toàn bộ hệ thống hiện tại, đã được đối soát trực tiếp với file .map.summary từ Quartus II trên chip Cyclone II và chạy lại các bộ kiểm thử. Trên 6 bài toán đặc tả thực tế gồm UART TX, khử rung nút bấm, giải mã LED 7 đoạn, hệ thống cảnh báo an ninh nhà thông minh, bộ giải mã 3 sang 8 và khóa số FSM, hệ thống đạt 6/6 (100%) ModelSim Pass@1 và 0 lỗi AST Linter trong tổng thời gian 54.89 giây. Song song đó, bộ test chuyên biệt agent/test_group3_linter.py đạt 5/5 PASS, bộ kiểm thử hồi quy toàn diện agent/test_robustness_battery.py đạt 20/20 PASS, và cả 6 file Verilog trong src/ đều sạch tuyệt đối latch, dangling pin và race condition.">
+            <div class="slide-header">
+                <span class="slide-tag">04. Kết quả thực nghiệm hiện tại</span>
+                <span class="slide-section-label">reports/REPORT_TUAN_2_BENCHMARK.md &amp; quartus/*/*.map.summary</span>
+            </div>
+            <h2 class="slide-title">Kết Quả Kiểm Chứng: 6/6 Benchmark (54.89s), 5/5 Linter &amp; 20/20 Robustness</h2>
+            <div class="slide-body">
+                <div class="grid-4" style="margin-bottom:2px;">
+                    <div class="metric-card"><div class="metric-val">6 / 6</div><div class="metric-lbl">ModelSim Pass@1 (54.89s)</div></div>
+                    <div class="metric-card"><div class="metric-val">0 Lỗi</div><div class="metric-lbl">AST Linter trên 6/6 src/*.v</div></div>
+                    <div class="metric-card"><div class="metric-val">5 / 5</div><div class="metric-lbl">agent/test_group3_linter.py</div></div>
+                    <div class="metric-card"><div class="metric-val">20 / 20</div><div class="metric-lbl">agent/test_robustness_battery.py</div></div>
+                </div>
+                <div class="grid-2-wide-left" style="align-items:stretch;">
+                    <div class="card card-accent-cyan" style="padding:12px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th><th>Module</th><th>ModelSim / AST</th><th>LEs</th><th>FFs</th><th>Pins</th><th>Thời gian</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>1</td><td><code>uart_tx_8bit</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>28</td><td>17</td><td>13</td><td>26.5s</td></tr>
+                                <tr><td>2</td><td><code>button_debouncer</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>6</td><td>6</td><td>5</td><td>7.65s</td></tr>
+                                <tr><td>3</td><td><code>bcd_to_7seg_anode</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>7</td><td>0</td><td>11</td><td>4.81s</td></tr>
+                                <tr><td>4</td><td><code>canh_bao_an_ninh...</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>4</td><td>4</td><td>9</td><td>4.82s</td></tr>
+                                <tr><td>5</td><td><code>decoder_3to8</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>8</td><td>0</td><td>12</td><td>6.56s</td></tr>
+                                <tr><td>6</td><td><code>digital_lock_fsm</code></td><td><span class="badge badge-green">PASS / 0 lỗi</span></td><td>25</td><td>9</td><td>14</td><td>4.55s</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card card-accent-green" style="justify-content:space-between;">
+                        <h3>Tài Nguyên FPGA Thực Tế (Cyclone II)</h3>
+                        <div class="chart-box">
+                            <canvas id="chartBenchmark"></canvas>
+                        </div>
+                        <p style="font-size:11.5px; color:var(--color-muted);">
+                            Đối soát trực tiếp từ Quartus <code>.map.summary</code> (<code>uart_tx_8bit</code>: 28 LEs = 20 comb, 17 reg).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 12: DEMO 1 BUTTON DEBOUNCER -->
+        <section class="slide" data-title="Demo trực tiếp 1: Khắc phục triệt để button_debouncer"
+            data-notes="Sau đây em xin demo trực tiếp ca kiểm thử quan trọng nhất mà Thầy từng góp ý: mạch khử rung nút bấm button_debouncer. Khi em chạy lệnh python agent/run_spec2rtl.py specs/b.txt --gui, hệ thống hoàn tất trọn quy trình trong khoảng 7.65 giây. Như Thầy thấy trong src/button_debouncer.v, ngõ vào btn_in đã được nạp chuẩn xác vào thanh ghi dịch 3 tầng shift_reg <= {shift_reg[1:0], btn_in};, AST Linter báo 0 lỗi. Trên cửa sổ sóng ModelSim vừa mở và file Waveform.vwf, khi btn_in dao động nhiễu, btn_clean chỉ chuyển trạng thái sau khi ổn định và btn_pressed_pulse xuất đúng 1 xung clock. Mở sơ đồ sch_button_debouncer.bdf trong Quartus II, toàn bộ 5 chân tín hiệu được nối dây đầy đủ, tổng hợp thực tế chỉ tốn 6 Logic Elements và 6 Flip-Flops.">
+            <div class="slide-header">
+                <span class="slide-tag">05. Demo trực tiếp (Case Study của Thầy)</span>
+                <span class="slide-section-label">specs/b.txt ➔ src/button_debouncer.v</span>
+            </div>
+            <h2 class="slide-title">Demo 1: <code>button_debouncer</code> — Triệt Tiêu Hoàn Toàn Lỗi Chân Lơ Lửng</h2>
+            <div class="slide-body">
+                <div class="grid-2">
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div class="card card-accent-cyan" style="padding:12px 14px;">
+                            <h3>Lệnh Chạy Demo Trực Tiếp</h3>
+                            <pre class="code-block" style="padding:8px 12px;">python agent/run_spec2rtl.py specs/b.txt --gui</pre>
+                            <p style="font-size:12.5px;">Inputs: <code>clk, rst, btn_in</code> | Outputs: <code>btn_clean, btn_pressed_pulse</code></p>
+                        </div>
+                        <pre class="code-block">always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        shift_reg <= 3'b000;
+        btn_clean <= 1'b0;
+        btn_pressed_pulse <= 1'b0;
+    end else begin
+<span class="hl-line">        shift_reg <= {shift_reg[1:0], btn_in}; // Nối trực tiếp btn_in!</span>
+        if (shift_reg == 3'b111)      btn_clean <= 1'b1;
+        else if (shift_reg == 3'b000) btn_clean <= 1'b0;
+        btn_clean_prev <= btn_clean;
+        btn_pressed_pulse <= (btn_clean && !btn_clean_prev);
+    end
+end</pre>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div class="wave-box">
+                            <div style="font-size:12px; font-weight:600; color:#7dd3fc; margin-bottom:6px;">Minh Họa Nguyên Lý Lọc Rung (3 Chu Kỳ Clock + Xung Đơn)</div>
+                            <svg viewBox="0 0 500 165" width="100%" height="145">
+                                <text x="6" y="25" fill="#94a3b8" font-size="11" font-family="monospace">clk</text>
+                                <path d="M90 28 L105 28 L105 12 L120 12 L120 28 L135 28 L135 12 L150 12 L150 28 L165 28 L165 12 L180 12 L180 28 L195 28 L195 12 L210 12 L210 28 L225 28 L225 12 L240 12 L240 28 L255 28 L255 12 L270 12 L270 28 L285 28 L285 12 L300 12 L300 28 L315 28 L315 12 L330 12 L330 28 L345 28 L345 12 L360 12 L360 28 L375 28 L375 12 L390 12 L390 28 L405 28 L405 12 L420 12 L420 28 L450 28" stroke="#64748b" stroke-width="1.5" fill="none"/>
+                                <text x="6" y="65" fill="#fbbf24" font-size="11" font-family="monospace">btn_in</text>
+                                <path d="M90 68 L112 68 L112 50 L124 50 L124 68 L142 68 L142 50 L154 50 L154 68 L185 68 L185 50 L335 50 L335 68 L450 68" stroke="#fbbf24" stroke-width="2" fill="none"/>
+                                <text x="115" y="45" fill="#fb7185" font-size="9" font-family="monospace">Nhiễu rung (lọc bỏ)</text>
+                                <text x="6" y="105" fill="#34d399" font-size="11" font-family="monospace">btn_clean</text>
+                                <path d="M90 108 L260 108 L260 90 L410 90 L410 108 L450 108" stroke="#34d399" stroke-width="2.2" fill="none"/>
+                                <text x="6" y="145" fill="#38bdf8" font-size="11" font-family="monospace">pulse</text>
+                                <path d="M90 148 L260 148 L260 130 L290 130 L290 148 L450 148" stroke="#38bdf8" stroke-width="2.2" fill="none"/>
+                                <text x="263" y="124" fill="#38bdf8" font-size="9" font-family="monospace">1-cycle pulse</text>
+                            </svg>
+                        </div>
+                        <div class="card card-accent-green">
+                            <h3>4 Điểm Nghiệm Thu Tại Chỗ</h3>
+                            <ul class="clean">
+                                <li><strong>AST Linter:</strong> <span class="badge badge-green">0 LỖI</span> (triệt tiêu hoàn toàn <code>DANGLING_INPUT</code>).</li>
+                                <li><strong>ModelSim + VCD:</strong> <code>sim/button_debouncer.vcd</code> khớp 100%.</li>
+                                <li><strong>Quartus Files:</strong> <code>sch_button_debouncer.bdf</code> &amp; <code>Waveform.vwf</code>.</li>
+                                <li><strong>Cyclone II Synthesis:</strong> <strong>6 LEs</strong> (2 comb, 6 reg), <strong>6 FFs</strong>, <strong>5 Pins</strong> (<strong>7.65s</strong>).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 13: DEMO 2 BCD TO 7SEG -->
+        <section class="slide" data-title="Demo trực tiếp 2: Mạch tổ hợp bcd_to_7seg_anode"
+            data-notes="Để đối chiếu thêm với mạch tổ hợp thuần túy, em xin chạy nhanh bài toán thứ hai là giải mã BCD sang LED 7 đoạn Anode chung specs/c.txt. Chỉ trong 4.81 giây, hệ thống sinh mã Verilog có đầy đủ nhánh default nên sạch 100% chốt ẩn, ModelSim mở ngay dạng sóng kiểm tra đủ bảng chân trị 0 đến 9 và ngoài dải, đồng thời Quartus II xuất sơ đồ sch_bcd_to_7seg_anode.bdf với đúng 7 Logic Elements và 0 Flip-Flops.">
+            <div class="slide-header">
+                <span class="slide-tag">05. Demo trực tiếp (Mạch tổ hợp)</span>
+                <span class="slide-section-label">specs/c.txt ➔ quartus/bcd_to_7seg_anode/</span>
+            </div>
+            <h2 class="slide-title">Demo 2: Mạch Giải Mã BCD Sang LED 7 Đoạn <code>bcd_to_7seg_anode</code></h2>
+            <div class="slide-body">
+                <div class="grid-3">
+                    <div class="card card-accent-cyan">
+                        <h3>1. Đặc Tả &amp; Lệnh Thực Thi</h3>
+                        <ul class="clean">
+                            <li>Input: <code>[3:0] bcd</code> (0–9).</li>
+                            <li>Output: <code>[6:0] seg</code> (Active-low <code>{a,b,c,d,e,f,g}</code>; giá trị &gt; 9 xuất <code>7'b1111111</code>).</li>
+                        </ul>
+                        <pre class="code-block" style="margin-top:auto;">python agent/run_spec2rtl.py specs/c.txt --gui</pre>
+                    </div>
+                    <div class="card card-accent-green">
+                        <h3>2. Sạch Chốt Ẩn &amp; ModelSim</h3>
+                        <ul class="clean">
+                            <li>Khối <code>always @(*)</code> có đầy đủ nhánh <code>default: seg = 7'b1111111;</code> → <strong>0 Inferred Latches</strong>.</li>
+                            <li>Testbench kiểm tra toàn bộ bảng chân trị <code>0..9</code> và ngoài dải <code>10..15</code> trên ModelSim GUI.</li>
+                            <li>Tổng thời gian từ Spec tới Quartus chỉ <strong>4.81 giây</strong>.</li>
+                        </ul>
+                    </div>
+                    <div class="card card-accent-indigo">
+                        <h3>3. Kết Quả Quartus Cyclone II</h3>
+                        <div class="metric-card" style="margin:6px 0;"><div class="metric-val">7 LEs</div><div class="metric-lbl">7 combinational • 0 Flip-Flops • 11 Pins</div></div>
+                        <ul class="clean">
+                            <li>Schematic: <code>sch_bcd_to_7seg_anode.bdf</code></li>
+                            <li>Waveform: <code>Waveform.vwf</code></li>
+                            <li>Port Audit: <span class="badge badge-green">4-WAY PASS</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SLIDE 14: CONCLUSION & ROADMAP -->
+        <section class="slide" data-title="Tổng kết đóng góp & Hướng phát triển"
+            data-notes="Tóm lại, qua Đồ án 3 này, nhóm không chỉ dừng lại ở một công cụ viết code Verilog tự động, mà đã xây dựng hoàn chỉnh chuỗi kỹ thuật từ gốc đến ngọn: từ khâu chưng cất và lọc dữ liệu bằng ModelSim Truth Oracle, huấn luyện SFT và DPO để mô hình biết tránh lỗi phần cứng, cho đến việc bọc bên ngoài bằng Domain Guard, AST Linter, vòng lặp tự sửa lỗi ModelSim và xuất sơ đồ Quartus II. Kết quả 6/6 mạch benchmark trong 54.89 giây, 5/5 AST Linter và 20/20 Robustness Battery là nền tảng để nhóm tiếp tục mở rộng đo kiểm trên toàn bộ 100 đề bài trong giai đoạn kế tiếp. Em xin chân thành cảm ơn TS. Nguyễn Văn Tình đã định hướng rất sát sao và kính mong nhận được nhận xét, câu hỏi phản biện từ Thầy ạ.">
+            <div class="slide-header">
+                <span class="slide-tag">06. Tổng kết &amp; Định hướng</span>
+                <span class="slide-section-label">Spec2RTL &amp; Prompt2Silicon — CE118</span>
+            </div>
+            <h2 class="slide-title">Tổng Kết Giá Trị Đóng Góp &amp; Hướng Phát Triển Tiếp Theo</h2>
+            <div class="slide-body">
+                <div class="grid-4">
+                    <div class="card card-accent-cyan">
+                        <h3>1. Chưng Cất Bài Bản</h3>
+                        <p>6 nguồn + CE118 Suite → ModelSim lọc <strong>1,098 mẫu sạch (99.8%)</strong> → <strong>1,098 cặp DPO</strong> → LoRA &amp; DPO trên Colab T4 (<strong>0 VNĐ</strong>) chạy <strong>offline</strong>.</p>
+                    </div>
+                    <div class="card card-accent-amber">
+                        <h3>2. Lá Chắn Kỹ Thuật</h3>
+                        <p><strong>Domain Guard</strong> chặn ngoài miền &amp; <code>SOC_AI</code>; <strong>RTLPortEnforcer</strong> &amp; <strong>AST Linter</strong> triệt tiêu chốt ẩn, chân lơ lửng và race condition.</p>
+                    </div>
+                    <div class="card card-accent-indigo">
+                        <h3>3. EDA Khép Kín</h3>
+                        <p><strong>ModelSim + ReflectionAgent</strong> tự sửa lỗi tối đa 3 vòng; xuất đủ Project <strong>Quartus II</strong>, <code>.bdf</code>, <code>.vwf</code>, <code>PortAuditor</code>, <code>SynthesisProfiler</code>.</p>
+                    </div>
+                    <div class="card card-accent-green">
+                        <h3>4. Kiểm Chứng 100%</h3>
+                        <p><strong>6/6</strong> Benchmark (<strong>54.89s</strong>), <strong>5/5</strong> AST Linter, <strong>20/20</strong> Robustness Battery, khắc phục triệt để ca <code>button_debouncer</code>.</p>
+                    </div>
+                </div>
+                <div class="card card-accent-cyan" style="padding:14px 20px;">
+                    <h3>Định Hướng Phát Triển Kế Tiếp</h3>
+                    <ul class="clean">
+                        <li>Đưa mô hình <code>Qwen2.5-Coder-3B</code> DPO offline trở thành bộ sinh mặc định trực tiếp trong luồng chính của <code>agent/run_spec2rtl.py</code> trên máy có GPU/NPU.</li>
+                        <li>Mở rộng đo kiểm định lượng Pass@1 toàn diện trên toàn bộ <strong>100 đề bài chuẩn hóa</strong> (<code>docs/100_Prompt_Thiet_Ke_Mach.pdf</code>).</li>
+                    </ul>
+                </div>
+                <div style="text-align:center; padding-top:6px;">
+                    <span style="font-family:var(--font-heading); font-size:20px; font-weight:700; background:var(--gradient-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+                        Trân trọng cảm ơn TS. Nguyễn Văn Tình &amp; Quý Thầy Cô đã lắng nghe!
+                    </span>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Speaker Notes Drawer -->
+    <div class="notes-drawer" id="notesDrawer">
+        <div class="notes-title">Lời thoại thuyết trình gợi ý (Nhấn phím N để ẩn/hiện)</div>
+        <div class="notes-text" id="notesText"></div>
+    </div>
+
+    <!-- Slide Overview Modal -->
+    <div class="index-modal" id="indexModal" onclick="if(event.target===this) toggleIndex()">
+        <div class="index-grid" id="indexGrid"></div>
+    </div>
+
+    <!-- Navigation Controls -->
+    <div class="nav-controls">
+        <button class="nav-btn" onclick="prevSlide()" title="Slide trước (←)">←</button>
+        <span class="slide-counter"><span id="current">1</span> / <span id="total">14</span></span>
+        <button class="nav-btn" onclick="nextSlide()" title="Slide tiếp (→ / Space)">→</button>
+        <button class="nav-btn" id="notesBtn" onclick="toggleNotes()" title="Lời thoại (Phím N)">Lời thoại (N)</button>
+        <button class="nav-btn" onclick="toggleIndex()" title="Danh sách Slide (Phím G)">Mục lục (G)</button>
+    </div>
+
+    <script>
+        const slides = Array.from(document.querySelectorAll('.slide'));
+        const total = slides.length;
+        let current = 1;
+        let notesOpen = false;
+
+        document.getElementById('total').textContent = total;
+
+        // Build Slide Index
+        const indexGrid = document.getElementById('indexGrid');
+        slides.forEach((s, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'index-item';
+            btn.innerHTML = `<div class="index-item-num">SLIDE ${String(idx + 1).padStart(2, '0')}</div>
+                             <div class="index-item-title">${s.dataset.title || 'Slide'}</div>`;
+            btn.onclick = () => { showSlide(idx + 1); toggleIndex(false); };
+            indexGrid.appendChild(btn);
+        });
+
+        function showSlide(n) {
+            if (n < 1) n = 1;
+            if (n > total) n = total;
+            current = n;
+            slides.forEach((s, i) => s.classList.toggle('active', i === n - 1));
+            document.getElementById('current').textContent = n;
+            document.getElementById('progressBar').style.width = ((n / total) * 100) + '%';
+            document.getElementById('notesText').textContent = slides[n - 1].dataset.notes || '';
+            Array.from(indexGrid.children).forEach((item, i) => item.classList.toggle('current', i === n - 1));
+        }
+
+        function nextSlide() { showSlide(current + 1); }
+        function prevSlide() { showSlide(current - 1); }
+
+        function toggleNotes(force) {
+            notesOpen = typeof force === 'boolean' ? force : !notesOpen;
+            document.getElementById('notesDrawer').classList.toggle('open', notesOpen);
+            document.getElementById('notesBtn').classList.toggle('active-toggle', notesOpen);
+        }
+
+        function toggleIndex(force) {
+            const modal = document.getElementById('indexModal');
+            const open = typeof force === 'boolean' ? force : !modal.classList.contains('open');
+            modal.classList.toggle('open', open);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+            else if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+            else if (e.key === 'Home') { e.preventDefault(); showSlide(1); }
+            else if (e.key === 'End') { e.preventDefault(); showSlide(total); }
+            else if (e.key.toLowerCase() === 'n') { toggleNotes(); }
+            else if (e.key.toLowerCase() === 'g') { toggleIndex(); }
+            else if (e.key === 'Escape') { toggleIndex(false); toggleNotes(false); }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.nav-controls') && !e.target.closest('.notes-drawer') && !e.target.closest('.index-modal')) {
+                nextSlide();
+            }
+        });
+
+        showSlide(1);
+
+        // Initialize Charts when Chart.js is available
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.color = '#cbd5e1';
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            // 1. 70/30 Partitioning
+            new Chart(document.getElementById('chart7030'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['70% Hạ tầng phổ thông (Spec2RTL tự động)', '30% Kiến trúc lõi đột phá (Kỹ sư tối ưu)'],
+                    datasets: [{
+                        data: [70, 30],
+                        backgroundColor: ['#38bdf8', '#818cf8'],
+                        borderColor: '#0f172a',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '62%',
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+                }
+            });
+
+            // 2. Baseline Template Coverage
+            new Chart(document.getElementById('chartBaseline'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['~38% Đạt chuẩn (25 họ mẫu cứng)', '~62% Vượt ngoài mẫu cứng'],
+                    datasets: [{
+                        data: [38, 62],
+                        backgroundColor: ['#10b981', '#f43f5e'],
+                        borderColor: '#0f172a',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '62%',
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }
+                }
+            });
+
+            // 3. 1,098 Verified Dataset Sources
+            new Chart(document.getElementById('chartDatasetSources'), {
+                type: 'bar',
+                data: {
+                    labels: ['CE118 Aug Suite', 'VerilogEval', 'Verilog-Instruct', 'VeriPrefer', 'RTLLM', 'Spec2RTL'],
+                    datasets: [{
+                        label: 'Mẫu sạch',
+                        data: [791, 94, 87, 75, 43, 8],
+                        backgroundColor: ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#a78bfa', '#fb7185'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(148,163,184,0.1)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 4. 1,098 DPO Pairs Error Distribution
+            new Chart(document.getElementById('chartDPO'), {
+                type: 'bar',
+                data: {
+                    labels: ['DANGLING_PIN', 'INFERRED_LATCH', 'BLOCKING_SEQ', 'TRUNCATED+BUG'],
+                    datasets: [{
+                        label: 'Số cặp DPO',
+                        data: [933, 86, 56, 23],
+                        backgroundColor: ['#f43f5e', '#f59e0b', '#818cf8', '#64748b'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { grid: { color: 'rgba(148,163,184,0.1)' } }
+                    }
+                }
+            });
+
+            // 5. VeriPrefer Fault-Injection Convergence
+            new Chart(document.getElementById('chartVeriPrefer'), {
+                type: 'line',
+                data: {
+                    labels: ['Vòng 0 (22/50)', 'Vòng 1 (46/50)', 'Vòng 2 (49/50)', 'Vòng 3 (50/50)'],
+                    datasets: [{
+                        label: 'Tỷ lệ Pass (%)',
+                        data: [44.0, 92.0, 98.0, 100.0],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#34d399',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { min: 30, max: 105, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // 6. Benchmark LEs & FFs on Cyclone II
+            new Chart(document.getElementById('chartBenchmark'), {
+                type: 'bar',
+                data: {
+                    labels: ['uart_tx', 'lock_fsm', 'dec_3to8', 'bcd_7seg', 'debouncer', 'alarm_fsm'],
+                    datasets: [
+                        { label: 'Logic Elements (LEs)', data: [28, 25, 8, 7, 6, 4], backgroundColor: '#38bdf8', borderRadius: 4 },
+                        { label: 'Flip-Flops (FFs)', data: [17, 9, 0, 0, 6, 4], backgroundColor: '#10b981', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { grid: { color: 'rgba(148,163,184,0.1)' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

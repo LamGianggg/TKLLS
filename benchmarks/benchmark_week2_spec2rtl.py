@@ -25,7 +25,7 @@ import json
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AGENT_DIR = os.path.join(PROJECT_ROOT, "agent")
 SPECS_DIR = os.path.join(PROJECT_ROOT, "specs")
-REPORT_PATH = os.path.join(PROJECT_ROOT, "training", "REPORT_TUAN_2_BENCHMARK.md")
+REPORT_PATH = os.path.join(PROJECT_ROOT, "reports", "REPORT_TUAN_2_BENCHMARK.md")
 
 if AGENT_DIR not in sys.path:
     sys.path.insert(0, AGENT_DIR)

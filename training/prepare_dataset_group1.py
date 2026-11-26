@@ -8,7 +8,7 @@ Nhiệm vụ Nhóm 1 (Dữ liệu & Thẩm định - Data & Truth Oracle):
   2. docs/100_Prompt_Thiet_Ke_Mach.pdf (100 đề bài chuẩn hóa UIT / VJU)
   3. specs/*.txt (Bộ đặc tả kiểm thử thực tế của đồ án)
   4. Bộ sinh mẫu phần cứng chuẩn hóa đa tham số (Hardware Data Augmentation: Counter, FSM, ALU, FIFO, etc.)
-- Xuất dữ liệu: training/dataset_candidate_pool.json theo chuẩn schema training/dataset_schema_standard.json
+- Xuất dữ liệu: training/dataset_candidate_pool.json theo chuẩn SFT (instruction, input, output)
 """
 
 import os

@@ -1,255 +1,346 @@
-# KỊCH BẢN SLIDE BÁO CÁO ĐỒ ÁN
-## ĐỀ TÀI: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH TỪ ĐẶC TẢ NGÔN NGỮ TỰ NHIÊN (SPEC2RTL)
-**Phương pháp: Ứng dụng Mô hình Phản hồi Khép kín EDA & Trực quan hóa Vi mạch**
+# KỊCH BẢN SLIDE BÁO CÁO ĐỒ ÁN 3 (CE118)
+## ĐỀ TÀI: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VÀ KIỂM CHỨNG VI MẠCH TỪ ĐẶC TẢ NGÔN NGỮ TỰ NHIÊN (SPEC2RTL & PROMPT2SILICON)
+**Giảng viên hướng dẫn:** TS. Nguyễn Văn Tình — Bộ môn Thiết kế Luận lý số (CE118)  
+**Lộ trình trình bày:** Từ nỗi đau thiết kế & giới hạn mẫu cứng $\rightarrow$ Chưng cất tri thức (SFT + DPO) $\rightarrow$ Kiến trúc tích hợp (AST Linter + Domain Guard + Closed-Loop EDA + Quartus II) $\rightarrow$ Kết quả kiểm chứng & Demo thực tế.
 
 ---
 
-### SƠ ĐỒ KIẾN TRÚC HOẠT ĐỘNG TOÀN TRÌNH (PIPELINE ARCHITECTURE - CHIỀU NGANG)
-
-![Sơ đồ kiến trúc luồng hoạt động Spec2RTL (Chiều ngang)](images/pipeline_architecture_horizontal.png)
+### SƠ ĐỒ TỔNG QUAN XUYÊN SUỐT BUỔI BÁO CÁO (NARRATIVE ARC)
 
 ```mermaid
 flowchart LR
-    A["Đặc Tả Kỹ Thuật<br/>(specs/*.txt, prompt)"] --> B["Giai Đoạn 1: Phân Tích Cổng & Tri Thức<br/>• spec_analyzer.py (Bóc tách Port, Bus)<br/>• knowledge_matcher.py (Tra cứu DB)"]
-    B --> C["Giai Đoạn 2: Sinh RTL & Testbench<br/>• rtl_generator.py (Verilog chuẩn)<br/>• tb_generator.py (Scoreboard test)<br/>• verilog_linter.py (Quét chốt ẩn)"]
-    C --> D["Giai Đoạn 3: Mô Phỏng EDA ModelSim<br/>• simulator.py (vlog & vsim batch)<br/>• synthesis_profiler.py (Đo LEs, Pins)"]
-    D -->|Lỗi syntax / Assert Fail| E["Phản Tư Tự Sửa Lỗi<br/>(reflection_loop.py)<br/>Đọc log ns ➔ Sửa code Verilog"]
-    E --> C
-    D -->|100% Functional Pass| F["Giai Đoạn 4: Bàn Giao & Trực Quan Hóa<br/>• bdf_generator.py (Sơ đồ Quartus BDF)<br/>• vwf_generator.py (Sóng Vector VWF)<br/>• port_auditor.py (Kiểm toán chân 1:1)"]
-
-    classDef inputNode fill:#f1f5f9,stroke:#475569,stroke-width:2px;
-    classDef stage1 fill:#e0f2fe,stroke:#0284c7,stroke-width:2px;
-    classDef stage2 fill:#e0e7ff,stroke:#4338ca,stroke-width:2px;
-    classDef stage3 fill:#fef3c7,stroke:#d97706,stroke-width:2px;
-    classDef stage4 fill:#dcfce7,stroke:#16a34a,stroke-width:2px;
-    classDef reflectNode fill:#fee2e2,stroke:#dc2626,stroke-width:2px;
-
-    class A inputNode;
-    class B stage1;
-    class C stage2;
-    class D stage3;
-    class E reflectNode;
-    class F stage4;
-```
-
-```text
-===========================================================================================================================================================
-                                              SƠ ĐỒ LUỒNG THIẾT KẾ VI MẠCH CHIỀU NGANG (PANORAMIC WIDESCREEN PIPELINE)
-===========================================================================================================================================================
-[ ĐẶC TẢ KỸ THUẬT ] ──► [ GĐ 1: PHÂN TÍCH CỔNG ] ──► [ GĐ 2: SINH RTL & TB ] ──► [ GĐ 3: MÔ PHỎNG MODELSIM ] ──────(100% PASS)──────► [ GĐ 4: BÀN GIAO QUARTUS ]
- (specs/*.txt, prompt)    spec_analyzer.py             rtl_generator.py            simulator.py (vlog/vsim)                                 bdf_generator.py (.bdf)
-                          knowledge_matcher.py         tb_generator.py             synthesis_profiler.py (LEs/Pins)                         vwf_generator.py (.vwf)
-                                                       verilog_linter.py                         │                                          port_auditor.py (1:1)
-                                                              ▲                                  │ (Lỗi mô phỏng / Assertion Failed)
-                                                              └──────────────────────────────────┘
-                                                                    [ PHẢN TƯ TỰ SỬA LỖI ]
-                                                                      reflection_loop.py
-===========================================================================================================================================================
-                                [ ĐIỀU PHỐI TOÀN TRÌNH: run_spec2rtl.py  |  TỰ TÌM CÔNG CỤ EDA: eda_finder.py ]
-===========================================================================================================================================================
+    A["1. Nỗi Đau & Giới Hạn<br/>~38% Mẫu Cứng<br/>Ca lỗi button_debouncer"] --> B["2. Chưng Cất Tri Thức<br/>6 Nguồn ➔ ModelSim Oracle<br/>1,098 SFT + 1,098 DPO"]
+    B --> C["3. Huấn Luyện Offline<br/>Qwen2.5-Coder-3B LoRA & DPO<br/>Colab T4 (0 VNĐ)"]
+    C --> D["4. Kiến Trúc Tích Hợp<br/>Domain Guard + AST Linter<br/>Closed-Loop ModelSim + Quartus"]
+    D --> E["5. Thực Nghiệm & Demo<br/>6/6 Benchmark (54.89s)<br/>5/5 Linter | 20/20 Robustness"]
 ```
 
 ---
 
-### SLIDE 1: TRANG TIÊU ĐỀ & GIỚI THIỆU CHUNG
-* **Tiêu đề lớn**: HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH SỐ SPEC2RTL
-* **Tiêu đề phụ**: Từ Yêu Cầu Văn Bản Tự Nhiên Đến Mạch Nguyên Lý Hoàn Chỉnh Trên FPGA
-* **Thông tin thực hiện**:
-  - Sinh viên thực hiện: [Họ và tên Sinh viên]
-  - Giảng viên hướng dẫn: [Họ và tên Thầy giáo]
-  - Công cụ EDA hỗ trợ: Altera Quartus II 13.0sp1 & ModelSim-Altera 10.1d
-* **Nội dung hiển thị trên slide**:
-  - Biểu tượng mũi tên chuyển đổi: `Mô tả tự nhiên (.txt, .md)` $\rightarrow$ `Mã Verilog & Testbench` $\rightarrow$ `Sơ đồ nguyên lý BDF & Dạng sóng ModelSim`.
-  - Mục tiêu: Rút ngắn chu kỳ thiết kế phần cứng, tự động hóa quy trình viết mã và kiểm thử.
-  - **Module điều phối trung tâm**: `run_spec2rtl.py` (Bộ não kết nối toàn bộ tiến trình) & `eda_finder.py` (Tự động nhận diện công cụ EDA).
-* **Lời thoại thuyết trình (Dễ hiểu, tự tin - 35s)**:
-  > *"Kính thưa Thầy và quý Thầy Cô trong Hội đồng. Trong quy trình thiết kế vi mạch truyền thống, để biến một ý tưởng hay một bản mô tả chức năng thành một con chip hoạt động được, kỹ sư phần cứng phải mất rất nhiều thời gian ngồi gõ từng dòng mã Verilog, viết hàng trăm dòng Testbench để kiểm tra, rồi vẽ sơ đồ nguyên lý trong Quartus.*  
-  > *Đề tài của em xây dựng một **Hệ thống AI tự động hóa hoàn toàn luồng Spec2RTL**: Chỉ cần đưa vào một đoạn văn bản mô tả chức năng bình thường, hệ thống sẽ tự động tạo ra mã Verilog chuẩn, tự kiểm tra mô phỏng trên ModelSim, tự sửa lỗi nếu sai, và tự động vẽ ra sơ đồ mạch nguyên lý để nạp chạy ngay trên chip FPGA."*
+### SLIDE 1: TRANG TIÊU ĐỀ & MỤC TIÊU ĐỒ ÁN
+* **Tiêu đề:** HỆ THỐNG TỰ ĐỘNG HÓA THIẾT KẾ VI MẠCH SPEC2RTL: TỪ CHƯNG CẤT TRI THỨC ĐẾN KIỂM CHỨNG EDA KHÉP KÍN
+* **Nội dung hiển thị trên slide:**
+  - **Môn học:** Đồ án 3 (CE118) — Thiết kế Luận lý số
+  - **Giảng viên hướng dẫn:** TS. Nguyễn Văn Tình
+  - **Sinh viên thực hiện:** [Họ và tên Sinh viên]
+  - **Mục tiêu cốt lõi:** Chuyển hóa đặc tả ngôn ngữ tự nhiên (`.txt`, `.md`) thành mã Verilog synthesizable chuẩn IEEE 1364-2001, tự động kiểm thử trên **ModelSim-Altera**, tự sửa lỗi khép kín, và xuất sơ đồ nguyên lý **Quartus II 13.0sp1** (`.bdf`, `.vwf`, `.map.summary`).
+  - **Trọng tâm báo cáo:** Chứng minh rõ cách xây dựng hệ thống từ **quy trình Chưng cất Tri thức (Knowledge Distillation)** kết hợp **tác tử kiểm chứng EDA** để giải quyết triệt để các lỗi phần cứng thực tế.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Ảnh kiến trúc luồng tổng thể từ file thực tế trong repo: `![Sơ đồ kiến trúc Spec2RTL chiều ngang](images/pipeline_architecture_horizontal.png)` *(đường dẫn repo: `docs/images/pipeline_architecture_horizontal.png`)*.
+  - Khối chuyển đổi 4 bước: `Đặc tả tự nhiên (specs/*.txt)` $\rightarrow$ `AI Chưng cất / Tổng hợp RTL` $\rightarrow$ `AST Linter & ModelSim Oracle` $\rightarrow$ `Sơ đồ BDF & Sóng VWF Quartus II`.
+* **Lời thoại thuyết trình (~35s):**
+  > *"Kính thưa Thầy TS. Nguyễn Văn Tình và quý Thầy Cô. Trong học phần Đồ án 3 (CE118), em xây dựng hệ thống **Spec2RTL & Prompt2Silicon** nhằm tự động hóa quy trình biến một bản đặc tả văn bản tự nhiên thành thiết kế phần cứng hoàn chỉnh có thể kiểm chứng ngay trên ModelSim và Quartus II.*  
+  > *Trong buổi báo cáo hôm nay, em xin trình bày trọn vẹn lộ trình từ cách nhóm tạo ra năng lực thiết kế cho hệ thống thông qua quy trình **Chưng cất Tri thức (SFT LoRA + DPO)**, tích hợp cùng bộ bảo vệ **Domain Guard**, **AST Linter** và **vòng lặp kiểm chứng EDA khép kín**, cho đến kết quả đo kiểm thực nghiệm hiện tại."*
 
 ---
 
-### SLIDE 2: NỖI ĐAU THỰC TẾ & VÌ SAO CHATGPT KHÔNG THỂ THIẾT KẾ VI MẠCH?
-* **Tiêu đề**: Nỗi Đau Ngành Bán Dẫn & Giới Hạn Của AI Sinh Văn Bản (LLM)
-* **Nội dung hiển thị trên slide**:
-  - **Nỗi đau ngành chip**: Phần lớn thời gian của một dự án vi mạch bị chôn vùi vào khâu viết mã lặp đi lặp lại và debug kiểm tra lỗi (Verification Bottleneck).
-  - **Vì sao ChatGPT/Claude thông thường thất bại khi viết Verilog?**:
-    1. *Ảo giác chân tín hiệu (Port Hallucination)*: Đề bài yêu cầu các chân xác định, AI tự ý bịa thêm chân lạ hoặc bỏ quên chân tín hiệu quan trọng.
-    2. *Tạo ra chốt ẩn nguy hiểm (Inferred Latches)*: Code nhìn bên ngoài rất đúng cú pháp, nhưng nạp vào chip thì mạch bị chập chờn, tiêu tốn tài nguyên và sai lệch thời gian.
-    3. *Không thể tự kiểm chứng*: AI văn bản chỉ đoán từ tiếp theo, nó không biết cách bấm nút biên dịch trong ModelSim hay Quartus để xem mạch có chạy thật hay không.
-* **Lời thoại thuyết trình (45s)**:
-  > *"Nhiều người sẽ hỏi: Bây giờ có ChatGPT hay Claude rồi, tại sao không copy đề bài vào đó rồi xin code Verilog?*  
-  > *Thực tế nghiên cứu cho thấy, nếu chỉ dùng AI thông thường, tỷ lệ lỗi phần cứng là rất cao. Phần cứng rất khắt khe: chỉ cần AI bịa thêm một chân tín hiệu lạ, hoặc viết thiếu một trường hợp trong lệnh `case` tạo ra chốt ẩn, là toàn bộ chip sẽ bị sai lệch hoặc treo cứng.*  
-  > *AI bình thường chỉ 'giỏi nói', nhưng không có công cụ để 'làm và kiểm tra'. Muốn ứng dụng AI vào thiết kế vi mạch thực tế, chúng ta bắt buộc phải có một phương pháp tiếp cận kỹ thuật bài bản và có kỷ luật."*
+### SLIDE 2: NỖI ĐAU THIẾT KẾ VI MẠCH & CHIẾN LƯỢC PHÂN TÁCH 70/30
+* **Tiêu đề:** Nỗi Đau Ngành Vi Mạch, Giới Hạn LLM Thông Thường & Chiến Lược 70/30
+* **Nội dung hiển thị trên slide:**
+  - **Nỗi đau thực tế (Verification Bottleneck):** Kỹ sư phần cứng tốn phần lớn thời gian viết lặp lại các khối mạch giao tiếp/điều khiển và gỡ lỗi mô phỏng.
+  - **3 lý do LLM đa dụng (ChatGPT/Claude) thất bại khi viết Verilog:**
+    1. *Ảo giác chân tín hiệu (Port Hallucination):* Tự thêm/bớt chân hoặc sai độ rộng bit so với đặc tả.
+    2. *Lỗi ngữ nghĩa phần cứng ngầm:* Tạo chốt ẩn (**Inferred Latch**), chân đầu vào cô lập (**Dangling Pin**), hoặc gán blocking `=` trong khối tuần tự gây **Race Condition**.
+    3. *Không có trọng tài EDA:* Chỉ sinh văn bản theo xác suất, không biên dịch/mô phỏng trên ModelSim hay tổng hợp trên Quartus.
+  - **Chiến lược phân tách 70/30 (`reports/05_70_30_Chip_Partitioning_Commodity_AI.md`):**
+    * **70% Khối hạ tầng phổ thông (AI tự động hóa):** Clock/Reset, UART/SPI/I2C, FIFO, Counter, FSM, ALU giao tiếp qua chuẩn Decoupled Ready/Valid Socket.
+    * **30% Kiến trúc cốt lõi (Con người tập trung):** Systolic Array, khối tính toán INT8/BF16, PWL Activation, Ping-Pong DMA.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Sơ đồ so sánh 2 cột: Cột trái *"LLM thông thường (Open-loop text)"* vs Cột phải *"Chiến lược 70/30 + EDA-in-the-loop"*.
+  - Không dùng ảnh giả; vẽ trực quan biểu đồ tỷ lệ `70% Khối phổ thông (Tự động hóa)` / `30% Lõi đột phá (Kỹ sư tối ưu)`.
+* **Lời thoại thuyết trình (~45s):**
+  > *"Thưa Thầy, câu hỏi đầu tiên đặt ra là: tại sao không dùng trực tiếp các LLM phổ thông để xin code Verilog?*  
+  > *Thực tế cho thấy thiết kế phần cứng cực kỳ khắt khe: chỉ cần AI bịa thêm một chân tín hiệu, thiếu nhánh `default` gây chốt ẩn, hay bỏ quên dây nối từ một ngõ vào, mạch vẫn có thể biên dịch được nhưng chạy sai hoàn toàn trên FPGA.*  
+  > *Vì vậy, nhóm áp dụng chiến lược phân tách 70/30: giao 70% các khối hạ tầng phổ thông như UART, FSM, bộ đếm, bộ giải mã cho hệ thống Spec2RTL tự động sinh và kiểm chứng tuyệt đối, giúp người kỹ sư dồn 100% chất xám cho 30% kiến trúc lõi tính toán chuyên sâu."*
 
 ---
 
-### SLIDE 3: CHIẾN LƯỢC TỐI ƯU CÔNG SỨC: HẠ TẦNG PHỔ THÔNG VS KIẾN TRÚC CỐT LÕI
-* **Tiêu đề**: Chiến Lược Giải Phóng Kỹ Sư: Tự Động Hóa Khối Phổ Thông vs Tập Trung Sáng Tạo Cốt Lõi
-* **Nội dung hiển thị trên slide (Chia 2 cột rõ ràng)**:
-  - **Phần cứng phổ thông & Khối giao tiếp (AI làm thay hoàn toàn)**:
-    * Các khối mạch lặp đi lặp lại: Bộ đếm (Counters), Máy trạng thái (FSM), Bộ số học (ALU), Hàng đợi (FIFO), Bộ giải mã LED, Giao tiếp UART/SPI.
-    * *Cơ chế xử lý*: Module `knowledge_matcher.py` truy vấn kho vi mạch chuẩn (`hardware_db.json`) để tự động nhận dạng mẫu thiết kế chuẩn công nghiệp.
-    * *Giải pháp*: Tự động sinh mã và kiểm chứng hoàn chỉnh tức thì.
-  - **Vi kiến trúc đột phá & Lõi tính toán chuyên sâu (Con người tập trung tối ưu)**:
-    * Các khối kiến trúc đột phá: Lõi xử lý AI (NPU, Systolic Array, Khối nhân ma trận MAC), Tối ưu hóa tiêu thụ năng lượng và đường trễ tín hiệu.
-    * *Giá trị mang lại*: Kỹ sư không còn phải làm việc "thợ gõ code", mà dành toàn bộ chất xám cho phần tinh hoa nhất của dự án.
-* **Lời thoại thuyết trình (45s)**:
-  > *"Từ thực tế đó, kế hoạch của đồ án bắt đầu bằng **Chiến lược phân tách giữa hạ tầng phần cứng phổ thông và kiến trúc cốt lõi**.*  
-  > *Trong mọi hệ thống vi mạch hay đồ án vi xử lý, khối lượng lớn công việc thường rơi vào các khối mạch phổ thông lặp đi lặp lại: ví dụ như bộ đếm thời gian, máy trạng thái FSM điều khiển, bộ chuyển đổi UART, hay giải mã LED 7 đoạn. Đây là những phần bắt buộc phải có, nhưng lại tốn rất nhiều thời gian làm thủ công.*  
-  > *Hệ thống của em tích hợp module `knowledge_matcher.py` với cơ sở tri thức vi mạch chuẩn để tự động hóa toàn bộ các khối phổ thông này. Nhờ đó, người kỹ sư được giải phóng hoàn toàn khỏi những tác vụ lặp lại, để dành toàn bộ thời gian và trí tuệ tập trung vào kiến trúc cốt lõi, ví dụ như thiết kế lõi tăng tốc AI hay bộ xử lý chuyên dụng."*
+### SLIDE 3: HIỆN TRẠNG BAN ĐẦU & GIỚI HẠN CỦA PHƯƠNG PHÁP MẪU CỨNG (~38%)
+* **Tiêu đề:** Giới Hạn Thực Nghiệm Của Mẫu Cứng & Ca Lỗi Điển Hình `button_debouncer`
+* **Nội dung hiển thị trên slide:**
+  - **Khảo sát trên bộ 100 đề bài chuẩn hóa (`docs/100_Prompt_Thiet_Ke_Mach.pdf`):**
+    * **~38% bài toán đạt chuẩn:** Nằm trong 25 họ mạch kinh điển (Counter, Timer, ALU, Vending FSM, Traffic Light, UART TX...).
+    * **~62% bài toán vượt ngoài mẫu cứng:** Khi gặp đề bài mới (ví dụ `button_debouncer`, MUX/DEMUX mở rộng, SPI, Arbiter), nhánh sinh generic dễ tạo logic giả lập hoặc bỏ sót chân.
+  - **Ca thất bại thực nghiệm do TS. Nguyễn Văn Tình chỉ ra (`button_debouncer`):**
+    * Chân đầu vào `btn_in` bị cô lập hoàn toàn (**Dangling Input Pin**), không đi vào logic khử rung.
+    * Ngõ ra chỉ lật trạng thái giả tạo, trong khi Testbench sơ sài vẫn báo **PASS 100% giả tạo**.
+  - **Kết luận chuyển hướng:** Không thể viết tay hàng nghìn template $\rightarrow$ Phải **chưng cất tri thức** sang mô hình ngôn ngữ cục bộ chuyên biệt kết hợp **AST Linter** bắt lỗi phần cứng.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  ```mermaid
+  flowchart LR
+      A["100 Đề Bài Chuẩn Hóa<br/>(docs/100_Prompt_Thiet_Ke_Mach.pdf)"] --> B["~38% Mẫu Kinh Điển<br/>(25 Họ Mạch) ➔ PASS"]
+      A --> C["~62% Mạch Mới / Biến Thể<br/>➔ Chạm Trần Template"]
+      C --> D["Ca Lỗi button_debouncer<br/>btn_in cô lập (Dangling Pin)<br/>Testbench ngây thơ báo PASS giả"]
+      D --> E["ĐỘNG LỰC ĐỘT PHÁ<br/>Chưng cất Tri thức + DPO + AST Linter"]
+  ```
+* **Lời thoại thuyết trình (~45s):**
+  > *"Ở giai đoạn đầu, khi kiểm thử phương pháp dựa trên mẫu cứng trên bộ 100 đề bài chuẩn hóa của đồ án, hệ thống chỉ xử lý tốt khoảng 38% bài toán thuộc 25 họ mạch quen thuộc; 62% bài toán còn lại rơi vào giới hạn của hàm sinh generic.*  
+  > *Đặc biệt, qua phản biện trực tiếp của Thầy Tình trên bài toán `button_debouncer`, nhóm thấy rõ nhược điểm chí mạng: chân `btn_in` bị bỏ lơ lửng không nối vào logic, nhưng testbench đơn giản vẫn báo PASS giả. Chính bài học thực nghiệm này là lý do nhóm chuyển sang xây dựng quy trình Chưng cất Tri thức và bộ phân tích tĩnh AST Linter."*
 
 ---
 
-### SLIDE 4: ĐỘNG CƠ THỰC THI CHÍNH (SPEC $\rightarrow$ RTL $\rightarrow$ TESTBENCH)
-* **Tiêu đề**: Động Cơ Thực Thi Spec2RTL: Biến Ý Tưởng Thành Phần Cứng Tự Động & Nhanh Chóng
-* **Nội dung hiển thị trên slide (Kèm các module phần mềm phụ trách)**:
-  - **Quy trình 3 pha tự động**:
-    1. *Nhận dạng đặc tả [`spec_analyzer.py`]*: Đọc yêu cầu từ file `.txt`, `.md` hoặc văn bản tự do. Tự động bóc tách: Tên module, danh sách chân cắm, độ rộng bus bit, và chức năng hoạt động.
-    2. *Sinh mã phần cứng [`rtl_generator.py`]*: Tạo mã Verilog synthesizable chuẩn công nghiệp. Kích hoạt cơ chế `RTLPortEnforcer` ép buộc danh sách chân cắm phải khớp từng cổng với đề bài, loại trừ hoàn toàn chân ma.
-    3. *Sinh Testbench tự kiểm tra [`tb_generator.py`]*: Tự động tạo kịch bản kích thích xung nhịp, reset, và tự so sánh kết quả đầu ra đúng/sai (Self-checking Scoreboard).
-    4. *Quét tĩnh cú pháp [`verilog_linter.py`]*: Rà soát triệt tiêu sớm chốt ẩn (inferred latches) trước khi nạp vào bộ mô phỏng.
-  - **Thời gian xử lý**: Toàn bộ quá trình diễn ra hoàn toàn tự động chỉ trong vài giây!
-* **Lời thoại thuyết trình (45s)**:
-  > *"Để hiện thực hóa chiến lược trên, trái tim của luồng chạy chính là **Động cơ thực thi Spec2RTL** với các module chuyên trách.*  
-  > *Quy trình cực kỳ đơn giản: Kỹ sư chỉ cần đưa vào file mô tả đề bài (.txt hoặc .md). Module `spec_analyzer.py` sẽ phân tích bóc tách tên mạch và từng chân tín hiệu.*  
-  > *Tiếp theo, `rtl_generator.py` sinh mã Verilog chuẩn và kích hoạt bộ ép chân RTLPortEnforcer để đảm bảo không sai lệch một bit nào so với đề bài. Đồng thời, `tb_generator.py` sinh ngay Testbench tự kiểm chứng hoàn chỉnh, và `verilog_linter.py` rà quét sạch chốt ẩn. Toàn bộ khâu này diễn ra tự động chỉ trong vài giây."*
+### SLIDE 4: TỔNG QUAN QUY TRÌNH CHƯNG CẤT TRI THỨC (HOW THE SYSTEM WAS BUILT)
+* **Tiêu đề:** Lộ Trình Tạo Ra Hệ Thống: 5 Bước Chưng Cất Tri Thức & Căn Chỉnh Phần Cứng
+* **Nội dung hiển thị trên slide:**
+  - **Mục tiêu:** Chưng cất năng lực suy luận phần cứng từ nhiều nguồn tri thức chuẩn thành mô hình **3B chạy 100% Offline**, chi phí huấn luyện **0 VNĐ**, biết né lỗi vi mạch.
+  - **5 bước thực thi khép kín trong `training/` & `models/`:**
+    1. **Thu thập & Mở rộng dữ liệu:** Hợp nhất **6 nguồn** trong `knowledge_base/hardware_db.json` (539 mẫu) + augmentation chuẩn CE118 (`training/prepare_dataset_group1.py`) + `VeriPrefer` (`training/integrate_veriprefer.py`).
+    2. **Lọc ModelSim Truth Oracle & Khử trùng lặp MD5:** `training/filter_dataset_with_modelsim.py` $\rightarrow$ **1,098 mẫu sạch (99.8%)** trong `training/dataset_clean_verified.json`.
+    3. **Tạo cặp DPO Preference tiêm lỗi phần cứng:** `training/build_dpo_dataset.py` $\rightarrow$ **1,098 cặp Chosen/Rejected** trong `training/dataset_dpo_preference.json`.
+    4. **Huấn luyện SFT LoRA & DPO Alignment:** Trên Google Colab GPU T4 dùng Unsloth 4-bit (`train_spec2rtl_qwen3b_colab.ipynb` & `train_spec2rtl_qwen3b_dpo_colab.ipynb`).
+    5. **Đóng gói trọng số & Tích hợp hệ thống:** Xuất adapter tại `models/qwen2.5_3b_verilog_lora/` & `models/qwen2.5_3b_verilog_dpo/`, chạy suy luận qua `models/run_inference.py` kết hợp bộ điều phối `agent/`.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  ```mermaid
+  flowchart LR
+      S1["Bước 1: 6 Nguồn + Aug<br/>hardware_db.json (539)<br/>prepare_dataset_group1.py<br/>integrate_veriprefer.py"] --> S2["Bước 2: Truth Oracle<br/>ModelSim vlog.exe + Linter<br/>+ MD5 Dedup ➔ 1,098 mẫu"]
+      S2 --> S3["Bước 3: DPO Dataset<br/>Tiêm 3 lỗi phần cứng<br/>➔ 1,098 cặp Chosen/Rejected"]
+      S3 --> S4["Bước 4: Colab T4 (0 VNĐ)<br/>SFT LoRA (lr=2e-4)<br/>➔ DPO (beta=0.1, lr=5e-6)"]
+      S4 --> S5["Bước 5: Offline Weights<br/>qwen2.5_3b_verilog_lora<br/>qwen2.5_3b_verilog_dpo"]
+  ```
+* **Lời thoại thuyết trình (~40s):**
+  > *"Để Thầy thấy rõ cách hệ thống được tạo ra từ gốc, đây là toàn cảnh 5 bước Chưng cất Tri thức của nhóm.*  
+  > *Thay vì dùng dữ liệu thô trên mạng vốn chứa rất nhiều mã Verilog không tổng hợp được, nhóm đi từ thu thập 6 nguồn chuẩn, ép toàn bộ qua 'bộ lọc chân lý' ModelSim để còn 1,098 mẫu sạch, rồi chủ động tiêm lỗi phần cứng để tạo 1,098 cặp DPO dạy AI biết phân biệt code đúng và code lỗi. Toàn bộ quá trình huấn luyện SFT và DPO được thực hiện miễn phí trên Colab T4 rồi đóng gói trọng số chạy offline."*
 
 ---
 
-### SLIDE 5: VÒNG LẶP PHẢN HỒI THỰC TẾ EDA (CLOSED-LOOP VERIFICATION)
-* **Tiêu đề**: Cơ Chế Kiểm Chứng & Tự Sửa Lỗi: Đưa ModelSim Vào Vòng Lặp Phản Hồi Khép Kín
-* **Sơ đồ vòng lặp khép kín**:
-  $$\text{AI Sinh Code Verilog} \longrightarrow \text{ModelSim Biên Dịch \& Chạy Thử} \longrightarrow \begin{cases} \text{Đạt yêu cầu} \rightarrow \text{Xuất mạch} \\ \text{Có lỗi} \rightarrow \text{Đọc Log} \rightarrow \text{AI Tự Sửa Lại} \end{cases}$$
-* **Nội dung hiển thị trên slide (Kèm các module phụ trách)**:
-  - **Nguyên tắc "Không tin mù quáng vào AI"**: Lấy các phần mềm EDA tiêu chuẩn công nghiệp (ModelSim 10.1d, Quartus II) làm "Trọng tài chân lý".
-  - **Cơ chế phản hồi thông minh (Chuẩn nghiên cứu VeriPrefer - arXiv:2504.15804)**:
-    * *Mô phỏng ngầm tự động [`simulator.py`]*: Gọi ModelSim chạy `vlog` và `vsim` ở chế độ batch mode để kiểm tra toàn bộ kịch bản kiểm thử.
-    * *Đặc vụ tự sửa lỗi [`reflection_loop.py`]*: Nếu phát hiện lỗi mô phỏng hoặc sai lệch assertion, module sẽ trích xuất chính xác thời điểm nano-giây sai lệch từ log ModelSim, đưa ngược lại cho Reflection Agent tự sửa đúng dòng code bị lỗi.
-    * *Đo đạc tài nguyên thực tế [`synthesis_profiler.py`]*: Tự động chạy `quartus_map` để đo số Logic Elements, Flip-Flops và Pin tiêu thụ trên chip FPGA.
-    * Đảm bảo mạch xuất ra luôn đạt chuẩn kiểm định trước khi bàn giao.
-* **Lời thoại thuyết trình (50s)**:
-  > *"Nhưng làm sao để tin chắc rằng mã Verilog mà AI sinh ra chạy đúng tuyệt đối?*  
-  > *Câu trả lời nằm ở **Khâu kiểm chứng thực tế với vòng lặp phản hồi khép kín (EDA-in-the-loop)**.*  
-  > *Chúng em không bao giờ tin tưởng mù quáng vào mã do AI viết ra. Ngay sau khi sinh code, module `simulator.py` tự động gọi ngầm ModelSim lên biên dịch và chạy mô phỏng. Nếu có lỗi, module `reflection_loop.py` sẽ đọc chính xác dòng thông báo lỗi và thời điểm nano-giây sai lệch từ log ModelSim, rồi tự động sửa lại mã Verilog. Vòng lặp này tự vận hành khép kín cho tới khi nào ModelSim xác nhận toàn bộ test case đều đạt thì mới nghiệm thu."*
+### SLIDE 5: BƯỚC 1 & 2 — THU THẬP 6 NGUỒN TRI THỨC & LỌC MODELSIM TRUTH ORACLE
+* **Tiêu đề:** Thu Thập Đa Nguồn, Gắn CoT 3 Bước & Thẩm Định Bằng ModelSim Truth Oracle
+* **Nội dung hiển thị trên slide:**
+  - **Bước 1 — Nguồn gốc dữ liệu thô & Augmentation:**
+    * **6 nguồn trong `knowledge_base/hardware_db.json` (539 mẫu):** `NVIDIA VerilogEval` (156), `AbiralArch CVDP Benchmark` (119), `HuggingFace Verilog-Instruct-60k` (112), `CityU HK VeriPrefer` (100), `HKUST RTLLM` (50), `Spec2RTL Verified Library` (2).
+    * **Tổng hợp & gắn Hardware CoT 3 bước (`training/prepare_dataset_group1.py` — 3,094 dòng):** Kết hợp `collect_from_hardware_db()`, `collect_from_specs_dir()` (6 benchmark `specs/*.txt`), `generate_full_scale_augmentation()` (8 nhóm), `generate_advanced_ce118_suite()` (9 nhóm), `generate_protocols_and_coprocessors_suite()` (SPI, UART RX, VGA, CRC, MAC, FIFO...) + nạp thêm `CatIIIIIIII/VeriPrefer` (`rtllm2.json` 50 bài & `veriloghuman.json` 40 bài đầu) qua `training/integrate_veriprefer.py`.
+  - **Bước 2 — Lọc ModelSim Truth Oracle & Khử trùng lặp (`training/filter_dataset_with_modelsim.py`):**
+    * Biên dịch từng mẫu bằng `vlog.exe -work work` (timeout 10s, bắt buộc `returncode == 0`, có `"-- Compiling"`, không có `** Error:`/`** Fatal:`).
+    * Kiểm tra `check_linter()` (cặp `module`/`endmodule`, cân bằng `begin`/`end`, `case` có `default:`) và khử trùng lặp theo `id` + băm **MD5** mã đã chuẩn hóa (`normalize_code`).
+  - **Kết quả (`training/REPORT_NHOM_1_DATASET.md` & `training/dataset_clean_verified.json`):**
+    * **1,100 ứng viên** $\rightarrow$ loại **2 mẫu trùng lặp (0.2%)**, 0 lỗi linter sót $\rightarrow$ **1,098 mẫu sạch (99.8%)** đạt chuẩn `PASS_100_MODELSIM_VLOG` & `CLEAN_0_LATCH_0_DANGLING_PIN`, phân bố trên **26 categories** (Synthesized CE118 Suite: 791, VerilogEval: 94, Verilog-Instruct-60k: 87, VeriPrefer: 75, RTLLM: 43, Spec2RTL Benchmarks: 6, Verified Library: 2).
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Biểu đồ phễu dữ liệu (Data Funnel): `539 mẫu DB + Augmentation + VeriPrefer` $\rightarrow$ `1,100 ứng viên` $\rightarrow$ `ModelSim vlog.exe + check_linter() + MD5 Dedup` $\rightarrow$ **`1,098 mẫu sạch (99.8%)`**.
+  - Trích dẫn cấu trúc chuẩn SFT (`instruction`, `input`, `output` kèm CoT 3 bước `generate_cot_explanation`).
+* **Lời thoại thuyết trình (~50s):**
+  > *"Đi vào chi tiết Bước 1 và Bước 2: điểm xuất phát của nhóm là `hardware_db.json` gồm 539 mẫu từ 6 nguồn nghiên cứu uy tín như NVIDIA VerilogEval, VeriPrefer, RTLLM, CVDP, Verilog-Instruct-60k và thư viện nội bộ Spec2RTL.*  
+  > *Sau đó, script `prepare_dataset_group1.py` mở rộng thêm các họ mạch đặc thù môn CE118 như CRC, SPI, UART, VGA, FIFO kèm chuỗi suy luận CoT 3 bước, và `integrate_veriprefer.py` bổ sung thêm mẫu từ VeriPrefer. Tất cả 1,100 ứng viên được đưa qua bộ lọc Truth Oracle bằng chính trình biên dịch `vlog.exe` của ModelSim kết hợp khử trùng lặp MD5. Kết quả giữ lại đúng **1,098 mẫu sạch** trên 26 nhóm mạch, bảo đảm 100% biên dịch thành công trước khi đưa đi huấn luyện."*
 
 ---
 
-### SLIDE 6: ĐẦU RA BÀN GIAO: TRỰC QUAN HÓA ĐỂ KIỂM SOÁT THỰC THỂ
-* **Tiêu đề**: Mục Tiêu Đầu Ra: "Trực Quan Hóa Để Kiểm Soát Thực Thể" (Sơ Đồ BDF & Sóng Đồ Họa)
-* **Nội dung hiển thị trên slide (Kèm các module phụ trách)**:
-  1. **Tự động dựng Sơ đồ nguyên lý mạch Quartus BDF [`bdf_generator.py` & `port_auditor.py`]**:
-     * Kỹ sư phần cứng cần nhìn thấy sơ đồ mạch thật để kiểm soát kết nối thực thể.
-     * `bdf_generator.py`: Tự động tạo file Symbol (`.bsf`) và file sơ đồ khối nguyên lý (`.bdf`). Mở Quartus II lên là thấy đầy đủ khối linh kiện, cổng vào/ra, bus dây được nối thẳng hàng, không bị lỗi đứt dây hay chân lơ lửng.
-     * `port_auditor.py`: Thanh tra đối chiếu chéo 4 chiều độc lập: $\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$ (Cam kết bảo toàn toàn vẹn cổng tín hiệu).
-  2. **Bộ định dạng dạng sóng Waveform trực quan chuẩn EDA [`vwf_generator.py`]**:
-     * *ModelSim Waveform GUI (cờ `--gui`)*: Tự động khởi động cửa sổ sóng đồ họa ModelSim phóng to toàn màn hình.
-     * *Quartus Waveform Editor [`vwf_generator.py`]*: Tạo file `.vwf` nạp sẵn chân tín hiệu và xung clock vào Quartus II.
-     * *Dữ liệu sóng chuẩn công nghiệp*: Xuất file `.vcd` (Value Change Dump) tương thích với mọi công cụ phân tích EDA.
-* **Lời thoại thuyết trình (45s)**:
-  > *"Điểm khác biệt lớn nhất và là **giá trị cốt lõi ở đầu ra của toàn bộ luồng chạy** chính là nguyên lý: 'Trực quan hóa để kiểm soát thực thể'.*  
-  > *Một kỹ sư phần cứng hay thầy cô chấm bài sẽ không bao giờ yên tâm nếu chỉ nhìn vài dòng code chữ trên màn hình. Họ cần nhìn thấy con chip hoạt động như thế nào.*  
-  > *Nhờ module `bdf_generator.py` và `port_auditor.py`, hệ thống tự động vẽ ra **Sơ đồ nguyên lý mạch BDF hoàn chỉnh trong Quartus II**, với từng chân cắm được đối chiếu khớp hoàn toàn với đề bài. Đồng thời, hệ thống xuất file sóng Quartus `.vwf` và tự động kích hoạt ModelSim GUI để kiểm tra trực tiếp dạng sóng xung nhịp trên màn hình."*
+### SLIDE 6: BƯỚC 3 — TẠO 1,098 CẶP DPO CHOSEN/REJECTED TIÊM LỖI PHẦN CỨNG
+* **Tiêu đề:** Căn Chỉnh Nhận Thức Phần Cứng: Sinh 1,098 Cặp DPO Bằng Đột Biến Tiêm Lỗi
+* **Nội dung hiển thị trên slide:**
+  - **Vì sao SFT chưa đủ?** SFT chỉ dạy mô hình bắt chước mẫu đúng; theo nghiên cứu **VeriPrefer** (`reports/06_VeriPrefer_ClosedLoop_Feedback.md`), cần tín hiệu đối lập (**Chosen vs Rejected**) để mô hình biết chủ động tránh các lỗi phần cứng tinh vi.
+  - **Cơ chế đột biến trong `training/build_dpo_dataset.py` $\rightarrow$ `training/dataset_dpo_preference.json`:**
+    * Từ 1,098 mẫu sạch (**Chosen**), hệ thống tự động tiêm các lỗi phần cứng kinh điển để tạo phiên bản **Rejected**:
+      1. `mutate_inject_dangling_pin` (**`DANGLING_PIN`: 933 cặp**) — Cô lập chân tín hiệu đầu vào/ra (như ca lỗi `button_debouncer`).
+      2. `mutate_inject_latch` (**`INFERRED_LATCH`: 86 cặp**) — Xóa nhánh `default:` hoặc `else` trong khối tổ hợp.
+      3. `mutate_inject_blocking_assignment` (**`BLOCKING_IN_SEQUENTIAL`: 56 cặp**) — Đổi `<=` thành `=` trong khối `posedge clk`.
+      4. Fallback lỗi cấu trúc/logic: **`SYNTAX_TRUNCATED` (18 cặp)** và **`FUNCTIONAL_BUG` (5 cặp)**.
+    * **Tổng cộng:** **1,098 cặp `(prompt, chosen, rejected)`** sạch và cân đối cho huấn luyện DPO.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Bảng phân bố thực tế 1,098 cặp DPO trong `training/dataset_dpo_preference.json`:
+    | Loại lỗi tiêm vào (`Rejected`) | Số lượng cặp | Tỷ lệ |
+    | :--- | :---: | :---: |
+    | `DANGLING_PIN` (Chân lơ lửng) | 933 | 85.0% |
+    | `INFERRED_LATCH` (Chốt ẩn) | 86 | 7.8% |
+    | `BLOCKING_IN_SEQUENTIAL` (Lỗi gán `=`) | 56 | 5.1% |
+    | `SYNTAX_TRUNCATED` + `FUNCTIONAL_BUG` | 18 + 5 | 2.1% |
+* **Lời thoại thuyết trình (~45s):**
+  > *"Sang Bước 3, để mô hình không mắc lại các lỗi mà Thầy đã chỉ ra như chân lơ lửng hay chốt ẩn, nhóm viết script `build_dpo_dataset.py` biến đổi trực tiếp 1,098 mẫu sạch thành **1,098 cặp dữ liệu DPO**.*  
+  > *Trong mỗi cặp, phần Chosen là mã chuẩn đã qua ModelSim, còn phần Rejected được tạo bằng cách cố tình tiêm 3 lỗi phần cứng phổ biến nhất: chân lơ lửng (933 cặp), chốt ẩn (86 cặp) và gán blocking trong khối tuần tự (56 cặp), cùng 23 cặp lỗi cú pháp/logic. Nhờ vậy, mô hình được dạy trực tiếp điều gì là 'tối kỵ' trong thiết kế RTL."*
 
 ---
 
-### SLIDE 7: DEMO
-* **Tiêu đề**: DEMO
-* **Nội dung hiển thị trên slide**:
-  # DEMO
-* **Kịch bản thực thi trực tiếp**:
-  1. Mở file đặc tả [specs/c.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/c.txt).
-  2. Chạy lệnh: `python agent/run_spec2rtl.py specs/c.txt --gui`
-  3. Quan sát: Cửa sổ ModelSim Waveform GUI tự động hiển thị dạng sóng xung nhịp.
-  4. Mở Quartus II xem sơ đồ mạch nguyên lý: `quartus/bcd_to_7seg_anode/sch_bcd_to_7seg_anode.bdf`.
-* **Lời thoại thuyết trình (15s)**:
-  > *"Sau đây em xin phép được thực hiện demo trực tiếp toàn bộ luồng chạy của hệ thống trên máy tính."*
+### SLIDE 7: BƯỚC 4 & 5 — HUẤN LUYỆN SFT LORA, DPO ALIGNMENT & ĐÓNG GÓI OFFLINE
+* **Tiêu đề:** Huấn Luyện Qwen2.5-Coder-3B (SFT LoRA $\rightarrow$ DPO) & Đóng Gói Chạy Offline
+* **Nội dung hiển thị trên slide:**
+  - **Hạ tầng & Cấu hình chung (0 VNĐ trên Google Colab GPU T4):**
+    * Base model: `unsloth/Qwen2.5-Coder-3B-Instruct-bnb-4bit` (`load_in_4bit=True`, `max_seq_length=2048`).
+    * Cấu hình LoRA: `r=16`, `lora_alpha=16`, `lora_dropout=0`, `target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"]`, `optim="adamw_8bit"`, effective batch = `8` (`batch_size=2 × grad_accum=4`).
+  - **Hai giai đoạn huấn luyện nối tiếp:**
+    1. **SFT LoRA (`training/train_spec2rtl_qwen3b_colab.ipynb`):** Template `qwen-2.5`, 1,098 mẫu sạch, `SFTTrainer`, `1 epoch`, `learning_rate=2e-4`, `warmup_steps=5`.
+    2. **DPO Alignment (`training/train_spec2rtl_qwen3b_dpo_colab.ipynb`):** `PatchDPOTrainer()` + `DPOTrainer`, 1,098 cặp DPO, `ref_model=None`, `beta=0.1`, `learning_rate=5e-6`, `1 epoch`, `max_prompt_length=512`, `max_length=1024`.
+  - **Phân tích biểu đồ hội tụ thực nghiệm (`docs/dpo_loss_convergence.png`):**
+    * Quá trình DPO chạy **137 bước** (step 1 $\rightarrow$ 137): Loss khởi đầu quanh **~0.693** trong ~12 bước warmup đầu, sau đó giảm dốc ổn định xuống vùng **~0.23–0.48** cuối kỳ và kết thúc tại **~0.29** (step 137).
+  - **Đóng gói chạy Offline (`models/`):**
+    * Xuất 2 bộ trọng số độc lập: `models/qwen2.5_3b_verilog_lora/` và `models/qwen2.5_3b_verilog_dpo/` (mỗi `adapter_model.safetensors` **~114.25 MB** / 119,801,528 bytes, `peft_version="0.21.2"`).
+    * Nạp suy luận offline qua `models/run_inference.py` (`temperature=0.2`, `top_p=0.9`, `max_new_tokens=1024`), có Domain Guard và fallback an toàn về `agent/rtl_generator.py` nếu thiếu PyTorch/GPU.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Biểu đồ hội tụ DPO Loss thực tế từ repo: `![Biểu đồ hội tụ DPO Loss](dpo_loss_convergence.png)` *(đường dẫn repo: `docs/dpo_loss_convergence.png`)*.
+* **Lời thoại thuyết trình (~50s):**
+  > *"Bước 4 và Bước 5 hoàn thiện bộ não AI của hệ thống với chi phí 0 đồng trên GPU T4 của Google Colab nhờ thư viện Unsloth 4-bit.*  
+  > *Đầu tiên, mô hình `Qwen2.5-Coder-3B-Instruct` được huấn luyện SFT LoRA (rank 16) trên 1,098 mẫu sạch để nắm vững cấu trúc Verilog và suy luận CoT. Tiếp theo, mô hình bước vào pha DPO Alignment với hệ số `beta=0.1` trên 1,098 cặp dữ liệu tiêm lỗi.*  
+  > *Như Thầy thấy trên biểu đồ thực nghiệm `dpo_loss_convergence.png`: qua 137 bước huấn luyện, đường DPO Loss giảm đều đặn từ mức khởi điểm lý thuyết ~0.693 xuống còn khoảng 0.29 ở cuối chu kỳ. Sau khi train xong, hai bộ adapter LoRA (~114.25 MB mỗi bộ) được đóng gói về máy local tại thư mục `models/` để chạy offline bảo mật hoàn toàn mã nguồn thiết kế."*
 
 ---
 
-### SLIDE 8: PHÂN TÍCH GIỚI HẠN THỰC NGHIỆM & CA THẤT BẠI ĐIỂN HÌNH
-* **Tiêu đề**: Giới Hạn Của Phương Pháp Mẫu Cứng & Phân Tích Hiện Tượng "Chân Lơ Lửng"
-* **Nội dung hiển thị trên slide**:
-  - **Khảo sát trên 100 đề bài chuẩn hóa (`100_Prompt_Thiet_Ke_Mach.pdf`)**:
-    * **~38% bài toán thành công hoàn hảo**: Nằm trong 25 mẫu mạch kinh điển (Counter, Timer, ALU, FSM Vending...).
-    * **~62% bài toán rơi vào giới hạn**: Các mạch mới (như `button_debouncer`, MUX/DEMUX đa ngõ vào, SPI...) rơi vào hàm sinh generic.
-  - **Bằng chứng thực nghiệm trên Quartus Netlist Viewer (`button_debouncer` do TS. Nguyễn Văn Tình chỉ ra)**:
-    * Chân `btn_in` bị cô lập hoàn toàn (dangling pin), không có dây nối vào logic mạch.
-    * Hai Flip-Flop ngõ ra chỉ tự đảo trạng thái theo clock ($Q \Leftarrow \sim Q$).
-    * Testbench ngây thơ vẫn báo **PASS 100% giả tạo** vì không có kiểm tra ngữ nghĩa.
-* **Lời thoại thuyết trình (45s)**:
-  > *"Tuy nhiên, với tinh thần nghiên cứu khoa học trung thực và sự phản biện sâu sắc của Thầy TS. Nguyễn Văn Tình, nhóm nhận thấy phương pháp sinh mã theo mẫu cứng (Template) đã chạm trần giới hạn. Khi thử nghiệm trên 100 đề bài chuẩn hóa, hệ thống giải quyết rất tốt khoảng 38% bài toán quen thuộc, nhưng với 62% bài toán mới lạ, hệ thống bộc lộ nhược điểm.*  
-  > *Điển hình như mạch khử rung phím `button_debouncer` trên hình: Chân `btn_in` bị cô lập trơ trọi một mình, Flip-Flop tự lật vô nghĩa, nhưng Testbench vẫn báo PASS giả. Điều này chứng minh rằng: **Chúng ta không thể ngồi viết tay hàng nghìn template, mà bắt buộc phải có AI hiểu ngữ nghĩa phần cứng và một bộ Linter bắt chốt ẩn, chân lơ lửng**."*
+### SLIDE 8: KIẾN TRÚC HỆ THỐNG TÍCH HỢP HIỆN TẠI (HYBRID AI + EDA PIPELINE)
+* **Tiêu đề:** Kiến Trúc Tích Hợp Hiện Tại: Phối Hợp Bộ Não Chưng Cất & Đường Ống EDA Khép Kín
+* **Nội dung hiển thị trên slide:**
+  - **2 lớp năng lực phối hợp minh bạch trong mã nguồn:**
+    1. **Nhánh AI Chưng cất Offline (`models/run_inference.py`):**
+       * Chạy `SpecAnalyzer.check_unsupported_domain()` $\rightarrow$ gọi `Qwen2.5-Coder-3B-Instruct` + adapter DPO `models/qwen2.5_3b_verilog_dpo/` $\rightarrow$ tự động fallback về `RTLGenerator.generate_from_spec()` nếu môi trường máy cục bộ không nạp được PyTorch/Transformers.
+    2. **Nhánh Điều phối EDA Toàn trình (`agent/run_spec2rtl.py` — trong thư mục `agent/` gồm 13 module lõi/tiện ích & 2 script kiểm thử):**
+       * **Pha 1 (`spec_analyzer.py`):** Domain Guard + bóc tách cổng I/O 3 tầng *(ngoài ra `knowledge_matcher.py` là module tra cứu `knowledge_base/hardware_db.json` độc lập ngoài luồng `run_spec2rtl.py`)*.
+       * **Pha 2 (`rtl_generator.py`, `tb_generator.py`):** Định tuyến 25+ nhóm mạch, ép khớp cổng bằng `RTLPortEnforcer.enforce()`, sinh Self-Checking Testbench.
+       * **Pha 3 (`verilog_linter.py`):** Kiểm tra tĩnh AST Linter trước khi mô phỏng.
+       * **Pha 4 (`simulator.py`, `reflection_loop.py`, `eda_finder.py`):** Chạy ModelSim/Icarus + tự vá lỗi vòng lặp khép kín.
+       * **Pha 5 (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py`):** Xuất Project Quartus II, Schematic BDF, Waveform VWF, kiểm toán 4 chiều & đo tài nguyên Cyclone II.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Sơ đồ kiến trúc chiều ngang chính thức: `![Sơ đồ kiến trúc hệ thống Spec2RTL](images/pipeline_architecture_horizontal.png)` *(đường dẫn repo: `docs/images/pipeline_architecture_horizontal.png`)*.
+* **Lời thoại thuyết trình (~45s):**
+  > *"Sau khi có trọng số chưng cất, nhóm tích hợp mô hình vào kiến trúc hệ thống tổng thể. Em xin trình bày trung thực cấu trúc chạy hiện tại của phần mềm gồm hai lớp gắn kết chặt chẽ:*  
+  > *Một là module `models/run_inference.py` chạy trực tiếp mô hình 3B gắn adapter DPO offline để sinh Verilog từ prompt, đồng thời có cơ chế fallback an toàn về `RTLGenerator` khi chạy trên máy không có GPU.*  
+  > *Hai là đường ống điều phối trung tâm `agent/run_spec2rtl.py` kết nối toàn bộ các khâu: phân tích đặc tả, ép chuẩn chân tín hiệu với `RTLPortEnforcer`, quét AST Linter, mô phỏng sửa lỗi khép kín trên ModelSim và bàn giao sơ đồ Quartus II."*
 
 ---
 
-### SLIDE 9: HIỆN THỰC HÓA CHƯNG CẤT TRI THỨC (KNOWLEDGE DISTILLATION & LORA)
-* **Tiêu đề**: Đột Phá Kỹ Thuật: Chưng Cất Tri Thức Sang Mô Hình Cục Bộ Qwen2.5-Coder-3B & Căn Chỉnh DPO
-* **Hình ảnh minh họa chính**:
-  - Biểu đồ hội tụ DPO Loss thực nghiệm: `docs/dpo_loss_convergence.png`
-* **Nội dung hiển thị trên slide (3 Trụ cột hoàn thành 100%)**:
-  1. **Nhóm 1 (Dữ liệu & Thẩm định ModelSim)**:
-     - Chưng cất tri thức suy luận phần cứng (Hardware CoT) thành **1,098 mẫu sạch**, 100% vượt qua trình biên dịch EDA ModelSim SE 10.1c (`dataset_clean_verified.json`).
-     - Đóng gói **1,098 cặp dữ liệu DPO** (Chosen vs Rejected) để căn chỉnh mô hình phạt code có lỗi phần cứng.
-  2. **Nhóm 2 (Huấn luyện AI Cục bộ LoRA & Căn chỉnh DPO)**:
-     - Tinh chỉnh mô hình `Qwen2.5-Coder-3B` trên Google Colab GPU T4 bằng **Unsloth LoRA 4-bit** (chi phí **0 VNĐ**).
-     - Huấn luyện trọn vẹn 1,098 mẫu trong **138 bước SFT (~12 phút)** và hoàn tất **DPO Alignment (~15 phút)**.
-     - Xuất đầy đủ 2 bộ trọng số LoRA: `models/qwen2.5_3b_verilog_lora/` và `models/qwen2.5_3b_verilog_dpo/` sẵn sàng chạy offline bảo mật IP.
-     - **Biểu đồ DPO Loss hội tụ**: Đường cong mất mát dốc xuống ổn định chứng minh mô hình triệt tiêu hoàn toàn thói quen sinh code có chốt ẩn và chân lơ lửng.
-  3. **Nhóm 3 (Bộ phân tích tĩnh AST Linter)**:
-     - Nâng cấp `verilog_linter.py` quét cấu trúc cây cú pháp AST: Bắt chết lỗi chốt ẩn (`case` thiếu `default`, `if` thiếu `else`), chân lơ lửng (dangling input/output) và gán blocking `=` trong `posedge clk`.
-* **Lời thoại thuyết trình (50s)**:
-  > *"Trước thách thức đó, nhóm đã không dừng lại ở lý thuyết mà lập tức triển khai **Kế hoạch Chưng cất Tri thức (Knowledge Distillation)** chia làm 3 nhánh song song:*  
-  > *Nhóm 1 dùng chính ModelSim làm 'Bộ lọc chân lý' để tinh lọc ra 1,098 mẫu vi mạch synthesizable chuẩn mực và 1,098 cặp sở thích DPO. Nhóm 2 sử dụng thư viện tối ưu Unsloth để huấn luyện mô hình Qwen-3B trên GPU T4 Colab hoàn toàn miễn phí, hoàn thành cả khâu SFT lẫn căn chỉnh DPO. Như Thầy Cô thấy trên biểu đồ thực nghiệm ở slide: DPO Loss giảm dốc và hội tụ ổn định, minh chứng mô hình đã học được cách từ chối các lỗi vi mạch.*  
-  > *Và Nhóm 3 xây dựng bộ phân tích AST bắt chết lỗi chốt ẩn và chân lơ lửng. Nhờ đó, mô hình nhỏ 3B có thể chạy 100% offline tại phòng lab mà vẫn sở hữu năng lực thiết kế vi mạch chuẩn xác của mô hình lớn."*
+### SLIDE 9: BẢO VỆ BIÊN & KIỂM TRA TĨNH: DOMAIN GUARD & AST LINTER
+* **Tiêu đề:** Hai Lớp Lá Chắn Kỹ Thuật: Domain Guard (`spec_analyzer.py`) & AST Linter (`verilog_linter.py`)
+* **Nội dung hiển thị trên slide:**
+  - **Lá chắn 1 — Domain Guard & Bóc tách 3 tầng (`agent/spec_analyzer.py`):**
+    * Hỗ trợ tiếng Việt có dấu & không dấu (`remove_vietnamese_accents`).
+    * `check_unsupported_domain()` chặn sớm 3 miền ngoài phạm vi RTL số: `ANALOG_AMS` (op-amp, analog, bandgap...), `HIGH_SPEED_PHY` (PCIe/DDR/SerDes/USB3 PHY), và `IRRELEVANT_INPUT` (văn bản không chứa từ khóa phần cứng / không có cổng).
+    * `is_30_percent_architecture()` chặn sinh nguyên khối 1-prompt cho hệ thống phức hợp `SOC_AI` (`top_soc`, `ai accelerator`, `systolic array`, `dma+relu+ai`).
+    * `extract_ports()` bóc tách cổng 3 tầng: Bảng Markdown $\rightarrow$ Danh sách gạch đầu dòng/số $\rightarrow$ Văn xuôi.
+  - **Lá chắn 2 — Bộ phân tích tĩnh AST Linter thuần Python (`agent/verilog_linter.py`):**
+    * **Không phụ thuộc PyVerilog/C++**, `extract_module_info()` hỗ trợ cả **ANSI-2001** và **Legacy-1995**.
+    * `check_dangling_pins()`: Bắt chết **`DANGLING_INPUT`** (cổng vào không tham gia biểu thức logic nào) và **`UNASSIGNED_OUTPUT`** (cổng ra không được gán).
+    * `check_inferred_latches_and_races()`: Bắt **`INFERRED_LATCH`** (`case` thiếu `default:`, `if` thiếu `else` không có gán mặc định), **`BLOCKING_IN_SEQUENTIAL`** (`=` trong `posedge/negedge`), **`NONBLOCKING_IN_COMBINATIONAL`** (`<=` trong khối tổ hợp).
+    * `lint_check()`: Kiểm tra thêm cân bằng `begin/end`, `case/endcase`, `module/endmodule` và `%!` trong `$display`.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  ```mermaid
+  flowchart TD
+      In["Đặc tả đầu vào (.txt / .md)"] --> DG{"Domain Guard<br/>spec_analyzer.py"}
+      DG -->|"ANALOG_AMS / HIGH_SPEED_PHY<br/>IRRELEVANT / SOC_AI"| Reject["Từ chối an toàn + Giải thích"]
+      DG -->|"Hợp lệ (RTL số)"| Gen["Sinh RTL + RTLPortEnforcer"]
+      Gen --> AST{"AST Linter (Thuần Python)<br/>verilog_linter.py"}
+      AST -->|"DANGLING_INPUT / UNASSIGNED_OUTPUT<br/>INFERRED_LATCH / BLOCKING_IN_SEQUENTIAL"| Fix["Chặn & Yêu cầu sửa trước khi nạp EDA"]
+      AST -->|"0 Lỗi (CLEAN)"| Sim["Đưa vào ModelSim Simulator"]
+  ```
+* **Lời thoại thuyết trình (~50s):**
+  > *"Để hệ thống không bao giờ 'nói bừa' hay để lọt lỗi phần cứng như trước đây, nhóm xây dựng hai lớp lá chắn liên tiếp.*  
+  > *Ở đầu vào, `spec_analyzer.py` kích hoạt Domain Guard hỗ trợ cả tiếng Việt có dấu và không dấu để từ chối các đề bài ngoài phạm vi RTL như mạch Analog, High-speed PHY hay văn bản phi kỹ thuật, đồng thời tách kiến trúc SoC AI lớn thay vì cố sinh nguyên khối một lần.*  
+  > *Ở đầu ra của khâu sinh mã, `verilog_linter.py` đóng vai trò bộ AST Linter thuần Python hỗ trợ cả chuẩn Verilog 1995 và 2001, tự động quét sạch 3 lỗi chí mạng: chân lơ lửng (`DANGLING_INPUT`/`UNASSIGNED_OUTPUT`), chốt ẩn (`INFERRED_LATCH`) và lỗi race condition (`BLOCKING_IN_SEQUENTIAL`) trước khi đưa sang ModelSim."*
 
 ---
 
-### SLIDE 10: KẾT QUẢ THỰC NGHIỆM ĐỘT PHÁ (BENCHMARK TUẦN 2)
-* **Tiêu đề**: Đánh Giá Thực Nghiệm Toàn Diện: Tỷ Lệ Pass@1 Đạt 100%
-* **Bảng kết quả benchmark trên 6 bài toán vi mạch đặc tả thực tế**:
+### SLIDE 10: VÒNG LẶP PHẢN HỒI KHÉP KÍN MODELSIM & TRỰC QUAN HÓA QUARTUS II
+* **Tiêu đề:** Kiểm Chứng Khép Kín Trên ModelSim & Bàn Giao Trực Quan Trên Quartus II
+* **Nội dung hiển thị trên slide:**
+  - **Vòng lặp phản hồi EDA khép kín (`agent/simulator.py`, `agent/reflection_loop.py`, `agent/eda_finder.py`):**
+    * `EDASimulator` tự tìm và gọi ModelSim/Icarus (`timeout=60s`), kiểm tra chặt cả lỗi biên dịch và lỗi runtime (`FAIL`, `MISMATCH`, `Failed Assertions`) — loại trừ hoàn toàn tình trạng PASS giả.
+    * `ReflectionAgent` chạy tối đa `max_retries=3` vòng tự chẩn đoán và vá lỗi (sửa tên instance, `%!` trong `$display`, thiếu dấu phẩy, tái tạo Testbench khớp cổng).
+    * Nền tảng nghiên cứu **VeriPrefer** (`reports/06_VeriPrefer_ClosedLoop_Feedback.md`): Thử nghiệm fault-injection trên 50 thiết kế cho thấy cơ chế vòng lặp EDA giúp tỷ lệ pass hội tụ từ **44.0% (22/50, vòng 0)** $\rightarrow$ **92.0% (vòng 1)** $\rightarrow$ **98.0% (vòng 2)** $\rightarrow$ **100.0% (50/50, vòng 3)**.
+  - **Trực quan hóa & Kiểm toán Quartus II (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py`):**
+    * Tự động tạo Project `.qpf`/`.qsf` nhắm mục tiêu FPGA **Altera Cyclone II (`EP2C35F672C6`)**, top module `sch_<TenMach>`.
+    * Sinh file Symbol `.bsf`, Sơ đồ khối nguyên lý `.bdf`, và sóng `Waveform.vwf` (đọc trực tiếp chuyển trạng thái từ file `.vcd` của ModelSim).
+    * `PortAuditor.audit()` đối soát toàn vẹn 4 chiều **Spec $\equiv$ RTL $\equiv$ BSF $\equiv$ BDF**; `SynthesisProfiler` gọi `quartus_map.exe` (`timeout=60s`) đọc `.map.summary` (có dự phòng `estimate_static_resources()`).
+* **Hình ảnh / Sơ đồ gợi ý:**
+  ```mermaid
+  flowchart LR
+      RTL["RTL + Testbench<br/>(Sạch AST Linter)"] --> SIM["EDASimulator<br/>ModelSim vlog/vsim (60s)"]
+      SIM -->|"Lỗi / FAIL / MISMATCH"| REF["ReflectionAgent<br/>(max_retries = 3)"]
+      REF --> RTL
+      SIM -->|"100% Functional Pass"| Q["Quartus II Toolchain<br/>Cyclone II EP2C35F672C6"]
+      Q --> OUT1["bdf_generator.py ➔ .bsf, .bdf"]
+      Q --> OUT2["vwf_generator.py ➔ Waveform.vwf (từ .vcd)"]
+      Q --> OUT3["port_auditor.py ➔ Đối soát 4 chiều"]
+      Q --> OUT4["synthesis_profiler.py ➔ quartus_map.exe"]
+  ```
+* **Lời thoại thuyết trình (~50s):**
+  > *"Sau khi mã Verilog vượt qua AST Linter, hệ thống không tin mù quáng vào AI mà đưa ngay sang trọng tài ModelSim qua `simulator.py`. Nếu phát hiện sai lệch assertion hoặc lỗi biên dịch, `reflection_loop.py` sẽ tự động đọc log và vá code tối đa 3 vòng lặp cho tới khi đạt 100% Functional Pass.*  
+  > *Khi mô phỏng đạt chuẩn, hệ thống tự động dựng toàn bộ hồ sơ dự án Quartus II cho chip FPGA Cyclone II `EP2C35F672C6`: từ sơ đồ nguyên lý `.bdf`, dạng sóng `.vwf` trích từ `.vcd`, đến việc kiểm toán đối chiếu 4 chiều Spec-RTL-BSF-BDF và chạy `quartus_map.exe` đo đạc chính xác số Logic Elements và Flip-Flops thực tế."*
 
-| ID | Tên Vi Mạch (Module) | Phân Loại Kiến Trúc | ModelSim Pass@1 | AST Linter | Logic Elements (LEs) | Flip-Flops (FFs) | Chân I/O | Thời Gian Chạy |
+---
+
+### SLIDE 11: KẾT QUẢ THỰC NGHIỆM & KIỂM CHỨNG HIỆN TẠI
+* **Tiêu đề:** Kết Quả Thực Nghiệm Toàn Diện: 6/6 Benchmark (54.89s), 5/5 Linter & 20/20 Robustness
+* **Nội dung hiển thị trên slide:**
+  - **1. Bảng kết quả 6 mạch Benchmark thực tế (`reports/REPORT_TUAN_2_BENCHMARK.md` & `.map.summary` Quartus II trên Cyclone II `EP2C35F672C6`):**
+
+| ID | Tên Vi Mạch (Module) | Kiến Trúc | ModelSim Pass@1 | AST Linter | Logic Elements (LEs) | Flip-Flops (FFs) | I/O Pins | Thời Gian |
 | :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | `uart_tx_8bit` | Giao tiếp nối tiếp định thời | **100% PASS** | 100% Sạch | 28 LEs | 17 FFs | 13 Pins | 17.94s |
-| 2 | `button_debouncer` | Khử rung phím bấm (Ca của Thầy) | **100% PASS** | 100% Sạch | 6 LEs | 6 FFs | 5 Pins | 7.00s |
-| 3 | `bcd_to_7seg_anode` | Giải mã LED 7 đoạn Anode | **100% PASS** | 100% Sạch | 7 LEs | 0 FFs | 11 Pins | 11.48s |
-| 4 | `smart_alarm_fsm` | Cảnh báo cháy & an ninh FSM | **100% PASS** | 100% Sạch | 4 LEs | 4 FFs | 9 Pins | 5.09s |
-| 5 | `decoder_3to8` | Giải mã địa chỉ 3 sang 8 | **100% PASS** | 100% Sạch | 8 LEs | 0 FFs | 12 Pins | 4.00s |
-| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 100% Sạch | 25 LEs | 9 FFs | 14 Pins | 6.53s |
+| 1 | `uart_tx_8bit` | Bộ phát UART TX 8-bit | **100% PASS** | 0 lỗi | 28 LEs (20 comb, 17 reg) | 17 FFs | 13 Pins | 26.5s |
+| 2 | `button_debouncer` | Khử rung phím bấm *(Ca của Thầy)* | **100% PASS** | 0 lỗi | 6 LEs (2 comb, 6 reg) | 6 FFs | 5 Pins | 7.65s |
+| 3 | `bcd_to_7seg_anode` | Giải mã BCD sang LED 7 đoạn | **100% PASS** | 0 lỗi | 7 LEs (7 comb, 0 reg) | 0 FFs | 11 Pins | 4.81s |
+| 4 | `canh_bao_an_ninh_bao_chay_nha_thong_minh` | FSM cảnh báo an ninh & cháy | **100% PASS** | 0 lỗi | 4 LEs (2 comb, 4 reg) | 4 FFs | 9 Pins | 4.82s |
+| 5 | `decoder_3to8` | Giải mã địa chỉ 3 sang 8 | **100% PASS** | 0 lỗi | 8 LEs (8 comb, 0 reg) | 0 FFs | 12 Pins | 6.56s |
+| 6 | `digital_lock_fsm` | Khóa số điện tử mật mã FSM | **100% PASS** | 0 lỗi | 25 LEs (25 comb, 9 reg) | 9 FFs | 14 Pins | 4.55s |
 
-* **Đối chuẩn Before vs After**:
-  - *Tỷ lệ vượt qua mô phỏng (Pass@1)*: Nâng từ **~38%** (Rule-based) lên **100.0% (6/6 bài toán)**.
-  - *Giải quyết dứt điểm ca lỗi `button_debouncer`*: Chân `btn_in` được nối 100% vào thanh ghi dịch 3 tầng (`shift_reg <= {shift_reg[1:0], btn_in};`), triệt tiêu hoàn toàn chân lơ lửng!
-  - *Tổng thời gian xử lý toàn bộ 6 bài toán*: Chỉ mất **52.05 giây**!
-* **Lời thoại thuyết trình (50s)**:
-  > *"Và đây là kết quả thực nghiệm minh chứng cho sự đột phá của hệ thống:*  
-  > *Khi nhóm đưa 6 bài toán vi mạch đặc tả đa dạng vào kiểm thử toàn trình: Từ UART, giải mã LED, hệ thống cảnh báo FSM, khóa mật mã cho đến mạch khử rung nút bấm.*  
-  > *Hệ thống đã đạt **Tỷ lệ Pass@1 tuyệt đối 100%**, và bộ AST Linter xác nhận **100% sạch chốt ẩn và chân lơ lửng**. Đặc biệt, ở bài toán `button_debouncer` do Thầy chỉ ra: Cổng `btn_in` đã được kết nối chuẩn mực vào thanh ghi dịch 3 tầng, mạch chỉ tiêu tốn đúng 6 Logic Elements và 6 Flip-Flops trên chip Cyclone II. Toàn bộ 6 bài toán được phân tích, sinh mã, mô phỏng và xuất sơ đồ Quartus chỉ trong vỏn vẹn 52 giây!"*
-
----
-
-### SLIDE 11: DEMO MẠCH KHỬ RUNG NÚT BẤM (BUTTON_DEBOUNCER)
-* **Tiêu đề**: Demo Trực Quan: Khắc Phục Hoàn Toàn Lỗi Chân Lơ Lửng Trên Quartus II & ModelSim
-* **Nội dung demo trực tiếp**:
-  1. Mở file đặc tả [specs/b.txt](file:///D:/altera/13.0sp1/BTVN/Do_An_3/specs/b.txt).
-  2. Chạy lệnh: `python agent/run_spec2rtl.py specs/b.txt --gui`
-  3. **Minh chứng 1**: Báo cáo AST Linter tại Bước 2.5 hiển thị: `PASS (100% SẠCH LATCH & DANGLING)`.
-  4. **Minh chứng 2**: ModelSim Waveform GUI hiển thị dạng sóng khử rung: Khi `btn_in` nảy nhiễu, tín hiệu `btn_clean` giữ nguyên ổn định, và xuất đúng 1 xung kích `btn_pressed_pulse`.
-  5. **Minh chứng 3**: Mở Quartus II xem file sơ đồ nguyên lý [quartus/button_debouncer/sch_button_debouncer.bdf](file:///D:/altera/13.0sp1/BTVN/Do_An_3/quartus/button_debouncer/sch_button_debouncer.bdf) kết nối thẳng hàng hoàn hảo.
-* **Lời thoại thuyết trình (45s)**:
-  > *"Sau đây em xin demo trực tiếp ca kiểm thử quan trọng nhất: bài toán `button_debouncer`.*  
-  > *Như Thầy Cô thấy trên màn hình: Khi chạy lệnh `run_spec2rtl.py specs/b.txt --gui`, hệ thống chỉ mất 5 giây để hoàn tất toàn bộ quy trình. Bộ Linter báo cáo 0 lỗi chân lơ lửng. Cửa sổ sóng ModelSim mở lên cho thấy khi tín hiệu nút bấm bị rung nảy, mạch lọc sạch hoàn toàn và xuất xung kích chính xác 1 chu kỳ clock. Mở file sơ đồ BDF trong Quartus II, chân `btn_in` được nối dây đầy đủ vào lõi logic. Đây là bằng chứng rõ ràng nhất cho thấy hệ thống đã khắc phục triệt để hạn chế trước đây."*
+  - **Tổng hợp 6 mạch benchmark:** **6/6 (100.0%) PASS** trên ModelSim và AST Linter, tổng thời gian chạy toàn trình **54.89 giây** (nâng tỷ lệ đạt chuẩn từ **~38%** lên **100%** trên bộ benchmark).
+  - **2. Kết quả chạy kiểm thử xác thực trực tiếp trên hệ thống hiện tại:**
+    * `python agent/test_group3_linter.py` $\rightarrow$ **5/5 PASS (100%)** (Clean Counter 4-bit, Dangling Pin `btn_in`/`btn_pressed_pulse`, Inferred Latch `case`/`if`, Race Condition `BLOCKING_IN_SEQUENTIAL`, Synthesis Profiler `bcd_to_7seg_anode.v`).
+    * `python agent/test_robustness_battery.py` $\rightarrow$ **20/20 PASS (100.0%)** (`TC01_Stopwatch_7Seg` $\rightarrow$ `TC20_CRC8_Generator`) qua trích xuất cổng, `RTLGenerator` + `RTLPortEnforcer`, `VerilogLinter.sanitize_file`, tạo `.bsf`/`.bdf` và `PortAuditor.audit`.
+    * Quét trực tiếp `VerilogLinter.lint_file` trên cả 6 file `src/*.v` $\rightarrow$ **6/6 PASS** (0 latches, 0 dangling pins, 0 race conditions).
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Bảng so sánh đối chuẩn trực quan:
+    * **Trước (Template cứng):** ~38% trên 100 prompt, lỗi `DANGLING_INPUT` ở `button_debouncer`.
+    * **Hiện tại:** **6/6 (100%)** Benchmark (**54.89s**), **5/5** AST Linter, **20/20** Robustness Battery.
+* **Lời thoại thuyết trình (~55s):**
+  > *"Đây là bảng kết quả thực nghiệm tổng hợp trên toàn bộ hệ thống hiện tại, đã được đối soát trực tiếp với file `.map.summary` từ Quartus II trên chip Cyclone II và chạy lại các bộ kiểm thử.*  
+  > *Trên 6 bài toán đặc tả thực tế gồm UART TX, khử rung nút bấm, giải mã LED 7 đoạn, hệ thống cảnh báo an ninh nhà thông minh, bộ giải mã 3 sang 8 và khóa số FSM, hệ thống đạt **6/6 (100%) ModelSim Pass@1** và **0 lỗi AST Linter** trong tổng thời gian **54.89 giây**.*  
+  > *Song song đó, bộ test chuyên biệt `agent/test_group3_linter.py` đạt **5/5 PASS**, bộ kiểm thử hồi quy toàn diện `agent/test_robustness_battery.py` đạt **20/20 PASS**, và cả 6 file Verilog trong `src/` đều sạch tuyệt đối latch, dangling pin và race condition."*
 
 ---
 
-### SLIDE 12: TỔNG KẾT & GIÁ TRỊ ĐÓNG GÓP
-* **Tiêu đề**: Kết Luận: Hiện Thực Hóa Thiết Kế Vi Mạch Thông Minh & Tự Chủ
-* **Nội dung hiển thị trên slide (4 đóng góp cốt lõi)**:
-  1. **Khép kín quy trình từ A $\rightarrow$ Z**: Biến văn bản mô tả tự nhiên thành Code Verilog $\rightarrow$ Testbench $\rightarrow$ Mô phỏng ModelSim $\rightarrow$ Sơ đồ Quartus BDF & Sóng VWF.
-  2. **Trọng tài EDA công nghiệp (EDA-in-the-loop)**: Triệt tiêu hoàn toàn ảo giác của AI; đảm bảo mọi dòng mã sinh ra đều synthesizable và verified 100%.
-  3. **Chưng cất tri thức thành công (Knowledge Distillation)**: Huấn luyện mô hình cục bộ Qwen-3B với 1,098 mẫu sạch, chạy offline bảo mật IP, chi phí **0 VNĐ**.
-  4. **Kiểm soát phần cứng chuyên sâu**: Bộ phân tích AST Linter loại trừ chốt ẩn, chân lơ lửng, đưa tỷ lệ Pass@1 thực nghiệm lên **100%**.
-* **Lời thoại thuyết trình kết thúc (30s)**:
-  > *"Kính thưa Thầy và quý Thầy Cô trong Hội đồng. Đề tài đã hiện thực hóa thành công một hệ thống tự động hóa thiết kế vi mạch đáng tin cậy. Chúng em không chỉ tạo ra một công cụ sinh mã, mà xây dựng một hạ tầng kỹ thuật khép kín có trọng tài EDA kiểm chứng, có mô hình AI được tinh chỉnh chuẩn công nghiệp và bảo mật tuyệt đối tài sản trí tuệ.*  
-  > *Hệ thống giúp giải phóng kỹ sư khỏi phần lớn công việc thủ công lặp lại, mở ra cách tiếp cận trực quan, hiện đại cho sinh viên và kỹ sư trong kỷ nguyên vi mạch bán dẫn.*  
-  > *Em xin chân thành cảm ơn Thầy TS. Nguyễn Văn Tình đã luôn định hướng sâu sát và cảm ơn quý Thầy Cô đã chú ý lắng nghe! Em rất mong nhận được câu hỏi và đóng góp từ Hội đồng."*
+### SLIDE 12: DEMO TRỰC TIẾP 1 — KHẮC PHỤC TRIỆT ĐỂ `button_debouncer`
+* **Tiêu đề:** Demo Trực Quan Ca Phản Biện Của Thầy: `button_debouncer` Sạch Chân Lơ Lửng
+* **Nội dung hiển thị trên slide:**
+  - **Đầu vào đặc tả (`specs/b.txt`):** `clk`, `rst`, `btn_in` $\rightarrow$ `btn_clean`, `btn_pressed_pulse` (lọc rung ổn định, xuất xung 1 chu kỳ `clk` khi nhấn xuống).
+  - **Lệnh thực thi trực tiếp:**
+    ```bash
+    python agent/run_spec2rtl.py specs/b.txt --gui
+    ```
+  - **Minh chứng thực tế trong mã nguồn `src/button_debouncer.v`:**
+    ```verilog
+    shift_reg <= {shift_reg[1:0], btn_in};
+    if (shift_reg == 3'b111)      btn_clean <= 1'b1;
+    else if (shift_reg == 3'b000) btn_clean <= 1'b0;
+    btn_pressed_pulse <= (btn_clean && !btn_clean_prev);
+    ```
+  - **4 điểm nghiệm thu tại chỗ:**
+    1. **AST Linter:** **0 lỗi** (triệt tiêu hoàn toàn `DANGLING_INPUT: btn_in`).
+    2. **ModelSim GUI & VCD (`sim/button_debouncer.vcd`):** Quan sát trực tiếp `btn_in` nảy nhiễu, `btn_clean` giữ ổn định và `btn_pressed_pulse` phát đúng 1 xung `clk`.
+    3. **Quartus II Schematic & Waveform:** Mở `quartus/button_debouncer/sch_button_debouncer.bdf` và `quartus/button_debouncer/Waveform.vwf`.
+    4. **Quartus Synthesis (`quartus/button_debouncer/ButtonDebouncer.map.summary`):** **6 LEs** (2 comb, 6 reg), **6 FFs**, **5 Pins** trong **7.65s**.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Khung hiển thị song song (Side-by-side Demo Card): Trái là đoạn RTL `src/button_debouncer.v` tô đậm dòng `shift_reg <= {shift_reg[1:0], btn_in};`; Phải là hướng dẫn mở trực tiếp ModelSim GUI (`--gui`) và sơ đồ `quartus/button_debouncer/sch_button_debouncer.bdf` + `quartus/button_debouncer/Waveform.vwf`.
+* **Lời thoại thuyết trình (~50s):**
+  > *"Sau đây em xin demo trực tiếp ca kiểm thử quan trọng nhất mà Thầy từng góp ý: mạch khử rung nút bấm `button_debouncer`.*  
+  > *Khi em chạy lệnh `python agent/run_spec2rtl.py specs/b.txt --gui`, hệ thống hoàn tất trọn quy trình trong khoảng 7.65 giây. Như Thầy thấy trong `src/button_debouncer.v`, ngõ vào `btn_in` đã được nạp chuẩn xác vào thanh ghi dịch 3 tầng `shift_reg <= {shift_reg[1:0], btn_in};`, AST Linter báo 0 lỗi.*  
+  > *Trên cửa sổ sóng ModelSim vừa mở và file `Waveform.vwf`, khi `btn_in` dao động nhiễu, `btn_clean` chỉ chuyển trạng thái sau khi ổn định và `btn_pressed_pulse` xuất đúng 1 xung clock. Mở sơ đồ `sch_button_debouncer.bdf` trong Quartus II, toàn bộ 5 chân tín hiệu được nối dây đầy đủ, tổng hợp thực tế chỉ tốn 6 Logic Elements và 6 Flip-Flops."*
+
+---
+
+### SLIDE 13: DEMO TRỰC TIẾP 2 — MẠCH TỔ HỢP `bcd_to_7seg_anode`
+* **Tiêu đề:** Demo Toàn Trình Mạch Tổ Hợp: `bcd_to_7seg_anode` (Spec $\rightarrow$ ModelSim $\rightarrow$ Quartus BDF)
+* **Nội dung hiển thị trên slide:**
+  - **Đầu vào đặc tả (`specs/c.txt`):** `[3:0] bcd` (0–9) $\rightarrow$ `[6:0] seg` (Active-low `{a,b,c,d,e,f,g}`, nếu > 9 xuất `7'b1111111`).
+  - **Lệnh thực thi trực tiếp:**
+    ```bash
+    python agent/run_spec2rtl.py specs/c.txt --gui
+    ```
+  - **Kết quả kiểm chứng thực tế:**
+    * **AST Linter:** 0 lỗi (`case` có nhánh `default:` đầy đủ, 0 chốt ẩn).
+    * **ModelSim GUI:** Hiển thị tức thì dạng sóng giải mã từ `0` đến `9` và các giá trị `> 9`.
+    * **Quartus II Schematic & Tài nguyên:** Mở `quartus/bcd_to_7seg_anode/sch_bcd_to_7seg_anode.bdf`; tổng hợp Cyclone II tốn **7 LEs** (7 comb, 0 reg), **0 FFs**, **11 Pins** trong **4.81s**.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - Luồng demo 3 bước: `specs/c.txt` $\rightarrow$ `ModelSim Waveform GUI (--gui)` $\rightarrow$ `quartus/bcd_to_7seg_anode/sch_bcd_to_7seg_anode.bdf`.
+* **Lời thoại thuyết trình (~30s):**
+  > *"Để đối chiếu thêm với mạch tổ hợp thuần túy, em xin chạy nhanh bài toán thứ hai là giải mã BCD sang LED 7 đoạn Anode chung `specs/c.txt`.*  
+  > *Chỉ trong 4.81 giây, hệ thống sinh mã Verilog có đầy đủ nhánh `default` nên sạch 100% chốt ẩn, ModelSim mở ngay dạng sóng kiểm tra đủ bảng chân trị 0 đến 9 và ngoài dải, đồng thời Quartus II xuất sơ đồ `sch_bcd_to_7seg_anode.bdf` với đúng 7 Logic Elements và 0 Flip-Flops."*
+
+---
+
+### SLIDE 14: TỔNG KẾT ĐÓNG GÓP & HƯỚNG PHÁT TRIỂN
+* **Tiêu đề:** Tổng Kết Giá Trị Đóng Góp & Định Hướng Hoàn Thiện Tiếp Theo
+* **Nội dung hiển thị trên slide:**
+  - **4 đóng góp cốt lõi của đồ án CE118:**
+    1. **Quy trình Chưng cất Tri thức bài bản & minh bạch:** Thu thập 6 nguồn + augmentation $\rightarrow$ ModelSim Truth Oracle lọc **1,098 mẫu sạch (99.8%)** $\rightarrow$ tạo **1,098 cặp DPO** tiêm lỗi phần cứng $\rightarrow$ huấn luyện SFT LoRA & DPO trên Colab T4 (**0 VNĐ**) $\rightarrow$ đóng gói chạy **offline bảo mật IP**.
+    2. **Kiểm soát lỗi phần cứng chuyên sâu:** Kết hợp **Domain Guard** (`spec_analyzer.py`), **RTLPortEnforcer** (`rtl_generator.py`) và **AST Linter thuần Python** (`verilog_linter.py`) triệt tiêu chốt ẩn, chân lơ lửng và race condition.
+    3. **Trọng tài EDA khép kín & Trực quan hóa toàn trình:** Vòng lặp ModelSim tự sửa lỗi (`simulator.py` + `reflection_loop.py`) kết nối thẳng sang Quartus II (`.bdf`, `.vwf`, `PortAuditor`, `SynthesisProfiler` trên Cyclone II).
+    4. **Thực nghiệm kiểm chứng 100%:** **6/6** Benchmark (**54.89s**), **5/5** AST Linter, **20/20** Robustness Battery, giải quyết dứt điểm ca lỗi `button_debouncer`.
+  - **Hướng phát triển tiếp theo:** Đưa mô hình Qwen2.5-Coder-3B DPO offline trở thành bộ sinh mặc định trực tiếp trong luồng chính của `run_spec2rtl.py` trên máy có GPU/NPU, và mở rộng kiểm thử định lượng Pass@1 trên toàn bộ tập 100 đề bài `docs/100_Prompt_Thiet_Ke_Mach.pdf`.
+* **Hình ảnh / Sơ đồ gợi ý:**
+  - 4 thẻ tóm tắt (Summary Pillars): `1,098 SFT + 1,098 DPO` | `0 VNĐ Offline 3B` | `AST Linter + ModelSim` | `6/6 Benchmark & 20/20 Robustness`.
+* **Lời thoại thuyết trình (~40s):**
+  > *"Tóm lại, qua Đồ án 3 này, nhóm không chỉ dừng lại ở một công cụ viết code Verilog tự động, mà đã xây dựng hoàn chỉnh chuỗi kỹ thuật từ gốc đến ngọn: từ khâu chưng cất và lọc dữ liệu bằng ModelSim Truth Oracle, huấn luyện SFT và DPO để mô hình biết tránh lỗi phần cứng, cho đến việc bọc bên ngoài bằng Domain Guard, AST Linter, vòng lặp tự sửa lỗi ModelSim và xuất sơ đồ Quartus II.*  
+  > *Kết quả 6/6 mạch benchmark trong 54.89 giây, 5/5 AST Linter và 20/20 Robustness Battery là nền tảng để nhóm tiếp tục mở rộng đo kiểm trên toàn bộ 100 đề bài trong giai đoạn kế tiếp. Em xin chân thành cảm ơn TS. Nguyễn Văn Tình đã định hướng rất sát sao và kính mong nhận được nhận xét, câu hỏi phản biện từ Thầy ạ."*

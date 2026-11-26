@@ -138,7 +138,7 @@ Hệ thống đã hoàn thiện toàn bộ luồng tự động hóa công cụ 
    * **Mục tiêu:** Xây dựng tập dữ liệu sạch gồm **1.000 mẫu vi mạch chuẩn hóa** từ *VerilogDB* ([arXiv:2507.13369](https://arxiv.org/pdf/2507.13369)) và ngân hàng 100 Prompt của đề tài.
    * **Cơ chế:** Dùng mô hình suy luận lớn (DeepSeek-R1 / Gemini) làm Teacher sinh chuỗi tư duy phần cứng (CoT: Phân tích I/O $\to$ FSM $\to$ Verilog synthesizable $\to$ Testbench).
    * **Bộ lọc chân lý (Truth Oracle):** Dùng chính `simulator.py` chạy ngầm ModelSim batch để thẩm định 100% mẫu; loại bỏ toàn bộ code lỗi cú pháp hoặc fail assertion.
-   * **Định dạng bàn giao:** Đóng gói đúng cấu trúc 3 trường `(instruction, input, output)` theo file mẫu chuẩn tại [`training/dataset_schema_standard.json`](training/dataset_schema_standard.json).
+   * **Định dạng bàn giao:** Đóng gói đúng cấu trúc 3 trường `(instruction, input, output)` tại [`training/dataset_clean_verified.json`](training/dataset_clean_verified.json).
 
 2. **Nhóm 2: Huấn Luyện AI Cục Bộ & Fine-Tuning (2 Thành viên)**
    * **Mục tiêu:** Thực hiện **Chưng cất tri thức (Knowledge Distillation) thông qua kỹ thuật Fine-Tuning (Supervised Fine-Tuning - SFT với LoRA 4-bit)** để mô hình chạy offline $100\%$ bảo mật tuyệt đối tài sản trí tuệ (IP Security).

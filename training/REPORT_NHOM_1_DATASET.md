@@ -1,96 +1,69 @@
-# BÁO CÁO NGHIỆM THU DỮ LIỆU & THẨM ĐỊNH (NHÓM 1)
+# BÁO CÁO NGHIỆM THU DỮ LIỆU & CHƯNG CẤT TRI THỨC AI (NHÓM 1)
 **Học phần**: Thiết kế luận lý số (CE118 - UIT / VJU)  
-**Dự án**: Spec2RTL & Prompt2Silicon (Hardware Agent Closed-Loop EDA System)  
-**Giai đoạn**: Tuần 1 (Ngày 1 - 2) - Thu thập dữ liệu gốc, Tích hợp VeriPrefer & Khử trùng lặp  
-**Ngày thực hiện**: 18/11/2026  
+**Dự án**: Spec2RTL & Prompt2Silicon (Teacher-Student Distillation + ModelSim Truth Oracle)  
+**Ngày cập nhật**: 26/11/2026 09:00  
 
 ---
 
-## 1. Mục Tiêu & Trách Nhiệm Của Nhóm 1
-Nhóm 1 đóng vai trò **Bộ Thẩm Định Chân Lý Phần Cứng (Hardware Truth Oracle)** trong chuỗi giá trị dự án:
-- Thu thập toàn bộ đặc tả phần cứng sơ bộ từ các kho mở uy tín:
-  * **NVIDIA VerilogEval** (NVlabs)
-  * **HKUST RTLLM** (Hồng Kông)
-  * **CityU HK VeriPrefer** (Bài báo số 6 - arXiv:2504.15804)
-  * **HuggingFace Verilog-Instruct**
-  * **Tuyển tập 100 đề bài chuẩn hóa UIT / VJU & Benchmark Đồ án**
-- Tiền xử lý, chuẩn hóa cấu trúc SFT (`instruction`, `input`, `output`) theo chuẩn IEEE 1364-2001.
-- Áp dụng **Bộ lọc ModelSim Compiler (`vlog.exe`)** tự động: 100% mã Verilog bàn giao cho Nhóm 2 phải biên dịch không lỗi (`Errors: 0`), không tạo chốt ẩn (no inferred latches) và không có chân lơ lửng (no dangling pins).
-- **Rà soát khử trùng lặp (Deduplication)**: Loại bỏ triệt để các module trùng tên hoặc trùng thuật toán (Code Hash MD5).
+## 1. Quy Trình Chưng Cất Tri Thức Thực Tế (Teacher $\rightarrow$ Truth Oracle $\rightarrow$ Student)
+- **Teacher Model**: Google Gemini (`gemini-3.1-flash-lite,gemini-3-flash-preview`) sinh chuỗi suy luận thiết kế phần cứng đặc thù (**Teacher CoT**) kèm mã Verilog IEEE 1364-2001.
+- **Bộ lọc Chân lý (3 tầng kiểm chứng)**:
+  1. `SpecAnalyzer`: Đối soát khớp tên module và 100% danh sách cổng I/O từ đặc tả.
+  2. `VerilogLinter` (`agent/verilog_linter.py`): 0 chốt ẩn (`Inferred Latch`), 0 chân lơ lửng (`Dangling Pin`), 0 lỗi gán blocking tuần tự.
+  3. `ModelSim vlog.exe`: Biên dịch thực tế không lỗi (`Errors: 0`).
+- **Kết quả Chưng cất từ `gemini-3.1-flash-lite,gemini-3-flash-preview`**: **104/108 (96.3%)** mẫu vượt qua toàn bộ 3 tầng kiểm chứng (`training/dataset_teacher_distilled.json`).
+- **Tập SFT hợp nhất cuối cùng (`training/dataset_clean_verified.json`)**: **1191 mẫu sạch** (gồm **104** mẫu CoT thật từ Gemini Teacher + **1087** mẫu đã thẩm định ModelSim từ kho gốc).
 
 ---
 
-## 2. Kết Quả Thẩm Định & Rà Soát Chất Lượng Toàn Diện
-
-| Tiêu chí | Số lượng mẫu | Tỷ lệ (%) | Ghi chú kỹ thuật |
-| :--- | :---: | :---: | :--- |
-| **Tổng số mẫu ứng viên ban đầu** | **1100** | 100.0% | Đã gộp từ 6 nguồn |
-| **Mẫu trùng lặp đã loại bỏ (Duplicates)** | **2** | 0.2% | Rà soát bằng mã băm MD5 và tên module |
-| **Mẫu lỗi linter / chốt ẩn đã loại** | **0** | 0.0% | Lọc bỏ trường hợp case thiếu default |
-| **MẪU SẠCH CUỐI CÙNG (PASS MODELSIM 100%)** | **1098** | **99.8%** | **Độc nhất, 0 lỗi cú pháp, 0 chốt ẩn, sẵn sàng nạp Colab** |
-
----
-
-## 3. Phân Bố Tập Dữ Liệu Sạch Bàn Giao Cho Nhóm 2
-
-### 3.1. Phân bố theo nguồn dữ liệu (Sources)
-| Nguồn dữ liệu | Số lượng mẫu đạt chuẩn | Mô tả đóng góp |
+## 2. Phân Bố Nguồn Dữ Liệu Sạch Hiện Tại
+| Nguồn dữ liệu | Số lượng mẫu đạt chuẩn | Ghi chú |
 | :--- | :---: | :--- |
-| Synthesized CE118 Augmentation Suite | **791** | Đạt chuẩn ModelSim & không trùng lặp |
-| NVIDIA VerilogEval | **94** | Đạt chuẩn ModelSim & không trùng lặp |
-| HuggingFace Verilog-Instruct-60k | **87** | Đạt chuẩn ModelSim & không trùng lặp |
-| CityU HK VeriPrefer Benchmark (arXiv:2504.15804) | **75** | Đạt chuẩn ModelSim & không trùng lặp |
-| HKUST RTLLM | **43** | Đạt chuẩn ModelSim & không trùng lặp |
-| Spec2RTL Project Benchmarks | **6** | Đạt chuẩn ModelSim & không trùng lặp |
-| Spec2RTL Verified Library | **2** | Đạt chuẩn ModelSim & không trùng lặp |
+| Synthesized CE118 Augmentation Suite | **786** | Pass 100% ModelSim & AST Linter |
+| NVIDIA VerilogEval | **94** | Pass 100% ModelSim & AST Linter |
+| Google Gemini (gemini-3.1-flash-lite) Distillation | **93** | Pass 100% ModelSim & AST Linter |
+| HuggingFace Verilog-Instruct-60k | **87** | Pass 100% ModelSim & AST Linter |
+| CityU HK VeriPrefer Benchmark (arXiv:2504.15804) | **75** | Pass 100% ModelSim & AST Linter |
+| HKUST RTLLM | **43** | Pass 100% ModelSim & AST Linter |
+| Google Gemini (gemini-3.1-flash-lite,gemini-3-flash-preview) Distillation | **11** | Pass 100% ModelSim & AST Linter |
+| Spec2RTL Verified Library | **1** | Pass 100% ModelSim & AST Linter |
+| Spec2RTL Project Benchmarks | **1** | Pass 100% ModelSim & AST Linter |
 
-### 3.2. Phân bố theo họ vi mạch (Hardware Categories)
+## 3. Phân Bố Theo Họ Vi Mạch
 | Họ vi mạch | Số lượng mẫu | Tỷ lệ (%) |
 | :--- | :---: | :---: |
-| Arithmetic | **302** | 27.5% |
-| Counter | **129** | 11.7% |
-| Miscellaneous | **85** | 7.7% |
-| Logic Gates | **84** | 7.7% |
-| Clock & Timing | **70** | 6.4% |
-| Shift Register | **62** | 5.6% |
-| Memory / Storage | **58** | 5.3% |
-| FSM | **45** | 4.1% |
-| Advanced RTL / RTLLM2 | **44** | 4.0% |
-| Multiplexer | **36** | 3.3% |
-| Code Converter | **35** | 3.2% |
-| Digital Logic | **29** | 2.6% |
-| Signal Conditioning | **26** | 2.4% |
-| Control / FSM | **21** | 1.9% |
-| Memory / FIFO | **20** | 1.8% |
-| Demultiplexer | **15** | 1.4% |
-| Decoder | **9** | 0.8% |
+| Arithmetic | **301** | 25.3% |
+| Counter | **128** | 10.7% |
+| Miscellaneous | **85** | 7.1% |
+| Logic Gates | **84** | 7.1% |
+| Clock & Timing | **70** | 5.9% |
+| Shift Register | **62** | 5.2% |
+| Memory / Storage | **58** | 4.9% |
+| FSM | **45** | 3.8% |
+| Advanced RTL / RTLLM2 | **44** | 3.7% |
+| Multiplexer | **36** | 3.0% |
+| Code Converter | **34** | 2.9% |
+| Digital Logic | **29** | 2.4% |
+| Signal Conditioning | **25** | 2.1% |
+| Control / FSM | **20** | 1.7% |
+| Memory / FIFO | **20** | 1.7% |
+| Demultiplexer | **15** | 1.3% |
+| Counter & Timer | **10** | 0.8% |
+| Arithmetic & ALU | **10** | 0.8% |
+| Register & Buffer | **10** | 0.8% |
+| Codec & Multiplexer | **10** | 0.8% |
+| FSM & Sequence Detector | **10** | 0.8% |
+| Signal Conditioning & PWM | **10** | 0.8% |
+| System Control & Display | **10** | 0.8% |
+| Communication & Serial | **9** | 0.8% |
+| Advanced RTL & Clocking | **9** | 0.8% |
 | PWM | **9** | 0.8% |
-| Communication / Serial | **7** | 0.6% |
-| Interconnect | **4** | 0.4% |
+| Memory & FIFO | **8** | 0.7% |
+| Decoder | **8** | 0.7% |
+| Benchmark | **6** | 0.5% |
+| Communication / Serial | **5** | 0.4% |
+| Interconnect | **4** | 0.3% |
 | Encoder | **3** | 0.3% |
+| Project Spec | **2** | 0.2% |
 | SoC / Processor | **1** | 0.1% |
-| Display / Decoder | **1** | 0.1% |
 | System Control / Alarm | **1** | 0.1% |
-| FSM / Security | **1** | 0.1% |
-| Display / Video | **1** | 0.1% |
-
----
-
-## 4. Hướng Dẫn Bàn Giao Sang Nhóm 2 (Fine-Tuning Integration)
-
-Nhóm 2 chỉ cần mở notebook `training/train_spec2rtl_qwen3b_colab.ipynb` và thực hiện Bước 5 như sau:
-
-```python
-# [Nhóm 2 Integration]: Nạp trực tiếp dữ liệu sạch từ Nhóm 1 qua GitHub:
-import json, urllib.request
-url = "https://raw.githubusercontent.com/LamGianggg/TKLLS/main/training/dataset_clean_verified.json"
-urllib.request.urlretrieve(url, "dataset_clean_verified.json")
-
-with open("dataset_clean_verified.json", "r", encoding="utf-8") as f:
-    clean_dataset = json.load(f)
-
-print(f">>> Đã nạp thành công {len(clean_dataset)} mẫu Verilog sạch 100% từ Nhóm 1!")
-```
-
----
-*Báo cáo được khởi tạo tự động bởi hệ thống thẩm định ModelSim Truth Oracle của Nhóm 1.*

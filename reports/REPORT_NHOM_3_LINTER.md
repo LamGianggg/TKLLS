@@ -35,7 +35,7 @@
 
 ## 3. Kết quả Kiểm thử (100% Passed)
 
-Chạy bộ kiểm thử tự động: `python training/test_group3_linter.py`
+Chạy bộ kiểm thử tự động: `python agent/test_group3_linter.py`
 
 | Test Case | Mô tả kiểm thử | Kết quả | Ghi chú |
 | :--- | :--- | :---: | :--- |
