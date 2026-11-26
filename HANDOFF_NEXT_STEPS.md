@@ -46,14 +46,16 @@ Người dùng chuyển từ máy cũ (4 GB RAM, `i5-6200U`, không có GPU rờ
 ---
 
 ## 3. Khám phá quan trọng về VerilogDB gốc (`arXiv:2507.13369`)
-- Trong repo ban đầu, `knowledge_base/hardware_db.json` chỉ có **539 mẫu** (từ VerilogEval, CVDP, Verilog-Instruct-60k, VeriPrefer, RTLLM, Spec2RTL), **chưa phải** dữ liệu VerilogDB gốc từ bài báo `arXiv:2507.13369`.
-- Trên máy cũ đã xác minh truy cập được tập dữ liệu công khai **`Rohan-code/Verilog_DB_read`** trên HuggingFace:
+- **Tình trạng hiện tại trên repo:** GitHub hiện tại **CHƯA CÓ dữ liệu từ VerilogDB gốc** (trong `knowledge_base/hardware_db.json` chỉ có 539 mẫu từ VerilogEval, CVDP, Verilog-Instruct-60k, VeriPrefer, RTLLM, Spec2RTL). Vì file gốc nặng (~301 MB nén / ~1.15 GB giải nén) nên chưa tải về máy cũ.
+- Đã xác minh truy cập thành công tập dữ liệu công khai **`Rohan-code/Verilog_DB_read`** trên HuggingFace:
   - Quy mô: **40,755 mẫu** (`data/train-00000-of-00003.parquet` .. `00002`).
   - Các trường dữ liệu khớp chuẩn VerilogDB: `module_name`, `ports` (`name`, `direction`, `bit_width`), `comments`, `verilog_code`, `token_count`, `description`, `classification`.
-  - Có thể truy vấn chọn lọc từng lô qua REST API (không cần tải toàn bộ >1.1 GB nếu không muốn nặng máy):
-    ```text
-    https://datasets-server.huggingface.co/rows?dataset=Rohan-code/Verilog_DB_read&config=default&split=train&offset=0&length=100
-    ```
+  - **2 cách tải trên máy mới (Antigravity cần thực hiện ở Bước 2):**
+    1. **Kéo chọn lọc qua REST API (nhanh, nhẹ ổ đĩa):**
+       ```text
+       https://datasets-server.huggingface.co/rows?dataset=Rohan-code/Verilog_DB_read&config=default&split=train&offset=0&length=100
+       ```
+    2. **Hoặc tải trực tiếp bộ `.parquet` từ HuggingFace** (`huggingface.co/datasets/Rohan-code/Verilog_DB_read`) nếu máy mới đủ dung lượng để lọc cục bộ nhiều mẫu hơn *(BẮT BUỘC thêm `*.parquet` / thư mục chứa file thô vào `.gitignore` vì file vượt giới hạn 100 MB của GitHub)*.
 
 ---
 
