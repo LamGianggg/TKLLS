@@ -1,0 +1,483 @@
+[
+  {
+    "id": "rtllm1_adder_16bit",
+    "name": "adder_16bit",
+    "module_name": "adder_16bit",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: adder_16bit\n\n## Nguồn đề bài: HKUST RTLLM / rtllm1_adder_16bit\n\n## 1. Danh sách cổng (Ports):\n- input  wire [15:0] a      : Toán hạng / tín hiệu vào a [15:0] (16-bit input operand A.)\n- input  wire [15:0] b      : Toán hạng / tín hiệu vào b [15:0] (16-bit input operand B.)\n- input  wire Cin           : Bit nhớ vào (Carry-in input.)\n- output wire [15:0] y      : Toán hạng / tín hiệu ra y [15:0] (16-bit output representing the sum of A and B.)\n- output wire Co            : Tín hiệu ra Co (Carry-out output.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tổ hợp nhận 3 ngõ vào và tạo 2 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a module of a 16-bit full adder in combinational logic.\n- Implementation: In the adder_16bit module, you need to design a small bit-width adder(8-bit adder), which will be instantiated multiple times.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module adder_16bit (\n    input wire [15:0] a,\n    input wire [15:0] b,\n    input wire Cin,\n    output wire [15:0] y,\n    output wire Co\n);\n \n    wire Co_temp;\n \n    add8 add8_inst1 (\n        .a(a[15:8]),\n        .b(b[15:8]),\n        .Cin(Co_temp), \n        .y(y[15:8]),\n        .Co(Co)\n    );\n \n    add8 add8_inst2 (\n        .a(a[7:0]),\n        .b(b[7:0]),\n        .Cin(Cin),\n        .y(y[7:0]),\n        .Co(Co_temp)\n    ); \n \nendmodule\n\nmodule add8 (\n    input wire [7:0] a,\n    input wire [7:0] b,\n    input wire Cin,\n    output wire [7:0] y,\n    output wire Co\n);\n \n    wire Co_temp;\n \n    add4 add4_inst1 (\n        .a(a[7:4]),\n        .b(b[7:4]),\n        .Cin(Co_temp),\n        .y(y[7:4]),\n        .Co(Co)\n    );\n \n    add4 add4_inst2 (\n        .a(a[3:0]),\n        .b(b[3:0]),\n        .Cin(Cin),\n        .y(y[3:0]),\n        .Co(Co_temp)\n    );\n \nendmodule\n\nmodule add4 (\n    input wire [3:0] a,\n    input wire [3:0] b,\n    input wire Cin,\n    output wire [3:0] y,\n    output wire Co\n);\n \n    wire Co_temp;\n \n    add2 add2_inst1 (\n        .a(a[3:2]),\n        .b(b[3:2]),\n        .Cin(Co_temp),\n        .y(y[3:2]),\n        .Co(Co)\n    );\n \n    add2 add2_inst2 (\n        .a(a[1:0]),\n        .b(b[1:0]),\n        .Cin(Cin),\n        .y(y[1:0]),\n        .Co(Co_temp)\n    ); \n \nendmodule\n\nmodule add2 (\n    input wire [1:0] a,\n    input wire [1:0] b,\n    input wire Cin,\n    output wire [1:0] y,\n    output wire Co\n);\n \n    wire Co_temp;\n\n    add1 add1_inst1 (\n        .a(a[1]),\n        .b(b[1]),\n        .Cin(Co_temp),\n        .y(y[1]),\n        .Co(Co)\n    );\n \n    add1 add1_inst2 (\n        .a(a[0]),\n        .b(b[0]),\n        .Cin(Cin),\n        .y(y[0]),\n        .Co(Co_temp)\n    );\n         \nendmodule\n\nmodule add1 (\n    input wire a,\n    input wire b,\n    input wire Cin,\n    output wire y,\n    output wire Co\n);\n    assign y = ((~a) & (~b) & Cin | (~a) & b & (~Cin) | a & (~b) & (~Cin) | (a & b & Cin));\n    assign Co = ((~a & b & Cin) | (a & ~b & Cin) | (a & b & ~Cin) | (a & b & Cin));\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "adder_16bit",
+      "rtllm",
+      "rtllm1_adder_16bit"
+    ]
+  },
+  {
+    "id": "rtllm1_adder_32bit",
+    "name": "adder_32bit",
+    "module_name": "adder_32bit",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: adder_32bit\n\n## Nguồn đề bài: HKUST RTLLM / rtllm1_adder_32bit\n\n## 1. Danh sách cổng (Ports):\n- input  wire A             : Toán hạng / tín hiệu vào A (32-bit input operand A.)\n- input  wire B             : Toán hạng / tín hiệu vào B (32-bit input operand B.)\n- output wire S             : Tín hiệu ra S (32-bit output representing the sum of A and B.)\n- output wire C32           : Tín hiệu ra C32 (Carry-out output.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 2 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a module of a carry-lookahead 32-bit adder that uses the Carry-Lookahead Adder (CLA) architecture.\n- Implementation: The top module adder_32bit consists of several instances of the 16 bit CLA block you design.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module adder_32bit(A,B,S,C32);\n     input [32:1] A;\n     input [32:1] B;\n     output [32:1] S;\n     output C32;\n\n     wire px1,gx1,px2,gx2;\n     wire c16;\n\n  CLA_16 CLA1(\n      .A(A[16:1]),\n        .B(B[16:1]),\n        .c0(0),\n        .S(S[16:1]),\n        .px(px1),\n        .gx(gx1)\n    );\n\n  CLA_16 CLA2(\n        .A(A[32:17]),\n          .B(B[32:17]),\n          .c0(c16),\n          .S(S[32:17]),\n          .px(px2),\n          .gx(gx2)\n    );\n\n  assign c16 = gx1 ^ (px1 && 0), //c0 = 0\n         C32 = gx2 ^ (px2 && c16);\nendmodule\n\nmodule CLA_16(A,B,c0,S,px,gx);\n    input [16:1] A;\n    input [16:1] B;\n    input c0;\n    output gx,px;\n    output [16:1] S;\n\n    wire c4,c8,c12;\n    wire Pm1,Gm1,Pm2,Gm2,Pm3,Gm3,Pm4,Gm4;\n\n    adder_4 adder1(\n         .x(A[4:1]),\n          .y(B[4:1]),\n          .c0(c0),\n          .c4(),\n          .F(S[4:1]),\n          .Gm(Gm1),\n          .Pm(Pm1)\n    );\n\n    adder_4 adder2(\n         .x(A[8:5]),\n          .y(B[8:5]),\n          .c0(c4),\n          .c4(),\n          .F(S[8:5]),\n          .Gm(Gm2),\n          .Pm(Pm2)\n    );\n\n    adder_4 adder3(\n         .x(A[12:9]),\n          .y(B[12:9]),\n          .c0(c8),\n          .c4(),\n          .F(S[12:9]),\n          .Gm(Gm3),\n          .Pm(Pm3)\n    );\n\n    adder_4 adder4(\n         .x(A[16:13]),\n          .y(B[16:13]),\n          .c0(c12),\n          .c4(),\n          .F(S[16:13]),\n          .Gm(Gm4),\n          .Pm(Pm4)\n    );\n\n    assign   c4 = Gm1 ^ (Pm1 & c0),\n             c8 = Gm2 ^ (Pm2 & Gm1) ^ (Pm2 & Pm1 & c0),\n             c12 = Gm3 ^ (Pm3 & Gm2) ^ (Pm3 & Pm2 & Gm1) ^ (Pm3 & Pm2 & Pm1 & c0);\n\n    assign  px = Pm1 & Pm2 & Pm3 & Pm4,\n            gx = Gm4 ^ (Pm4 & Gm3) ^ (Pm4 & Pm3 & Gm2) ^ (Pm4 & Pm3 & Pm2 & Gm1);\nendmodule\n\nmodule adder_4(x,y,c0,c4,F,Gm,Pm);\n      input [4:1] x;\n      input [4:1] y;\n      input c0;\n      output c4,Gm,Pm;\n      output [4:1] F;\n\n      wire p1,p2,p3,p4,g1,g2,g3,g4;\n      wire c1,c2,c3;\n      adder adder1(\n                 .X(x[1]),\n                     .Y(y[1]),\n                     .Cin(c0),\n                     .F(F[1]),\n                     .Cout()\n                );\n\n      adder adder2(\n                 .X(x[2]),\n                     .Y(y[2]),\n                     .Cin(c1),\n                     .F(F[2]),\n                     .Cout()\n                );  \n\n      adder adder3(\n                 .X(x[3]),\n                     .Y(y[3]),\n                     .Cin(c2),\n                     .F(F[3]),\n                     .Cout()\n                );\n\n      adder adder4(\n                 .X(x[4]),\n                     .Y(y[4]),\n                     .Cin(c3),\n                     .F(F[4]),\n                     .Cout()\n                );      \n\n        CLA CLA(\n            .c0(c0),\n            .c1(c1),\n            .c2(c2),\n            .c3(c3),\n            .c4(c4),\n            .p1(p1),\n            .p2(p2),\n            .p3(p3),\n            .p4(p4),\n            .g1(g1),\n            .g2(g2),\n            .g3(g3),\n            .g4(g4)\n        );\n\n\n\n  assign   p1 = x[1] ^ y[1],      \n           p2 = x[2] ^ y[2],\n           p3 = x[3] ^ y[3],\n           p4 = x[4] ^ y[4];\n\n  assign   g1 = x[1] & y[1],\n           g2 = x[2] & y[2],\n           g3 = x[3] & y[3],\n           g4 = x[4] & y[4];\n\n  assign Pm = p1 & p2 & p3 & p4,\n         Gm = g4 ^ (p4 & g3) ^ (p4 & p3 & g2) ^ (p4 & p3 & p2 & g1);\nendmodule\n\nmodule CLA(c0,c1,c2,c3,c4,p1,p2,p3,p4,g1,g2,g3,g4);\n\n     input c0,g1,g2,g3,g4,p1,p2,p3,p4;\n     output c1,c2,c3,c4;\n\n     assign c1 = g1 ^ (p1 & c0),\n            c2 = g2 ^ (p2 & g1) ^ (p2 & p1 & c0),\n            c3 = g3 ^ (p3 & g2) ^ (p3 & p2 & g1) ^ (p3 & p2 & p1 & c0),\n            c4 = g4^(p4&g3)^(p4&p3&g2)^(p4&p3&p2&g1)^(p4&p3&p2&p1&c0);\nendmodule\n\nmodule adder(X,Y,Cin,F,Cout);\n\n  input X,Y,Cin;\n  output F,Cout;\n\n  assign F = X ^ Y ^ Cin;\n  assign Cout = (X ^ Y) & Cin | X & Y;\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "adder_32bit",
+      "rtllm",
+      "rtllm1_adder_32bit"
+    ]
+  },
+  {
+    "id": "rtllm1_adder_8bit",
+    "name": "adder_8bit",
+    "module_name": "adder_8bit",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: adder_8bit\n\n## Nguồn đề bài: HKUST RTLLM / rtllm1_adder_8bit\n\n## 1. Danh sách cổng (Ports):\n- input  wire [7:0] a       : Toán hạng / tín hiệu vào a [7:0] (8-bit input operand A.)\n- input  wire [7:0] b       : Toán hạng / tín hiệu vào b [7:0] (8-bit input operand B.)\n- input  wire cin           : Bit nhớ vào (Carry-in input.)\n- output wire [7:0] sum     : Tín hiệu ra sum [7:0] (8-bit output representing the sum of A and B.)\n- output wire cout          : Bit nhớ ra (Carry-out output.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tổ hợp nhận 3 ngõ vào và tạo 2 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a module of an 8-bit adder with multiple bit-level adders in combinational logic.\n- Implementation: The module utilizes a series of bit-level adders (full adders) to perform the addition operation.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module adder_8bit(\n    input [7:0] a, b, \n    input cin, \n    output [7:0] sum, \n    output cout);\n    \n    wire [8:0] c;\n\n    full_adder FA0 (.a(a[0]), .b(b[0]), .cin(cin), .sum(sum[0]), .cout(c[0]));\n    full_adder FA1 (.a(a[1]), .b(b[1]), .cin(c[0]), .sum(sum[1]), .cout(c[1]));\n    full_adder FA2 (.a(a[2]), .b(b[2]), .cin(c[1]), .sum(sum[2]), .cout(c[2]));\n    full_adder FA3 (.a(a[3]), .b(b[3]), .cin(c[2]), .sum(sum[3]), .cout(c[3]));\n    full_adder FA4 (.a(a[4]), .b(b[4]), .cin(c[3]), .sum(sum[4]), .cout(c[4]));\n    full_adder FA5 (.a(a[5]), .b(b[5]), .cin(c[4]), .sum(sum[5]), .cout(c[5]));\n    full_adder FA6 (.a(a[6]), .b(b[6]), .cin(c[5]), .sum(sum[6]), .cout(c[6]));\n    full_adder FA7 (.a(a[7]), .b(b[7]), .cin(c[6]), .sum(sum[7]), .cout(c[7]));\n\n    assign cout = c[7]; \nendmodule\n\nmodule full_adder (input a, b, cin, output sum, cout);\n    assign {cout, sum} = a + b + cin;\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "adder_8bit",
+      "rtllm",
+      "rtllm1_adder_8bit"
+    ]
+  },
+  {
+    "id": "rtllm1_signal_generator",
+    "name": "signal_generator",
+    "module_name": "signal_generator",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: signal_generator\n\n## Nguồn đề bài: HKUST RTLLM / rtllm1_signal_generator\n\n## 1. Danh sách cổng (Ports):\n- input  wire clk           : Xung nhịp hệ thống (Clock signal used for synchronous operation.)\n- input  wire rst_n         : Reset tích cực thấp (Active-low reset signal. Defined as 0 for reset and 1 for reset signal inactive.)\n- output reg [4:0] wave     : Tín hiệu ra wave [4:0] (5-bit output waveform signal representing the generated waveform.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 2 ngõ vào và tạo 1 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a Triangle Wave signal generator module that generates a waveform by incrementing and decrementing a 5-bit signal named \"wave\". The waveform cycles between 0 and 31, which is incremented or decremented by 1. The waveform holds one extra clock cycle at both 0 and 31 before changing direction.\n- Implementation: State and Waveform Generation: The module includes a register, state, used to control the state of the waveform generation. The module also includes a register, wave, with a width of 5 bits, which represents the generated waveform. The state and waveform registers are updated in the always block, triggered on the positive edge of the clock signal (posedge clk) or the negative edge of the reset signal (negedge rst_n). On reset, indicated by ~rst_n, the state register is cleared to 0, and the wave register is cleared to 0. The waveform generation is controlled using a case statement based on the current state: If the state is 0, the waveform (wave) is incremented by 1. If the waveform reaches 31 (wave == 31), the state is transitioned to 1 and the waveform keeps 31 in that clock cycle. If the state is 1, the waveform is decremented by 1. If the waveform reaches 0 (wave == 0), the state is transitioned back to 0 and the waveform keeps 0 in that clock cycle. The waveform generation continues to cycle between 0 and 31 based on the state transitions.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module signal_generator(\n  input clk,\n  input rst_n,\n  output reg [4:0] wave\n);\n\n  reg [1:0] state;\n  \n  always @(posedge clk or negedge rst_n) begin\n    if (~rst_n) begin\n      state <= 2'b0;\n      wave <= 5'b0;\n    end\n    else begin\n      case (state)\n        2'b00:\n          begin\n            if (wave == 5'b11111)\n              state <= 2'b01;\n            else\n              wave <= wave + 1;\n          end\n          \n        2'b01:\n          begin\n            if (wave == 5'b00000)\n              state <= 2'b00;\n            else\n              wave <= wave - 1;\n          end\n      endcase\n    end\n  end\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "signal_generator",
+      "rtllm",
+      "rtllm1_signal_generator"
+    ]
+  },
+  {
+    "id": "rtllm2_JC_counter",
+    "name": "JC_counter",
+    "module_name": "JC_counter",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: JC_counter\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_JC_counter\n\n## 1. Danh sách cổng (Ports):\n- input  wire clk           : Xung nhịp hệ thống (Clock signal used for synchronous operation.)\n- input  wire rst_n         : Reset tích cực thấp (Active-low reset signal to initialize the counter.)\n- output reg [63:0] Q       : Dữ liệu ngõ ra [63:0] (64-bit register representing the current count value.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 2 ngõ vào và tạo 1 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a 64-bit Johnson counter (torsional ring counter), and the state of the similar 4-bit Johnson counter example is as follows: 0000, 1000, 1100, 1110, 1111, 0111, 0011, 0001, 0000.\n- Output port: Q: 64-bit register representing the current count value.\n- Implementation: On every rising edge of the clock signal (clk) or the falling edge of the reset signal (rst_n), the counter value is updated. If the reset signal (rst_n) is low, indicating a reset condition, the counter value (Q) is set to 0. Otherwise, if the least significant bit (Q[0]) is 0, the counter increments by shifting the current value (Q[63:1]) to the right and appending a 1 at the most significant bit position. If the least significant bit (Q[0]) is 1, the counter decrements by shifting the current value (Q[63:1]) to the right and appending a 0 at the most significant bit position.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "`timescale 1ns/1ns\n\nmodule JC_counter(\n   input                clk ,\n   input                rst_n,\n \n   output reg [63:0]     Q  \n);\n    always@(posedge clk or negedge rst_n)begin\n        if(!rst_n) Q <= 'd0;\n        else if(!Q[0]) Q <= {1'b1, Q[63 : 1]};\n        else Q <= {1'b0, Q[63 : 1]};\n    end\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "jc_counter",
+      "rtllm",
+      "rtllm2_jc_counter"
+    ]
+  },
+  {
+    "id": "rtllm2_RAM",
+    "name": "RAM",
+    "module_name": "RAM",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: RAM\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_RAM\n\n## 1. Danh sách cổng (Ports):\n- input  wire clk           : Xung nhịp hệ thống (Clock signal used for synchronous operation.)\n- input  wire rst_n         : Reset tích cực thấp (Active-low reset signal. Defined as 0 for reset and 1 for reset signal inactive.)\n- input  wire write_en      : Cho phép ghi (Write enable signal to initiate a write operation.)\n- input  wire [7:0] write_addr : Tín hiệu vào write_addr [7:0] (Address for the write operation.)\n- input  wire [5:0] write_data : Tín hiệu vào write_data [5:0] (Data to be written to the RAM.)\n- input  wire read_en       : Cho phép đọc (Read enable signal to initiate a read operation.)\n- input  wire [7:0] read_addr : Tín hiệu vào read_addr [7:0] (Address for the read operation.)\n- output reg [5:0] read_data : Tín hiệu ra read_data [5:0] (Output signal representing the data read from the RAM.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 7 ngõ vào và tạo 1 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a dual-port RAM with a depth of 8 and a bit width of 6 bits, with all data initialized to 000000. It has two groups of ports, respectively for reading data and writing data, and read and write operations can be carried out at the same time. When the read_en signal is 1, the read_data of the corresponding position is read through the read_addr signal and output; When the write_en signal is 1, data is written to the corresponding position through the write_addr signal and write-data signal.\n- Parameter: WIDTH = 6; DEPTH = 8;\n- Implementation: RAM Array: The module includes a register array, RAM. The array is defined as reg [DEPTH - 1 : 0] RAM [2**WIDTH-1:0], allowing for 2^6 memory locations, each with a width of 6 bits. Write Operation: The first always block triggers on the positive edge of the clock signal (posedge clk) or the negative edge of the reset signal (negedge rst_n). On reset, indicated by !rst_n, all memory locations in the RAM array are cleared to 0. If the write enable signal (write_en) is active, the data (write_data) is written to the RAM array at the specified address (write_addr). Read Operation: The second always block triggers on the positive edge of the clock signal (posedge clk) or the negative edge of the reset signal (negedge rst_n). On reset, indicated by !rst_n, the read_data register is cleared to 0. If the read enable signal (read_en) is active, the data at the specified address (read_addr) in the RAM array is assigned to the read_data register. If the read enable signal is not active, the read_data register is cleared to 0.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module RAM (\n\tinput clk,\n\tinput rst_n,\n\t\n\tinput write_en,\n\tinput [7:0]write_addr,\n\tinput [5:0]write_data,\n\t\n\tinput read_en,\n\tinput [7:0]read_addr,\n\toutput reg [5:0]read_data\n);\n    \n    //defination\n    reg [7 : 0] RAM [11:0];\n\n    //output \n    integer i;\n    always@(posedge clk or negedge rst_n)begin\n        if(!rst_n) begin\n               for(i = 0; i < 8; i = i + 1) begin\n                   RAM[i] <= 'd0;\n               end\n        end\n        else if(write_en) \n            RAM[write_addr] <= write_data;\n    end\n    always@(posedge clk or negedge rst_n)begin\n        if(!rst_n) \n            read_data <= 'd0;\n        else if(read_en) \n            read_data <= RAM[read_addr];\n        else \n            read_data <= 'd0;\n    end\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "ram",
+      "rtllm",
+      "rtllm2_ram"
+    ]
+  },
+  {
+    "id": "rtllm2_accu",
+    "name": "accu",
+    "module_name": "accu",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: accu\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_accu\n\n## 1. Danh sách cổng (Ports):\n- input  wire clk           : Xung nhịp hệ thống (Clock input for synchronization.)\n- input  wire rst_n         : Reset tích cực thấp (Active-low reset signal.)\n- input  wire [7:0] data_in : Dữ liệu ngõ vào [7:0] (8-bit input data for addition.)\n- input  wire valid_in      : Cờ dữ liệu hợp lệ (Input signal indicating readiness for new data.)\n- output reg valid_out      : Cờ dữ liệu hợp lệ (Output signal indicating when 4 input data accumulation is reached.)\n- output reg [9:0] data_out : Dữ liệu ngõ ra [9:0] (10-bit output data representing the accumulated sum.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 4 ngõ vào và tạo 2 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a module to achieve serial input data accumulation output, input is 8bit data. The valid_in will be set to 1 before the first data comes in. Whenever the module receives 4 input data, the data_out outputs 4 received data accumulation results and sets the valid_out to be 1 (will last only 1 cycle).\n- Implementation: When valid_in is 1, data_in is a valid input. Accumulate four valid input data_in values and calculate the output data_out by adding these four values together. There is no output when there are fewer than four data_in inputs in the interim. Along with the output data_out, a cycle of valid_out=1 will appear as a signal. The valid_out signal is set to 1 when the data_out outputs 4 received data accumulation results. Otherwise, it is set to 0.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "`timescale 1ns/1ns\n\nmodule accu(\n    input               clk         ,   \n    input               rst_n       ,\n    input       [7:0]   data_in     ,\n    input               valid_in     ,\n \n    output  reg         valid_out     ,\n    output  reg [9:0]   data_out\n);\n    \n   reg [1:0] count;\n   wire add_cnt;\n   wire ready_add;\n   wire end_cnt;\n   reg [9:0]   data_out_reg;\n\n   assign add_cnt = ready_add;\n   assign end_cnt = ready_add && (count == 'd3);\n   \n   //count\n   always @(posedge clk or negedge rst_n) begin\n       if(!rst_n) begin\n          count <= 0;\n       end\n       else if(end_cnt) begin\n          count <= 0;\n       end\n       else if(add_cnt) begin\n          count <= count + 1;\n       end\n   end\n\n    //data_out_reg\n   always @(posedge clk or negedge rst_n) begin\n      if(!rst_n) begin\n        data_out_reg <= 0;\n      end\n      else if (add_cnt && count == 0) begin\n          data_out_reg <= data_in;\n      end\n      else if (add_cnt) begin\n          data_out_reg <= data_out_reg + data_in;\n      end\n   end\n\n    //data_out\n   always @(posedge clk or negedge rst_n) begin\n      if(!rst_n) begin\n        data_out <= 0;\n      end\n      else if (add_cnt && count == 0) begin\n          data_out <= data_in;\n      end\n      else if (add_cnt) begin\n          data_out <= data_out + data_in;\n      end\n   end\n\n   //ready_add\n   assign ready_add = !valid_out | valid_in;\n\n   //valid_out\n   always @(posedge clk or negedge rst_n) begin\n       if(!rst_n) begin\n           valid_out <= 0;\n       end\n       else if(end_cnt) begin\n           valid_out <= 1;\n       end\n       else begin\n           valid_out <= 0;\n       end\n   end  \n     \nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "accu",
+      "rtllm",
+      "rtllm2_accu"
+    ]
+  },
+  {
+    "id": "rtllm2_adder_pipe_64bit",
+    "name": "adder_pipe_64bit",
+    "module_name": "adder_pipe_64bit",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: adder_pipe_64bit\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_adder_pipe_64bit\n\n## 1. Danh sách cổng (Ports):\n- input  wire clk           : Xung nhịp hệ thống (Clock input)\n- input  wire rst_n         : Reset tích cực thấp (Active low reset signal)\n- input  wire i_en          : Tín hiệu vào i_en (Enable signal for addition operation)\n- input  wire [DATA_WIDTH-1:0] adda : Tín hiệu vào adda [DATA_WIDTH-1:0] (64-bit input operand A)\n- input  wire [DATA_WIDTH-1:0] addb : Tín hiệu vào addb [DATA_WIDTH-1:0] (64-bit input operand B)\n- output wire [DATA_WIDTH:0] result : Tín hiệu ra result [DATA_WIDTH:0] (65-bit output representing the sum of adda and addb.)\n- output reg o_en           : Tín hiệu ra o_en (Output enable signal.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 5 ngõ vào và tạo 2 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a module of a 64-bit ripple carry adder, which includes several registers to enable the pipeline stages. The output result is available on the result port, and the o_en = 1 indicates the availability of the result.\n- Implementation: The module includes several registers to enable the pipeline stages and synchronize the input enable signal (i_en). These registers are controlled by the clock (clk) and reset (rst_n) signals. The sum values for each pipeline stage are calculated by adding the corresponding input operands and carry signals. The output enable signal (o_en) is updated based on the pipeline stages and synchronized with the clock (clk) and reset (rst_n) signals.\n- module adder_pipe_64bit #( parameter DATA_WIDTH = 64, parameter STG_WIDTH = 16 ) ( input clk, input rst_n, input i_en, input [DATA_WIDTH-1:0] adda, input [DATA_WIDTH-1:0] addb, output [DATA_WIDTH:0] result, output reg o_en );\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module adder_pipe_64bit\n#(\n    parameter DATA_WIDTH = 64,\n    parameter STG_WIDTH = 16\n)\n(\n    input clk,\n    input rst_n,\n    input i_en,\n    input [DATA_WIDTH-1:0] adda,\n    input [DATA_WIDTH-1:0] addb,\n    output [DATA_WIDTH:0] result,\n    output reg o_en\n);\n\nreg stage1;\nreg stage2;\nreg stage3;\n\nwire [STG_WIDTH-1:0] a1;\nwire [STG_WIDTH-1:0] b1;\nwire [STG_WIDTH-1:0] a2;\nwire [STG_WIDTH-1:0] b2;\nwire [STG_WIDTH-1:0] a3;\nwire [STG_WIDTH-1:0] b3;\nwire [STG_WIDTH-1:0] a4;\nwire [STG_WIDTH-1:0] b4;\n\nreg [STG_WIDTH-1:0] a2_ff1;\nreg [STG_WIDTH-1:0] b2_ff1;\n\nreg [STG_WIDTH-1:0] a3_ff1;\nreg [STG_WIDTH-1:0] b3_ff1;\nreg [STG_WIDTH-1:0] a3_ff2;\nreg [STG_WIDTH-1:0] b3_ff2;\n\nreg [STG_WIDTH-1:0] a4_ff1;\nreg [STG_WIDTH-1:0] b4_ff1;\nreg [STG_WIDTH-1:0] a4_ff2;\nreg [STG_WIDTH-1:0] b4_ff2;\nreg [STG_WIDTH-1:0] a4_ff3;\nreg [STG_WIDTH-1:0] b4_ff3;\n\nreg c1;\nreg c2;\nreg c3;\nreg c4;\n\nreg [STG_WIDTH-1:0] s1;\nreg [STG_WIDTH-1:0] s2;\nreg [STG_WIDTH-1:0] s3;\nreg [STG_WIDTH-1:0] s4;\n\nreg [STG_WIDTH-1:0] s1_ff1;\nreg [STG_WIDTH-1:0] s1_ff2;\nreg [STG_WIDTH-1:0] s1_ff3;\n\nreg [STG_WIDTH-1:0] s2_ff1;\nreg [STG_WIDTH-1:0] s2_ff2;\n\nreg [STG_WIDTH-1:0] s3_ff1;\n\nassign a1 = adda[STG_WIDTH-1:0];\nassign b1 = addb[STG_WIDTH-1:0];\nassign a2 = adda[STG_WIDTH*2-1:16];\nassign b2 = addb[STG_WIDTH*2-1:16];\nassign a3 = adda[STG_WIDTH*3-1:32];\nassign b3 = addb[STG_WIDTH*3-1:32];\nassign a4 = adda[STG_WIDTH*4-1:48];\nassign b4 = addb[STG_WIDTH*4-1:48];\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        stage1 <= 1'b0;\n        stage2 <= 1'b0;\n        stage3 <= 1'b0;\n        o_en <= 1'b0;\n    end\n    else begin\n        stage1 <= i_en;\n        stage2 <= stage1;\n        stage3 <= stage2;\n        o_en <= stage3;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        a2_ff1 <= 'd0;\n        b2_ff1 <= 'd0;\n        a3_ff1 <= 'd0;\n        b3_ff1 <= 'd0;\n        a3_ff2 <= 'd0;\n        b3_ff2 <= 'd0;\n        a4_ff1 <= 'd0;\n        b4_ff1 <= 'd0;\n        a4_ff2 <= 'd0;\n        b4_ff2 <= 'd0;\n        a4_ff3 <= 'd0;\n        b4_ff3 <= 'd0;\n    end\n    else begin\n        a2_ff1 <= a2;\n        b2_ff1 <= b2;\n        a3_ff1 <= a3;\n        b3_ff1 <= b3;\n        a3_ff2 <= a3_ff1;\n        b3_ff2 <= b3_ff1;\n        a4_ff1 <= a4;\n        b4_ff1 <= b4;\n        a4_ff2 <= a4_ff1;\n        b4_ff2<= b4_ff1;\n        a4_ff3 <= a4_ff2;\n        b4_ff3 <= b4_ff2;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        s1_ff1 <= 'd0;\n        s1_ff2 <= 'd0;\n        s1_ff3 <= 'd0;\n        s2_ff1 <= 'd0;\n        s2_ff2 <= 'd0;\n        s3_ff1 <= 'd0;\n    end\n    else begin\n        s1_ff1 <= s1;\n        s1_ff2 <= s1_ff1;\n        s1_ff3 <= s1_ff2;\n        s2_ff1 <= s2;\n        s2_ff2 <= s2_ff1;\n        s3_ff1 <= s3;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        c1 <= 1'b0;\n        s1 <= 'd0;\n    end\n    else if (i_en) begin\n        {c1, s1} <= a1 + b1;\n    end\n    else begin\n        c1 <= c1;\n        s1 <= s1;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        c2 <= 1'b0;\n        s2 <= 'd0;\n    end\n    else if (stage1) begin\n        {c2, s2} <= a2_ff1 + b2_ff1 + c1;\n    end\n    else begin\n        c2 <= c2;\n        s2 <= s2;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        c3 <= 1'b0;\n        s3 <= 'd0;\n    end\n    else if (stage2) begin\n        {c3, s3} <= a3_ff2 + b3_ff2 + c2;\n    end\n    else begin\n        c3 <= c3;\n        s3 <= s3;\n    end\nend\n\nalways @(posedge clk, negedge rst_n) begin\n    if (!rst_n) begin\n        c4 <= 1'b0;\n        s4 <= 'd0;\n    end\n    else if (stage3) begin\n        {c4, s4} <= a4_ff3 + b4_ff3 + c3;\n    end\n    else begin\n        c4 <= c4;\n        s4 <= s4;\n    end\nend\n\nassign result = {c4, s4, s3_ff1, s2_ff2, s1_ff3};\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "adder_pipe_64bit",
+      "rtllm",
+      "rtllm2_adder_pipe_64bit"
+    ]
+  },
+  {
+    "id": "rtllm2_alu",
+    "name": "alu",
+    "module_name": "alu",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: alu\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_alu\n\n## 1. Danh sách cổng (Ports):\n- input  wire [31:0] a      : Toán hạng / tín hiệu vào a [31:0] (a 32-bit input operand)\n- input  wire [31:0] b      : Toán hạng / tín hiệu vào b [31:0] (a 32-bit input operand)\n- input  wire [5:0] aluc    : Tín hiệu vào aluc [5:0] (a 6-bit control signal for selecting the operation to be performed)\n- output wire [31:0] r      : Tín hiệu ra r [31:0] (a 32-bit output representing the result of the operation)\n- output wire zero          : Tín hiệu ra zero (a 1-bit output indicating whether the result is zero)\n- output wire carry         : Tín hiệu ra carry (a 1-bit output indicating whether a carry occurred during the operation)\n- output wire negative      : Tín hiệu ra negative (a 1-bit output indicating whether the result is negative)\n- output wire overflow      : Tín hiệu ra overflow (a 1-bit output indicating whether an overflow occurred during the operation)\n- output wire flag          : Tín hiệu ra flag (a 1-bit output representing a general flag, which is set based on specific operations (SLT and SLTU))\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tổ hợp nhận 3 ngõ vào và tạo 6 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement an ALU for a 32-bit MIPS-ISA CPU. The “a” and “b” are the two operands of the ALU, the “aluc” is the opcode, and the “r” gives out the result. “zero” means if the result is zero, “carry” means if there is a carry bit, “negative” means if the result is negative, “overflow” means if the computation is overflow, the “flag” is the result of “slt” and “sltu” instructions. The supported operations and corresponding opcode are shown below: parameter ADD = 6'b100000; parameter ADDU = 6'b100001; parameter SUB = 6'b100010; parameter SUBU = 6'b100011; parameter AND = 6'b100100; parameter OR = 6'b100101; parameter XOR = 6'b100110; parameter NOR = 6'b100111; parameter SLT = 6'b101010; parameter SLTU = 6'b101011; parameter SLL = 6'b000000; parameter SRL = 6'b000010; parameter SRA = 6'b000011; parameter SLLV = 6'b000100; parameter SRLV = 6'b000110; parameter SRAV = 6'b000111; parameter LUI = 6'b001111;\n- Implementation: The module uses parameters to define the control signals for various operations, such as ADD, SUB, AND, OR, etc. The module assigns the input operands to the signed wires and the output result (r) to the lower 32 bits of the register (res[31:0]). The flag output is determined based on the control signal (aluc) and is set to '1' when the operation is SLT or SLTU, and 'z' (high-impedance) otherwise. The zero output is set to '1' when the result is all zeros, and '0' otherwise. Inside the always block, a case statement is used to perform the appropriate operation based on the control signal (aluc). The result is assigned to the register (res) accordingly. For shift operations (SLL, SRL, SRA, SLLV, SRLV, SRAV), the shift amount is determined by the value of 'a' or 'a[4:0]'. For the LUI operation, the upper 16 bits of 'a' are concatenated with 16 zeros to form the result. If the control signal (aluc) does not match any defined operation, the result is assigned as 'z' (high-impedance).\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "`timescale 1ns / 1ps\n\nmodule alu(\n    input [31:0] a,\n    input [31:0] b,\n    input [5:0] aluc,\n    output [31:0] r,\n    output zero,\n    output carry,\n    output negative,\n    output overflow,\n    output flag\n    );\n    \n\n    parameter ADD = 6'b100000;\n    parameter ADDU = 6'b100001;\n    parameter SUB = 6'b100010;\n    parameter SUBU = 6'b100011;\n    parameter AND = 6'b100100;\n    parameter OR = 6'b100101;\n    parameter XOR = 6'b100110;\n    parameter NOR = 6'b100111;\n    parameter SLT = 6'b101010;\n    parameter SLTU = 6'b101011;\n    parameter SLL = 6'b000000;\n    parameter SRL = 6'b000010;\n    parameter SRA = 6'b000011;\n    parameter SLLV = 6'b000100;\n    parameter SRLV = 6'b000110;\n    parameter SRAV = 6'b000111;\n    parameter JR = 6'b001000;\n    \n    parameter LUI = 6'b001111;\n      \n    \n    wire signed [31:0] a_signed;\n    wire signed [31:0] b_signed;\n    \n  \n    reg [32:0] res;\n    \n    \n    assign a_signed = a;\n    assign b_signed = b;\n    assign r = res[31:0];\n    \n    assign flag = (aluc == SLT || aluc == SLTU) ? ((aluc == SLT) ? (a_signed < b_signed) : (a < b)) : 1'bz; \n    assign zero = (res == 32'b0) ? 1'b1 : 1'b0;\n    \n    always @ (a or b or aluc)\n    begin\n        case(aluc)\n            ADD: begin\n                res <= a_signed + b_signed;\n            end\n            ADDU: begin\n                res <= a + b;\n            end\n            SUB: begin \n                res <= a_signed - b_signed;\n            end\n            SUBU: begin \n                res <= a - b;\n            end\n            AND: begin\n                res <= a & b;\n            end\n            OR: begin\n                res <= a | b;\n            end\n            XOR: begin\n                res <= a ^ b;\n            end\n            NOR: begin\n                res <= ~(a | b);\n            end\n            SLT: begin\n                res <= a_signed < b_signed ? 1 : 0;\n            end\n            SLTU: begin\n                res <= a < b ? 1 : 0;\n            end\n            SLL: begin\n                res <= b << a;\n            end\n            SRL: begin\n                res <= b >> a;\n            end\n            SRA: begin\n                res <= b_signed >>> a_signed;\n            end\n            SLLV: begin\n                res <= b << a[4:0];\n            end\n            SRLV: begin\n                res <= b >> a[4:0];\n            end\n            SRAV: begin\n                res <= b_signed >>> a_signed[4:0];\n            end\n            LUI: begin\n                res <= {a[15:0], 16'h0000};\n            end\n            default:\n            begin\n                res <= 32'bz;\n            end\n        endcase\n    end\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "alu",
+      "rtllm",
+      "rtllm2_alu"
+    ]
+  },
+  {
+    "id": "rtllm2_asyn_fifo",
+    "name": "asyn_fifo",
+    "module_name": "dual_port_RAM",
+    "source": "HKUST RTLLM",
+    "category": "RTLLM",
+    "spec": "# Tên module: asyn_fifo\n\n## Nguồn đề bài: HKUST RTLLM / rtllm2_asyn_fifo\n\n## 1. Danh sách cổng (Ports):\n- input  wire wclk          : Xung nhịp hệ thống (Write clock signal used for synchronous write operations.)\n- input  wire rclk          : Xung nhịp hệ thống (Read clock signal used for synchronous read operations.)\n- input  wire wrstn         : Reset tích cực thấp (Write reset signal. Defined as 0 for reset and 1 for reset signal inactive.)\n- input  wire rrstn         : Reset tích cực thấp (Read reset signal. Defined as 0 for reset and 1 for reset signal inactive.)\n- input  wire winc          : Tín hiệu vào winc (Write increment signal. Used to trigger write operations.)\n- input  wire rinc          : Tín hiệu vào rinc (Read increment signal. Used to trigger read operations.)\n- input  wire [WIDTH-1:0] wdata : Dữ liệu ngõ vào [WIDTH-1:0] (Write data input. The width [WIDTH-1:0] is configurable and represents the data to be written into the FIFO.)\n- output wire wfull         : Tín hiệu ra wfull (Write full signal. Indicates if the FIFO is full and cannot accept further write operations.)\n- output wire rempty        : Tín hiệu ra rempty (Read empty signal. Indicates if the FIFO is empty and cannot provide any data for read operations.)\n- output wire [WIDTH-1:0] rdata : Dữ liệu ngõ ra [WIDTH-1:0] (Read data output. The width [WIDTH-1:0] is configurable and represents the data read from the FIFO.)\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm RTLLM và được chuyển thể từ benchmark HKUST RTLLM.\n- Tóm tắt: mạch tuần tự cập nhật trạng thái theo xung nhịp, nhận 7 ngõ vào và tạo 3 ngõ ra; chức năng chi tiết được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement an asynchronous FIFO, FIFO bit width and depth can be configured(parameter DEPTH = 16, parameter WIDTH = 8). The asynchronous FIFO structure is divided into several parts. The first part is dual-port RAM, which is used for data storage. Instantiate dual-port RAM as a submodule, The RAM ports are input wclk, input wenc, input [$clog2(DEPTH)-1:0] waddr, input [WIDTH-1:0] wdata, input rclk, input renc, input [$clog2(DEPTH)-1:0] raddr, output reg [WIDTH-1:0] rdata. The second part is the data write controller. The third part is the data read controller. The fourth part is the read pointer synchronizer. The read pointer is collected using the two-stage trigger of the write clock and output to the data write controller. The fifth part is the write pointer synchronizer, which uses the two-stage trigger of the read clock to collect the write pointer and output it to the data read controller. The method of empty and full judgment is to generate empty and full signals by comparing the Gray code. Use 4-bit Gray code as a read/write pointer for a FIFO with depth 8. The gray code is converted to a four-digit binary number, using the lower three digits of the binary number as the address to access RAM. When the read and write Pointers are equal, the FIFO is null. When the write pointer has one more cycle RAM than the read pointer, the highest and second-highest bits of the read and write pointer are opposite, the remaining bits are the same, and the FIFO is full.\n- Parameter: WIDTH = 8 DEPTH = 16\n- Implementation: The module implements an asynchronous FIFO using a dual-port RAM module and additional logic for managing read and write pointers. Dual-port RAM: The module instantiates a dual-port RAM module named \"dual_port_RAM\" with configurable depth and width. The RAM module has separate clock inputs for write (wclk) and read (rclk) operations. The RAM module has separate address inputs for write (waddr) and read (raddr) operations. The RAM module has a write enable input (wenc) and a write data input (wdata). The RAM module has a read enable input (renc) and a read data output (rdata). The RAM module stores data in a two-dimensional array, RAM_MEM, with a size of DEPTH by WIDTH. Write and Read Pointers: The module includes logic to manage write and read pointers for asynchronous operation. The write and read pointers are represented by binary registers, waddr_bin and raddr_bin, respectively. The write and read pointers are incremented based on the write and read increment signals (winc and rinc), respectively. The write pointer is incremented on the positive edge of the write clock (posedge wclk) and reset to 0 on write reset (~wrstn). The read pointer is incremented on the positive edge of the read clock (posedge rclk) and reset to 0 on read reset (~rrstn). Gray Code Conversion: The write and read pointers are converted to Gray code using XOR operations with right-shifted values. The converted write and read pointers are stored in registers wptr and rptr, respectively. The Gray code conversion reduces glitches and ensures proper synchronization of the write and read pointers. Pointer Buffers: The module includes buffer registers (wptr_buff and rptr_buff) to hold the previous values of the write and read pointers. The buffer registers are updated on the positive edge of the respective clocks and reset to 0 on the respective resets (~wrstn and ~rrstn). The buffer registers are used to synchronize the write and read pointers for determining the full and empty conditions. Full and Empty Signals: The module compares the current write and read pointers (wptr and rptr_syn) to determine if the FIFO is full or empty. The wfull output is set to 1 when the write pointer is equal to the bitwise negation of the most significant bit of the read pointer concatenated with the remaining bits of the read pointer. The rempty output is set to 1 when the read pointer is equal to the write pointer. Input and Output Connections: The module connects the input and output signals to the dual-port RAM module based on the control signals and pointer values. The wen and ren signals control the write and read enable signals of the RAM module, respectively. The wdata input is connected to the write data input (wdata) of the RAM module. The rdata output is connected to the read data output (rdata) of the RAM module.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "`timescale 1ns/1ns\n\n/***************************************RAM*****************************************/\nmodule dual_port_RAM #(parameter DEPTH = 16,  parameter WIDTH = 8)\n(\n\t input wclk\t,\n\t input wenc\t,\n\t input [$clog2(DEPTH)-1:0] waddr  ,\n\t input [WIDTH-1:0] wdata ,\n\t input rclk\t,\n\t input renc\t,\n\t input [$clog2(DEPTH)-1:0] raddr ,\n\t output reg [WIDTH-1:0] rdata \t\t\n);\n\nreg [WIDTH-1:0] RAM_MEM [0:DEPTH-1];\n\nalways @(posedge wclk) begin\n\tif(wenc)\n\t\tRAM_MEM[waddr] <= wdata;\nend \n\nalways @(posedge rclk) begin\n\tif(renc)\n\t\trdata <= RAM_MEM[raddr];\nend \n\nendmodule  \n\n\n/**************************************AFIFO*****************************************/\nmodule asyn_fifo#(\n\tparameter\tWIDTH = 8,\n\tparameter \tDEPTH = 16\n)(\n\tinput \t\t\t\t\twclk\t, \n\tinput \t\t\t\t\trclk\t,   \n\tinput \t\t\t\t\twrstn\t,\n\tinput\t\t\t\t\trrstn\t,\n\tinput \t\t\t\t\twinc\t,\n\tinput \t\t\t \t\trinc\t,\n\tinput \t\t[WIDTH-1:0]\twdata\t,\n\n\toutput wire\t\t\t\twfull\t,\n\toutput wire\t\t\t\trempty\t,\n\toutput wire [WIDTH-1:0]\trdata\n);\n\nparameter ADDR_WIDTH = $clog2(DEPTH);\n\n\nreg \t[ADDR_WIDTH:0]\twaddr_bin;\nreg \t[ADDR_WIDTH:0]\traddr_bin;\n\nalways @(posedge wclk or negedge wrstn) begin\n\tif(~wrstn) begin\n\t\twaddr_bin <= 'd0;\n\tend \n\telse if(!wfull && winc)begin\n\t\twaddr_bin <= waddr_bin + 1'd1;\n\tend\nend\nalways @(posedge rclk or negedge rrstn) begin\n\tif(~rrstn) begin\n\t\traddr_bin <= 'd0;\n\tend \n\telse if(!rempty && rinc)begin\n\t\traddr_bin <= raddr_bin + 1'd1;\n\tend\nend\n\nwire \t[ADDR_WIDTH:0]\twaddr_gray;\nwire \t[ADDR_WIDTH:0]\traddr_gray;\nreg \t[ADDR_WIDTH:0]\twptr;\nreg \t[ADDR_WIDTH:0]\trptr;\nassign waddr_gray = waddr_bin ^ (waddr_bin>>1);\nassign raddr_gray = raddr_bin ^ (raddr_bin>>1);\nalways @(posedge wclk or negedge wrstn) begin \n\tif(~wrstn) begin\n\t\twptr <= 'd0;\n\tend \n\telse begin\n\t\twptr <= waddr_gray;\n\tend\nend\nalways @(posedge rclk or negedge rrstn) begin \n\tif(~rrstn) begin\n\t\trptr <= 'd0;\n\tend \n\telse begin\n\t\trptr <= raddr_gray;\n\tend\nend\n\nreg\t\t[ADDR_WIDTH:0]\twptr_buff;\nreg\t\t[ADDR_WIDTH:0]\twptr_syn;\nreg\t\t[ADDR_WIDTH:0]\trptr_buff;\nreg\t\t[ADDR_WIDTH:0]\trptr_syn;\nalways @(posedge wclk or negedge wrstn) begin \n\tif(~wrstn) begin\n\t\trptr_buff <= 'd0;\n\t\trptr_syn <= 'd0;\n\tend \n\telse begin\n\t\trptr_buff <= rptr;\n\t\trptr_syn <= rptr_buff;\n\tend\nend\nalways @(posedge rclk or negedge rrstn) begin \n\tif(~rrstn) begin\n\t\twptr_buff <= 'd0;\n\t\twptr_syn <= 'd0;\n\tend \n\telse begin\n\t\twptr_buff <= wptr;\n\t\twptr_syn <= wptr_buff;\n\tend\nend\n\nassign wfull = (wptr == {~rptr_syn[ADDR_WIDTH:ADDR_WIDTH-1],rptr_syn[ADDR_WIDTH-2:0]});\nassign rempty = (rptr == wptr_syn);\n\n/***********RAM*********/\nwire \twen\t;\nwire\tren\t;\nwire \twren;//high write\nwire [ADDR_WIDTH-1:0]\twaddr;\nwire [ADDR_WIDTH-1:0]\traddr;\nassign wen = winc & !wfull;\nassign ren = rinc & !rempty;\nassign waddr = waddr_bin[ADDR_WIDTH-1:0];\nassign raddr = raddr_bin[ADDR_WIDTH-1:0];\n\ndual_port_RAM #(.DEPTH(DEPTH),\n\t\t\t\t.WIDTH(WIDTH)\n)dual_port_RAM(\n\t.wclk (wclk),  \n\t.wenc (wen),  \n\t.waddr(waddr[ADDR_WIDTH-1:0]),  //The depth is logarithmic to 2 to get the bit width of the address\n\t.wdata(wdata),       \t//data_write\n\t.rclk (rclk), \n\t.renc (ren), \n\t.raddr(raddr[ADDR_WIDTH-1:0]),   \n\t.rdata(rdata)  \t\t\n);\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "asyn_fifo",
+      "dual_port_ram",
+      "rtllm",
+      "rtllm2_asyn_fifo"
+    ]
+  },
+  {
+    "id": "ve_Prob001_zero",
+    "name": "zero",
+    "module_name": "zero",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: zero\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob001_zero\n\n## 1. Danh sách cổng (Ports):\n- output wire zero          : Tín hiệu ra zero\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 0 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should always outputs a LOW.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module zero (\n  output zero\n);\n\n  assign zero = 1'b0;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "zero",
+      "verilogeval",
+      "ve_prob001_zero"
+    ]
+  },
+  {
+    "id": "ve_Prob002_m2014_q4i",
+    "name": "m2014_q4i",
+    "module_name": "m2014_q4i",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: m2014_q4i\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob002_m2014_q4i\n\n## 1. Danh sách cổng (Ports):\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 0 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should always drive 0 (or logic low).\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module m2014_q4i (\n  output out\n);\n\n  assign out = 1'b0;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "m2014_q4i",
+      "verilogeval",
+      "ve_prob002_m2014_q4i"
+    ]
+  },
+  {
+    "id": "ve_Prob003_step_one",
+    "name": "step_one",
+    "module_name": "step_one",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: step_one\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob003_step_one\n\n## 1. Danh sách cổng (Ports):\n- output wire one           : Tín hiệu ra one\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 0 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should always drive 1 (or logic high).\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module step_one (\n  output one\n);\n\n  assign one = 1'b1;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "step_one",
+      "verilogeval",
+      "ve_prob003_step_one"
+    ]
+  },
+  {
+    "id": "ve_Prob004_vector2",
+    "name": "vector2",
+    "module_name": "vector2",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: vector2\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob004_vector2\n\n## 1. Danh sách cổng (Ports):\n- input  wire [31:0] in     : Tín hiệu vào in [31:0]\n- output wire [31:0] out    : Tín hiệu ra out [31:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should reverse the byte order of a 32-bit vector.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module vector2 (\n  input [31:0] in,\n  output [31:0] out\n);\n\n  assign out = {in[7:0], in[15:8], in[23:16], in[31:24]};\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "vector2",
+      "verilogeval",
+      "ve_prob004_vector2"
+    ]
+  },
+  {
+    "id": "ve_Prob005_notgate",
+    "name": "notgate",
+    "module_name": "notgate",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: notgate\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob005_notgate\n\n## 1. Danh sách cổng (Ports):\n- input  wire in            : Tín hiệu vào in\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a NOT gate.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module notgate (\n  input in,\n  output out\n);\n\n  assign out = ~in;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "notgate",
+      "verilogeval",
+      "ve_prob005_notgate"
+    ]
+  },
+  {
+    "id": "ve_Prob006_vectorr",
+    "name": "vectorr",
+    "module_name": "vectorr",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: vectorr\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob006_vectorr\n\n## 1. Danh sách cổng (Ports):\n- input  wire [7:0] in      : Tín hiệu vào in [7:0]\n- output wire [7:0] out     : Tín hiệu ra out [7:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should reverse the bit ordering of the input port and write the result to the output port.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module vectorr (\n  input [7:0] in,\n  output [7:0] out\n);\n\n  assign {out[0],out[1],out[2],out[3],out[4],out[5],out[6],out[7]} = in;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "vectorr",
+      "verilogeval",
+      "ve_prob006_vectorr"
+    ]
+  },
+  {
+    "id": "ve_Prob007_wire",
+    "name": "wire_mod",
+    "module_name": "wire_mod",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: wire_mod\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob007_wire\n\n## 1. Danh sách cổng (Ports):\n- input  wire in            : Tín hiệu vào in\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should behave like a wire.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module wire_mod (\n  input in,\n  output out\n);\n\n  assign out = in;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "wire_mod",
+      "verilogeval",
+      "ve_prob007_wire"
+    ]
+  },
+  {
+    "id": "ve_Prob008_m2014_q4h",
+    "name": "m2014_q4h",
+    "module_name": "m2014_q4h",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: m2014_q4h\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob008_m2014_q4h\n\n## 1. Danh sách cổng (Ports):\n- input  wire in            : Tín hiệu vào in\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should assign the output port to the same value as the input port combinationally.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module m2014_q4h (\n  input in,\n  output out\n);\n\n  assign out = in;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "m2014_q4h",
+      "verilogeval",
+      "ve_prob008_m2014_q4h"
+    ]
+  },
+  {
+    "id": "ve_Prob009_popcount3",
+    "name": "popcount3",
+    "module_name": "popcount3",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: popcount3\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob009_popcount3\n\n## 1. Danh sách cổng (Ports):\n- input  wire [2:0] in      : Tín hiệu vào in [2:0]\n- output wire [1:0] out     : Tín hiệu ra out [1:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a \"population count\" circuit that counts the number of '1's in the input vector.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module popcount3 (\n  input [2:0] in,\n  output [1:0] out\n);\n\n  assign out = in[0]+in[1]+in[2];\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "popcount3",
+      "verilogeval",
+      "ve_prob009_popcount3"
+    ]
+  },
+  {
+    "id": "ve_Prob010_mt2015_q4a",
+    "name": "mt2015_q4a",
+    "module_name": "mt2015_q4a",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: mt2015_q4a\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob010_mt2015_q4a\n\n## 1. Danh sách cổng (Ports):\n- input  wire x             : Toán hạng / tín hiệu vào x\n- input  wire y             : Toán hạng / tín hiệu vào y\n- output wire z             : Tín hiệu ra z\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement the boolean function z = (x^y) & x.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module mt2015_q4a (\n  input x,\n  input y,\n  output z\n);\n\n  assign z = (x^y) & x;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "mt2015_q4a",
+      "verilogeval",
+      "ve_prob010_mt2015_q4a"
+    ]
+  },
+  {
+    "id": "ve_Prob011_norgate",
+    "name": "norgate",
+    "module_name": "norgate",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: norgate\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob011_norgate\n\n## 1. Danh sách cổng (Ports):\n- input  wire a             : Toán hạng / tín hiệu vào a\n- input  wire b             : Toán hạng / tín hiệu vào b\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a NOR gate.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module norgate (\n  input a,\n  input b,\n  output out\n);\n\n  assign out = ~(a | b);\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "norgate",
+      "verilogeval",
+      "ve_prob011_norgate"
+    ]
+  },
+  {
+    "id": "ve_Prob012_xnorgate",
+    "name": "xnorgate",
+    "module_name": "xnorgate",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: xnorgate\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob012_xnorgate\n\n## 1. Danh sách cổng (Ports):\n- input  wire a             : Toán hạng / tín hiệu vào a\n- input  wire b             : Toán hạng / tín hiệu vào b\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement an XNOR gate.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module xnorgate (\n  input a,\n  input b,\n  output out\n);\n\n  assign out = ~(a^b);\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "xnorgate",
+      "verilogeval",
+      "ve_prob012_xnorgate"
+    ]
+  },
+  {
+    "id": "ve_Prob013_m2014_q4e",
+    "name": "m2014_q4e",
+    "module_name": "m2014_q4e",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: m2014_q4e\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob013_m2014_q4e\n\n## 1. Danh sách cổng (Ports):\n- input  wire in1           : Toán hạng / tín hiệu vào in1\n- input  wire in2           : Toán hạng / tín hiệu vào in2\n- output logic out          : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a 2-input NOR gate.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module m2014_q4e (\n  input in1,\n  input in2,\n  output logic out\n);\n\n  assign out = ~(in1 | in2);\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "m2014_q4e",
+      "verilogeval",
+      "ve_prob013_m2014_q4e"
+    ]
+  },
+  {
+    "id": "ve_Prob014_andgate",
+    "name": "andgate",
+    "module_name": "andgate",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: andgate\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob014_andgate\n\n## 1. Danh sách cổng (Ports):\n- input  wire a             : Toán hạng / tín hiệu vào a\n- input  wire b             : Toán hạng / tín hiệu vào b\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a 2-input AND gate.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module andgate (\n  input a,\n  input b,\n  output out\n);\n\n  assign out = a & b;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "andgate",
+      "verilogeval",
+      "ve_prob014_andgate"
+    ]
+  },
+  {
+    "id": "ve_Prob015_vector1",
+    "name": "vector1",
+    "module_name": "vector1",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: vector1\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob015_vector1\n\n## 1. Danh sách cổng (Ports):\n- input  wire [15:0] in     : Tín hiệu vào in [15:0]\n- output wire [7:0] out_hi  : Tín hiệu ra out_hi [7:0]\n- output wire [7:0] out_lo  : Tín hiệu ra out_lo [7:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 1 ngõ vào và tạo 2 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a combinational circuit that splits an input half-word (16 bits, [15:0] ) into lower [7:0] and upper [15:8] bytes.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module vector1 (\n  input [15:0] in,\n  output [7:0] out_hi,\n  output [7:0] out_lo\n);\n\n  assign {out_hi, out_lo} = in;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "vector1",
+      "verilogeval",
+      "ve_prob015_vector1"
+    ]
+  },
+  {
+    "id": "ve_Prob016_m2014_q4j",
+    "name": "m2014_q4j",
+    "module_name": "m2014_q4j",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: m2014_q4j\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob016_m2014_q4j\n\n## 1. Danh sách cổng (Ports):\n- input  wire [3:0] x       : Toán hạng / tín hiệu vào x [3:0]\n- input  wire [3:0] y       : Toán hạng / tín hiệu vào y [3:0]\n- output wire [4:0] sum     : Tín hiệu ra sum [4:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- Implement a 4-bit adder with full adders. The output sum should include the overflow bit.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module m2014_q4j (\n  input [3:0] x,\n  input [3:0] y,\n  output [4:0] sum\n);\n\n  assign sum = x+y;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "m2014_q4j",
+      "verilogeval",
+      "ve_prob016_m2014_q4j"
+    ]
+  },
+  {
+    "id": "ve_Prob017_mux2to1v",
+    "name": "mux2to1v",
+    "module_name": "mux2to1v",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: mux2to1v\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob017_mux2to1v\n\n## 1. Danh sách cổng (Ports):\n- input  wire [99:0] a      : Toán hạng / tín hiệu vào a [99:0]\n- input  wire [99:0] b      : Toán hạng / tín hiệu vào b [99:0]\n- input  wire sel           : Tín hiệu chọn kênh\n- output wire [99:0] out    : Tín hiệu ra out [99:0]\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 3 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a 2-1 multiplexer. When sel=0, choose a. When sel=1, choose b.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module mux2to1v (\n  input [99:0] a,\n  input [99:0] b,\n  input sel,\n  output [99:0] out\n);\n\n  assign out = sel ? b : a;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "mux2to1v",
+      "verilogeval",
+      "ve_prob017_mux2to1v"
+    ]
+  },
+  {
+    "id": "ve_Prob018_mux256to1",
+    "name": "mux256to1",
+    "module_name": "mux256to1",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: mux256to1\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob018_mux256to1\n\n## 1. Danh sách cổng (Ports):\n- input  wire [255:0] in    : Tín hiệu vào in [255:0]\n- input  wire [7:0] sel     : Tín hiệu chọn kênh [7:0]\n- output wire out           : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a 1-bit wide, 256-to-1 multiplexer. The 256 inputs are all packed into a single 256-bit input vector. sel=0 should select in[0], sel=1 selects bits in[1], sel=2 selects bits in[2], etc.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module mux256to1 (\n  input [255:0] in,\n  input [7:0] sel,\n  output  out\n);\n\n  assign out = in[sel];\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "mux256to1",
+      "verilogeval",
+      "ve_prob018_mux256to1"
+    ]
+  },
+  {
+    "id": "ve_Prob019_m2014_q4f",
+    "name": "m2014_q4f",
+    "module_name": "m2014_q4f",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: m2014_q4f\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob019_m2014_q4f\n\n## 1. Danh sách cổng (Ports):\n- input  wire in1           : Toán hạng / tín hiệu vào in1\n- input  wire in2           : Toán hạng / tín hiệu vào in2\n- output logic out          : Tín hiệu ra out\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement the following circuit in Verilog. Two inputs (in1 and in2) go to an AND gate, but the in2 input to the AND gate has a bubble. The output of the AND gate is connected to 'out'.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module m2014_q4f (\n  input in1,\n  input in2,\n  output logic out\n);\n\n  assign out = in1 & ~in2;\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "m2014_q4f",
+      "verilogeval",
+      "ve_prob019_m2014_q4f"
+    ]
+  },
+  {
+    "id": "ve_Prob020_mt2015_eq2",
+    "name": "mt2015_eq2",
+    "module_name": "mt2015_eq2",
+    "source": "NVIDIA VerilogEval",
+    "category": "VerilogEval",
+    "spec": "# Tên module: mt2015_eq2\n\n## Nguồn đề bài: NVIDIA VerilogEval / ve_Prob020_mt2015_eq2\n\n## 1. Danh sách cổng (Ports):\n- input  wire [1:0] A       : Toán hạng / tín hiệu vào A [1:0]\n- input  wire [1:0] B       : Toán hạng / tín hiệu vào B [1:0]\n- output wire z             : Tín hiệu ra z\n\n## 2. Hoạt động logic:\n- Mạch thuộc nhóm VerilogEval và được chuyển thể từ benchmark NVIDIA VerilogEval.\n- Tóm tắt: mạch tổ hợp nhận 2 ngõ vào và tạo 1 ngõ ra theo quan hệ logic được mô tả trong phần đặc tả gốc bên dưới.\n- Đặc tả chi tiết (nguyên văn từ benchmark):\n- The module should implement a circuit that has two 2-bit inputs A[1:0] and B[1:0], and produces an output z. The value of z should be 1 if A = B, otherwise z should be 0.\n- Thiết kế tham chiếu đã được thẩm định PASS 100% bằng ModelSim.",
+    "ports": [],
+    "golden_rtl": "module mt2015_eq2 (\n  input [1:0] A,\n  input [1:0] B,\n  output z\n);\n\n  assign z = A[1:0]==B[1:0];\n\nendmodule",
+    "golden_tb": "",
+    "keywords": [
+      "mt2015_eq2",
+      "verilogeval",
+      "ve_prob020_mt2015_eq2"
+    ]
+  }
+]
