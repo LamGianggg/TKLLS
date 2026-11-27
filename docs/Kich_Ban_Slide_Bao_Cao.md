@@ -179,18 +179,18 @@ flowchart LR
        * Chạy `SpecAnalyzer.check_unsupported_domain()` $\rightarrow$ truy xuất **Hybrid BM25 + 3-gram Jaccard RAG** (`use_rag=True`, `KnowledgeMatcher.format_rag_context()`) lấy Top-K mẫu từ `knowledge_base/hardware_db.json` và `training/dataset_teacher_distilled.json`.
        * Nạp `Qwen2.5-Coder-3B-Instruct` + adapter DPO `models/qwen2.5_3b_verilog_dpo/` (GGUF/PyTorch), tự động fallback an toàn về `RTLGenerator.generate_from_spec()` nếu máy chưa có trọng số/GPU.
     2. **Nhánh Điều phối EDA Toàn trình (`agent/run_spec2rtl.py` — trong thư mục `agent/` gồm 13 module lõi/tiện ích & 2 script kiểm thử):**
-       * **Pha 1 (`spec_analyzer.py`, `knowledge_matcher.py`):** Domain Guard + bóc tách cổng I/O 3 tầng + truy xuất RAG Hybrid BM25.
-       * **Pha 2 (`run_spec2rtl.py --use-distilled`, `rtl_generator.py`, `tb_generator.py`):** Cầu nối `--use-distilled` gọi AI chưng cất (có fallback về `RTLGenerator`), ép khớp cổng bằng `RTLPortEnforcer.enforce()`, sinh Self-Checking Testbench.
-       * **Pha 3 (`verilog_linter.py`):** Kiểm tra tĩnh AST Linter trước khi mô phỏng.
-       * **Pha 4 (`simulator.py`, `reflection_loop.py`, `eda_finder.py`):** Chạy ModelSim/Icarus + tự vá lỗi vòng lặp khép kín (`max_retries=3`).
-       * **Pha 5 (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py` + `save_verified_design()`):** Xuất Project Quartus II, Schematic BDF, Waveform VWF, kiểm toán 4 chiều, đo tài nguyên Cyclone II và **lưu ngược mẫu pass Linter + ModelSim + Quartus vào `knowledge_base/hardware_db.json`** (chống trùng MD5).
+       * **Pha 1 (`spec_analyzer.py`, `knowledge_matcher.py`):** 4 bước kiểm chéo `Iterative Understanding & Planning` (Spec & Port Analyzer $\rightarrow$ Domain/30% Guard $\rightarrow$ Hybrid Vector RAG (`Vector + BM25 + 3-gram RRF` trên 643 mẫu) $\leftrightarrow$ Port & Plan Verifier).
+       * **Pha 2 (`run_spec2rtl.py --use-distilled`, `rtl_generator.py`, `tb_generator.py`):** Cầu nối `--use-distilled` gọi AI chưng cất (có fallback về `RTLGenerator`), ép khớp cổng bằng `RTLPortEnforcer.enforce()`, sinh Self-Checking Testbench (nhóm 70%).
+       * **Pha 3 (`verilog_linter.py`):** Verifier 1 — Kiểm tra tĩnh AST Linter trước khi mô phỏng.
+       * **Pha 4 (`simulator.py`, `reflection_loop.py`, `eda_finder.py`):** Verifier 2 — ModelSim Oracle + Adaptive Reflection (`Analysis -> Reflection -> Candidate Actions`, max 3 vòng).
+       * **Pha 5 (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py` + `save_verified_design()`):** Xuất Project Quartus II, Schematic BDF, Waveform VWF, kiểm toán 4 chiều, đo tài nguyên Cyclone II và **lưu ngược mẫu pass vào `knowledge_base/hardware_db.json`** (chống trùng MD5).
 * **Hình ảnh / Sơ đồ gợi ý:**
   - Sơ đồ kiến trúc chính thức tại Slide 8 (**bản địa hóa từ Fig. 3 của bài báo *Spec2RTL-Agent***): `![Sơ đồ kiến trúc hệ thống Spec2RTL bản địa hóa từ Fig. 3 Spec2RTL-Agent](images/spec2rtl_fig3_adapted.png)` *(đường dẫn repo: `docs/images/spec2rtl_fig3_adapted.png`)*.
-  - *Ghi chú hoàn thiện:* Đã tích hợp sẵn **RAG Hybrid BM25** (`agent/knowledge_matcher.py`), cầu nối `--use-distilled` (`agent/run_spec2rtl.py` + `use_rag` trong `models/run_inference.py`) và **vòng lưu ngược mẫu pass Quartus vào `knowledge_base/hardware_db.json`**.
+  - *Ghi chú hoàn thiện:* Đã đồng bộ sơ đồ theo đúng cấu trúc **Fig. 3** (Understanding 4 bước + Verifier $\rightarrow$ Implementation Plan $\rightarrow$ Direct Coding & Dual Verifier $\rightarrow$ EDA Output + Adaptive Reflection + Vòng nạp ngược `save_verified_design()`).
 * **Lời thoại thuyết trình (~45s):**
   > *"Sau khi có trọng số chưng cất, nhóm hoàn thiện kiến trúc tổng thể được bản địa hóa từ Fig. 3 của bài báo Spec2RTL-Agent như trên sơ đồ.*  
-  > *Ở lớp đầu vào và sinh mã, hệ thống kết hợp Domain Guard với bộ truy xuất **Hybrid BM25 RAG** trong `knowledge_matcher.py` để lấy mẫu tham khảo từ `hardware_db.json`, rồi truyền vào mô hình Qwen2.5-3B DPO qua cầu nối `--use-distilled` của `run_spec2rtl.py` (gọi `models/run_inference.py` với `use_rag=True`, vẫn có fallback an toàn về `RTLGenerator`).*  
-  > *Ở lớp kiểm chứng EDA, mã Verilog tiếp tục đi qua `RTLPortEnforcer`, AST Linter, vòng tự sửa lỗi ModelSim và xuất hồ sơ Quartus II; đặc biệt các thiết kế đạt chuẩn sau tổng hợp Quartus được lưu ngược trở lại `hardware_db.json` để làm giàu kho tri thức RAG cho các lần chạy sau."*
+  > *Ở lớp đầu vào và kế hoạch, hệ thống chạy tuần tự 4 bước kiểm chéo gồm `Spec & Port Analyzer`, `Domain & 30% Guard`, bộ truy xuất **Hybrid Vector RAG** trong `knowledge_matcher.py` và `Port & Plan Verifier` để chốt `Implementation Plan`.*  
+  > *Ở lớp sinh mã và kiểm chứng EDA, mã Verilog từ `Qwen2.5-3B DPO` qua cầu nối `--use-distilled` (có fallback về `RTLGenerator`) tiếp tục qua `RTLPortEnforcer`, `Self-Checking TB`, `AST Linter`, vòng tự sửa lỗi `ModelSim` và xuất hồ sơ `Quartus II`; đặc biệt các thiết kế đạt chuẩn được `save_verified_design()` lưu ngược trở lại `hardware_db.json` để làm giàu kho tri thức RAG cho các lần chạy sau."*
 
 ---
 

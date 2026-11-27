@@ -897,34 +897,34 @@
 
         <!-- SLIDE 8: CURRENT INTEGRATED ARCHITECTURE -->
         <section class="slide" data-title="Kiến trúc hệ thống tích hợp hiện tại"
-            data-notes="Sau khi có trọng số chưng cất, nhóm hoàn thiện kiến trúc tổng thể được bản địa hóa từ Fig. 3 của bài báo Spec2RTL-Agent như trên sơ đồ. Ở lớp đầu vào và sinh mã, hệ thống kết hợp Domain Guard với bộ truy xuất Hybrid BM25 RAG trong knowledge_matcher.py để lấy mẫu tham khảo từ hardware_db.json, rồi truyền vào mô hình Qwen2.5-3B DPO qua cầu nối --use-distilled của run_spec2rtl.py (gọi models/run_inference.py với use_rag=True, vẫn có fallback an toàn về RTLGenerator). Ở lớp kiểm chứng EDA, mã Verilog tiếp tục đi qua RTLPortEnforcer, AST Linter, vòng tự sửa lỗi ModelSim và xuất hồ sơ Quartus II; đặc biệt các thiết kế đạt chuẩn sau tổng hợp Quartus được lưu ngược trở lại hardware_db.json để làm giàu kho tri thức RAG cho các lần chạy sau.">
+            data-notes="Sau khi có trọng số chưng cất, nhóm hoàn thiện kiến trúc tổng thể được bản địa hóa từ Fig. 3 của bài báo Spec2RTL-Agent như trên sơ đồ. Ở lớp đầu vào và kế hoạch, hệ thống chạy tuần tự 4 bước kiểm chéo gồm Spec &amp; Port Analyzer, Domain &amp; 30% Guard, Hybrid Vector RAG (Vector + BM25 + 3-gram RRF) và Port &amp; Plan Verifier để chốt Implementation Plan. Ở lớp sinh mã và kiểm chứng EDA, mã Verilog từ Qwen2.5-3B DPO (--use-distilled, fallback RTLGenerator) đi qua RTLPortEnforcer, Self-Checking TB (nhóm 70%), AST Linter, vòng tự sửa lỗi ModelSim và xuất hồ sơ Quartus II; đặc biệt các thiết kế đạt chuẩn được save_verified_design() lưu ngược trở lại hardware_db.json để làm giàu kho tri thức RAG.">
             <div class="slide-header">
                 <span class="slide-tag">03. Kiến trúc hệ thống hiện tại</span>
-                <span class="slide-section-label">Spec2RTL-Agent Fig. 3 Adapted • Hybrid BM25 RAG + --use-distilled</span>
+                <span class="slide-section-label">Spec2RTL-Agent Fig. 3 Adapted • Hybrid Vector RAG + --use-distilled</span>
             </div>
             <h2 class="slide-title">Kiến Trúc Tích Hợp: Bản Địa Hóa Từ Fig. 3 Spec2RTL-Agent</h2>
             <div class="slide-body">
                 <div class="grid-2-wide-right">
                     <div style="display:flex; flex-direction:column; gap:10px;">
                         <div class="card card-accent-indigo">
-                            <h3>1. Hybrid BM25 RAG &amp; AI Chưng Cất (<code>--use-distilled</code>)</h3>
+                            <h3>1. Iterative Understanding &amp; Hybrid Vector RAG</h3>
                             <ul class="clean">
-                                <li><strong>RAG (<code>knowledge_matcher.py</code>):</strong> Hybrid BM25 + 3-gram Jaccard lấy Top-K từ <code>hardware_db.json</code> &amp; Teacher CoT.</li>
-                                <li><strong>Suy luận (<code>models/run_inference.py</code>):</strong> Domain Guard &rarr; gắn ngữ cảnh <code>use_rag=True</code> cho <code>Qwen2.5-3B</code> DPO, fallback an toàn về <code>RTLGenerator</code>.</li>
+                                <li><strong>Understanding &amp; Verifier:</strong> 4 bước nối tiếp (<code>spec_analyzer.py</code> &rarr; Domain/30% Guard &rarr; RAG &harr; Port Verifier) chốt <code>Implementation Plan</code>.</li>
+                                <li><strong>Hybrid RAG (<code>knowledge_matcher.py</code>):</strong> Vector (fastembed / Gemini / LSA) + BM25 + 3-gram RRF trên 643 mẫu (DB + Teacher RAM).</li>
                             </ul>
                         </div>
                         <div class="card card-accent-cyan">
-                            <h3>2. Đường Ống EDA &amp; Lưu Ngược DB (<code>run_spec2rtl.py</code>)</h3>
+                            <h3>2. Direct Coding, Self-Check TB &amp; Lưu Ngược DB</h3>
                             <ul class="clean">
-                                <li><strong>Pha 1–2:</strong> <code>spec_analyzer.py</code> (3 tầng) + cầu nối <code>--use-distilled</code> + <code>RTLPortEnforcer.enforce()</code> + <code>tb_generator.py</code>.</li>
-                                <li><strong>Pha 3–4:</strong> <code>verilog_linter.py</code> (AST Linter) &rarr; <code>simulator.py</code> + <code>reflection_loop.py</code> (ModelSim max 3 vòng).</li>
-                                <li><strong>Pha 5 &amp; Vòng nạp DB:</strong> Xuất Quartus II (<code>.bdf</code>, <code>.vwf</code>, <code>port_auditor</code>, <code>synthesis_profiler</code>) &amp; gọi <code>save_verified_design()</code> lưu ngược mẫu pass vào <code>hardware_db.json</code>.</li>
+                                <li><strong>Sinh mã &amp; TB 70%:</strong> Cầu nối <code>--use-distilled</code> (<code>run_inference.py</code> + <code>use_rag=True</code>) &rarr; <code>RTLPortEnforcer</code> &rarr; <code>tb_generator.py</code> Self-Check.</li>
+                                <li><strong>Dual Verifier &amp; Reflection:</strong> <code>verilog_linter.py</code> (AST) &rarr; ModelSim Oracle &harr; <code>reflection_loop.py</code> (max 3 vòng).</li>
+                                <li><strong>Quartus &amp; Lưu ngược DB:</strong> Xuất <code>.bdf</code>, <code>.vwf</code>, <code>LE/FF</code> và gọi <code>save_verified_design()</code> nạp ngược mẫu pass vào <code>hardware_db.json</code>.</li>
                             </ul>
                         </div>
                     </div>
                     <div class="img-frame" style="height:100%;">
                         <img src="images/spec2rtl_fig3_adapted.png" alt="Kiến trúc Spec2RTL bản địa hóa từ Fig. 3 Spec2RTL-Agent">
-                        <span class="img-caption">Bản địa hóa từ Fig. 3 (Spec2RTL-Agent) — Hybrid BM25 RAG + --use-distilled + Lưu ngược hardware_db.json</span>
+                        <span class="img-caption">Bản địa hóa từ Fig. 3 (Spec2RTL-Agent) — Iterative Understanding &rarr; Hybrid Vector RAG &rarr; Dual Verifier &rarr; Lưu ngược DB</span>
                     </div>
                 </div>
             </div>
