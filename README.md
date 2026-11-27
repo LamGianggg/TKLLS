@@ -13,26 +13,22 @@
 
 ---
 
-## 2. Kiến Trúc Hoạt Động (Pipeline Architecture)
+## 2. Kiến Trúc Hoạt Động (Spec2RTL-Agent Fig. 3 Adapted)
 
-![Kiến trúc hoạt động Spec2RTL (Horizontal Pipeline Architecture)](docs/images/pipeline_architecture_horizontal.png)
+![Kiến trúc hệ thống Spec2RTL & Prompt2Silicon (Bản địa hóa từ Spec2RTL-Agent Fig. 3)](docs/images/spec2rtl_fig3_adapted.png)
 
-```mermaid
-flowchart LR
-    A["Đặc Tả Ngôn Ngữ Tự Nhiên<br/>(specs/*.txt, specs/*.md)"] --> B["1. Spec & Port Analyzer<br/>(spec_analyzer.py)<br/>• Trích xuất Port, Bus<br/>• Tra cứu Hardware DB"]
-    B --> C["2. Dynamic Synthesis Engine<br/>(rtl_generator.py + tb_generator.py)<br/>• Sinh Verilog RTL synthesizable<br/>• Sinh Self-Checking Testbench"]
-    C --> D["3. Verilog Static Linter<br/>(verilog_linter.py)<br/>• Làm sạch & Quét chốt ẩn"]
-    D --> E["4. EDA Simulator in the Loop<br/>(simulator.py + ModelSim batch)"]
-    E -->|Có lỗi syntax / Assertion fail| F["Reflection Self-Healing Loop<br/>(reflection_loop.py)<br/>Đọc log ns ➔ Tự động sửa RTL"]
-    F --> C
-    E -->|100% Functional Pass| G["5. Quartus Toolchain Integration<br/>(bdf_generator.py + vwf_generator.py)<br/>• Xuất Project (.qpf, .bsf, .bdf, .vwf)"]
-    G --> H["Kiểm Toán Cổng & Báo Cáo Tài Nguyên<br/>(port_auditor.py + synthesis_profiler.py)<br/>• Bảo toàn chân 1:1 (Port Invariant)<br/>• Đo đạc LEs, FFs trên Cyclone II"]
-```
+> *Sơ đồ bản địa hóa trực tiếp theo cấu trúc **Fig. 3** của bài báo **Spec2RTL-Agent** (`arXiv:2506.13905`), tích hợp thêm **Hybrid Vector RAG**, **cầu nối AI chưng cất `--use-distilled`**, **Dual Verifier (AST Linter + ModelSim)** và **vòng nạp ngược tri thức `save_verified_design()`**.*
 
-1. **Bước 1 - Phân tích đặc tả (Ingestion & Port Analysis):** Bóc tách chính xác tên cổng, độ rộng bit (ví dụ: `[3:0] count`), hướng `input`/`output` và kiểm tra ranh giới kiến trúc qua `spec_analyzer.py`.
-2. **Bước 2 - Tổng hợp RTL & Testbench:** Sinh mã nguồn Verilog chuẩn synthesizable (`rtl_generator.py`) và bộ testbench tự kiểm tra với Verification Scoreboard (`tb_generator.py`).
-3. **Bước 3 - Kiểm tra tĩnh & Dọn dẹp:** Làm sạch mã nguồn, loại bỏ ký tự markdown rác và tiền kiểm tra cú pháp với `verilog_linter.py`.
-4. **Bước 4 - Mô phỏng phản tư & Xuất Quartus II:** ModelSim biên dịch và kiểm thử qua `simulator.py` & `reflection_loop.py`. Khi đạt 100% PASS, hệ thống tự động xuất sơ đồ nguyên lý BDF (`bdf_generator.py`) và dạng sóng Vector Waveform VWF (`vwf_generator.py`) nạp sẵn vào Quartus II, đồng thời đối soát cổng (`port_auditor.py`) và đo đạc tài nguyên FPGA (`synthesis_profiler.py`).
+1. **Pha 1 — Iterative Understanding & Planning (`spec_analyzer.py`, `knowledge_matcher.py`):**
+   * Chạy chuỗi 4 bước kiểm chéo: **Spec & Port Analyzer** (bóc tách cổng I/O & bus 3 tầng) $\to$ **Domain & 30% Guard** (`check_unsupported_domain()`, `is_30_percent_architecture()`) $\to$ **Hybrid RAG Retrieval** (`Vector + BM25 + 3-gram RRF` trên `643` mẫu từ `hardware_db.json` + `dataset_teacher_distilled.json`) $\leftrightarrow$ **Port & Plan Verifier** để chốt `Implementation Plan` (`Port Contract`, `RAG Top-K Context`, `RTL Gen Strategy`, `Self-Check TB Spec`).
+2. **Pha 2 — Direct RTL Coding (`models/run_inference.py`, `rtl_generator.py`, `tb_generator.py`):**
+   * Sinh Verilog trực tiếp qua mô hình **`Qwen2.5-3B DPO`** (`--use-distilled`, có `use_rag=True`) hoặc fallback an toàn về `RTLGenerator` $\to$ ép khớp chân 1:1 qua **`RTLPortEnforcer`** $\to$ sinh **Self-Checking Testbench** (có Verification Scoreboard tự chấm `[SUCCESS]`/`[FAIL]` cho các họ mạch 70%).
+3. **Pha 3 — Dual-Verifier & Adaptive Reflection (`verilog_linter.py`, `simulator.py`, `reflection_loop.py`):**
+   * Kiểm chứng 2 tầng **Verifier 1 (AST Static Linter thuần Python: 0 Latch, 0 Dangling, 0 Race)** $\to$ **Verifier 2 (ModelSim Oracle)**. Nếu **FAIL**, `Analysis Agent` (`diagnose_error()`) $\to$ `Reflection Agent` (`apply_auto_repair()`) chọn trong **Candidate Actions** (tối đa 3 vòng) để tự vá RTL/TB và chạy lại.
+4. **Pha 4 — EDA Synthesis, Visual Output & Closed-Loop DB (`bdf_generator.py`, `vwf_generator.py`, `port_auditor.py`, `synthesis_profiler.py`):**
+   * Khi **100% PASS**, xuất Project Quartus II (`.qpf`, `.qsf`), Symbol (`.bsf`), Schematic (`.bdf`), Waveform (`.vwf`), kiểm toán 4 chiều ($\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$) và đo tài nguyên Cyclone II (`LEs`, `FFs`); đồng thời gọi **`save_verified_design()`** nạp ngược mẫu đạt chuẩn (chống trùng MD5) về `knowledge_base/hardware_db.json`.
+5. **Pha 5 — Offline Knowledge Distillation (`training/distill_teacher_cot.py`, Google Colab):**
+   * Chưng cất từ **VerilogDB** + **100 Prompts CE118** qua **Gemini Teacher (`gemini-3.1-flash-lite`)** & Truth Oracle 3 tầng (đạt `104/108` mẫu CoT sạch đợt 1) để huấn luyện **SFT LoRA + DPO** cho `Qwen2.5-Coder-3B` trên Colab T4, rồi nạp trọng số GGUF/LoRA về `models/`.
 
 ---
 
@@ -40,27 +36,30 @@ flowchart LR
 
 ```
 TKLLS/
-├── agent/                         # Lõi tác tử điều phối Spec2RTL (14 module sạch)
-│   ├── run_spec2rtl.py            # Master CLI Orchestrator điều phối toàn bộ luồng
-│   ├── spec_analyzer.py           # Phân tích đặc tả, trích xuất cổng I/O & ranh giới kiến trúc
-│   ├── rtl_generator.py           # Bộ sinh mã Verilog RTL chuẩn synthesizable
-│   ├── tb_generator.py            # Bộ sinh Testbench tự kiểm tra (VeriPrefer standard)
+├── agent/                         # Lõi tác tử Spec2RTL (13 module lõi & 2 bộ kiểm thử)
+│   ├── run_spec2rtl.py            # Master CLI Orchestrator (--use-distilled, closed-loop DB)
+│   ├── spec_analyzer.py           # Domain Guard (30%/70%) & bóc tách cổng I/O 3 tầng
+│   ├── rtl_generator.py           # RTLPortEnforcer & bộ sinh RTL fallback synthesizable
+│   ├── tb_generator.py            # Self-Checking Testbench cho các họ mạch 70%
 │   ├── simulator.py               # Trình điều khiển mô phỏng ModelSim / Icarus Verilog
-│   ├── reflection_loop.py         # Vòng lặp phản tư tự sửa lỗi logic
+│   ├── reflection_loop.py         # Vòng lặp phản tư tự sửa lỗi logic (max 3 vòng)
 │   ├── bdf_generator.py           # Tự động xuất Symbol BSF và Sơ đồ Schematic BDF
 │   ├── vwf_generator.py           # Tự động tạo Vector Waveform VWF cho Quartus II
-│   ├── port_auditor.py            # Kiểm toán toàn vẹn cổng I/O (Zero-Defect Invariant)
+│   ├── port_auditor.py            # Kiểm toán toàn vẹn cổng I/O 4 chiều
 │   ├── eda_finder.py              # Tự động dò tìm ModelSim và Quartus trên ổ đĩa
 │   ├── synthesis_profiler.py      # Đo đạc mức tiêu thụ tài nguyên FPGA (LEs, Registers, Pins)
-│   ├── verilog_linter.py          # Tiền kiểm tra cú pháp và dọn dẹp mã Verilog
-│   ├── knowledge_matcher.py       # Bộ nhớ tri thức so khớp ngữ nghĩa đặc tả vi mạch
-│   └── test_robustness_battery.py # Bộ kiểm thử hồi quy các bài toán toàn diện
-├── knowledge_base/                # Cơ sở tri thức vi mạch (RTLLM, VerilogEval, VeriPrefer)
+│   ├── verilog_linter.py          # Bộ phân tích tĩnh AST thuần Python (0 Latch/Dangling/Race)
+│   ├── knowledge_matcher.py       # Hybrid RAG (Vector + BM25 + 3-gram RRF) & save_verified_design()
+│   ├── test_group3_linter.py      # Kiểm thử AST Linter & Domain Guard (5/5)
+│   └── test_robustness_battery.py # Bộ kiểm thử hồi quy 20 bài toán toàn diện (20/20)
+├── models/                        # Suy luận AI cục bộ (run_inference.py: GGUF / PyTorch + RAG)
+├── training/                      # Chưng cất Gemini Teacher CoT, dataset SFT/DPO & Colab 3B
+├── benchmarks/                    # Benchmark toàn trình & bộ 28 truy vấn RAG nhóm 70%
+├── reports/                       # Báo cáo thực nghiệm Linter, Tuần 2 & Benchmark RAG 70%
+├── knowledge_base/                # Cơ sở tri thức vi mạch (hardware_db.json, reflection_db.json)
 ├── specs/                         # Thư mục chứa các đề bài đặc tả kỹ thuật (.txt, .md)
-├── src/                           # Mã nguồn Verilog RTL tự động sinh
-├── sim/                           # Môi trường mô phỏng (Testbench, file VCD)
-├── quartus/                       # Project Quartus II (.qpf, .qsf), Symbol (.bsf), Sơ đồ (.bdf), Sóng (.vwf)
-└── docs/                          # Tài liệu báo cáo, giải thích luồng mã nguồn, 100 Prompt tuyển tập
+├── docs/                          # Slide HTML bảo vệ, kịch bản thuyết trình, sơ đồ kiến trúc, 100 Prompts
+└── HANDOFF_NEXT_STEPS.md          # Hướng dẫn bàn giao chi tiết khi chuyển sang máy mới
 ```
 
 ---
@@ -78,14 +77,16 @@ Hệ thống chạy trên nền Python 3.8+ và tương thích với công cụ 
 # 1. Chạy bài toán mẫu có sẵn (ví dụ: Đồng hồ bấm giờ c.txt)
 python agent/run_spec2rtl.py specs/c.txt
 
-# 2. Chạy bài toán và tự động mở cửa sổ sóng đồ họa ModelSim GUI
+# 2. Chạy kèm AI chưng cất (Qwen2.5-3B + Hybrid Vector RAG, tự fallback RTLGenerator)
+python agent/run_spec2rtl.py specs/c.txt --use-distilled
+
+# 3. Chạy bài toán và tự động mở cửa sổ sóng đồ họa ModelSim GUI
 python agent/run_spec2rtl.py specs/c.txt --gui
 
-# 3. Chạy chế độ Menu tương tác tự động quét thư mục specs/
-python agent/run_spec2rtl.py
-
-# 4. Chạy toàn bộ 20 bài toán kiểm thử hồi quy toàn diện
+# 4. Chạy bộ kiểm thử AST Linter, 20 bài robustness và Benchmark RAG 70%
+python agent/test_group3_linter.py
 python agent/test_robustness_battery.py
+python benchmarks/benchmark_70_rag.py
 ```
 
 ### 4.3. Cách kiểm tra bài toán mới bất kỳ
