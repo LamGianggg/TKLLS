@@ -530,11 +530,11 @@ def merge_and_export(checkpoint, model_name):
 
 def main():
     parser = argparse.ArgumentParser(description="Chưng cất tri thức từ Gemini Teacher qua ModelSim Truth Oracle")
-    parser.add_argument("--model", default="gemini-3.1-flash-lite,gemini-3-flash-preview", help="Tên model Teacher Gemini (phân cách bằng dấu phẩy để fallback)")
+    parser.add_argument("--model", default="gemini-3.5-flash-lite,gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash", help="Tên model Teacher Gemini (phân cách bằng dấu phẩy để fallback)")
     parser.add_argument("--limit", type=int, default=0, help="Giới hạn số đề bài xử lý mới trong lần chạy (0 = toàn bộ)")
     parser.add_argument("--delay", type=float, default=4.5, help="Thời gian nghỉ (giây) giữa các request Free Tier")
     parser.add_argument("--include-verilogdb", action="store_true", help="Bổ sung nguồn đặc tả đa dạng họ mạch từ Rohan-code/Verilog_DB_read")
-    parser.add_argument("--verilogdb-count", type=int, default=200, help="Số lượng mẫu VerilogDB cần kéo chọn lọc (mặc định 200)")
+    parser.add_argument("--verilogdb-count", type=int, default=1000, help="Số lượng mẫu VerilogDB cần kéo chọn lọc (mặc định 1000 để lấy toàn bộ pool)")
     parser.add_argument("--refresh-verilogdb", action="store_true", help="Tải lại tập chọn lọc VerilogDB từ HuggingFace")
     parser.add_argument("--verify-sim", action="store_true", help="Chạy thêm mô phỏng ModelSim vsim.exe ngoài bước biên dịch vlog.exe")
     parser.add_argument("--retry-failed", action="store_true", help="Chạy lại các mẫu từng failed trong checkpoint")
