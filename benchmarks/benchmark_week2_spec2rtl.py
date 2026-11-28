@@ -21,7 +21,7 @@ import sys
 import time
 import json
 
-# Setup paths
+# Thiết lập đường dẫn gốc dự án, thư mục agent/, thư mục specs/ và file báo cáo Tuần 2
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AGENT_DIR = os.path.join(PROJECT_ROOT, "agent")
 SPECS_DIR = os.path.join(PROJECT_ROOT, "specs")
@@ -30,9 +30,11 @@ REPORT_PATH = os.path.join(PROJECT_ROOT, "reports", "REPORT_TUAN_2_BENCHMARK.md"
 if AGENT_DIR not in sys.path:
     sys.path.insert(0, AGENT_DIR)
 
+# Nạp hàm điều phối khép kín run_single_spec (sinh RTL + mô phỏng ModelSim + tổng hợp Quartus II) và AST Linter
 from run_spec2rtl import run_single_spec
 from verilog_linter import VerilogLinter
 
+# Bộ 6 bài toán đặc tả chuẩn đại diện cho tổ hợp, tuần tự, truyền thông UART và máy trạng thái FSM
 BENCHMARK_SPECS = [
     {"file": "a.txt", "name": "uart_tx_8bit", "desc": "Bộ phát UART TX 8-bit tuần tự"},
     {"file": "b.txt", "name": "button_debouncer", "desc": "Mạch khử rung phím bấm (Case study Thầy chỉ ra)"},
@@ -43,6 +45,7 @@ BENCHMARK_SPECS = [
 ]
 
 def run_benchmark():
+    """Thực thi benchmark khép kín trên 6 spec thực tế: ModelSim Pass@1 -> AST Linter -> Quartus II FPGA stats."""
     print("=" * 80)
     print("   BẮT ĐẦU CHẠY BENCHMARK ĐÁNH GIÁ TUẦN 2: SPEC2RTL & PROMPT2SILICON")
     print("   Hạ tầng kiểm định khép kín: ModelSim + AST Linter + Quartus II EDA")
@@ -55,11 +58,12 @@ def run_benchmark():
         spec_path = os.path.join(SPECS_DIR, item["file"])
         print(f"\n[{idx}/6] Đang kiểm tra: {item['name']} ({item['file']})...")
         
+        # Bước 1: Chạy toàn bộ pipeline Spec2RTL cho 1 file đặc tả và đo thời gian thực thi
         start_t = time.time()
         success, sim_time, module_name, bdf_file, hw_stats = run_single_spec(spec_path, ThuMucGoc=PROJECT_ROOT)
         elapsed = time.time() - start_t
 
-        # Quét linter file RTL chính
+        # Bước 2: Quét kiểm chứng độc lập lại file RTL sinh ra trong src/ bằng AST Hardware Linter
         rtl_file = os.path.join(PROJECT_ROOT, "src", f"{module_name}.v")
         lint_report = {"latches": 0, "dangling": 0, "race": 0, "valid": False}
         if os.path.exists(rtl_file):
@@ -71,6 +75,7 @@ def run_benchmark():
             lint_report["race"] = len(lres["race_conditions"])
             lint_report["valid"] = lres["valid"]
 
+        # Bước 3: Gom số liệu Pass@1 mô phỏng, kết quả AST Linter và tài nguyên FPGA từ Quartus II
         res_entry = {
             "id": idx,
             "spec_file": item["file"],
@@ -89,6 +94,7 @@ def run_benchmark():
         }
         results.append(res_entry)
 
+    # Bước 4: Tổng hợp tỷ lệ Pass@1, tỷ lệ sạch AST và in bảng kết quả ra màn hình
     total_time = round(time.time() - total_start, 2)
     pass_count = sum(1 for r in results if r["pass_sim"])
     clean_ast_count = sum(1 for r in results if r["clean_ast"])
@@ -107,11 +113,12 @@ def run_benchmark():
     print(f">> TỶ LỆ SẠCH CHỐT ẨN & CHÂN LƠ LỬNG: {clean_ast_count}/{len(results)} ({clean_ast_count/len(results)*100:.1f}%)")
     print(f">> TỔNG THỜI GIAN THỰC THI: {total_time} giây")
 
-    # Xuất file báo cáo Markdown
+    # Bước 5: Xuất file báo cáo Markdown lưu tại reports/REPORT_TUAN_2_BENCHMARK.md
     export_markdown_report(results, pass_count, clean_ast_count, total_time)
     return results
 
 def export_markdown_report(results, pass_count, clean_ast_count, total_time):
+    """Sinh báo cáo thực nghiệm Tuần 2 dạng Markdown (bảng số liệu + phân tích đối sánh)."""
     lines = [
         "# BÁO CÁO KẾT QUẢ THỰC NGHIỆM BENCHMARK TUẦN 2: SPEC2RTL & PROMPT2SILICON",
         "",

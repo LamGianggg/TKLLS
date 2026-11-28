@@ -1,13 +1,14 @@
 """
 Module: run_spec2rtl.py
-Mô tả: Chương trình điều phối tự động quy trình Spec2RTL & Prompt2Silicon.
-Quy trình thực thi hoàn chỉnh:
-  1. Đọc và phân tích yêu cầu đặc tả (specs/*.txt, specs/*.md)
-  2. Tự động sinh mã nguồn Verilog RTL (src/*.v)
-  3. Tự động sinh Testbench tự kiểm tra lỗi (sim/*.v)
-  4. Mô phỏng và phản hồi tự sửa lỗi qua ModelSim / Icarus
-  5. Tự động tạo file Symbol (.bsf) và sơ đồ nguyên lý (.bdf) cho Quartus II
-  6. Tạo dự án Quartus II (.qpf/.qsf) và trích xuất tài nguyên (LE, Flip-Flop, Pin)
+Mô tả: Chương trình điều phối tự động quy trình Spec2RTL & Prompt2Silicon (theo kiến trúc vòng lặp kín Spec2RTL Fig. 3).
+Vai trò trong luồng Spec2RTL Fig. 3:
+  Đóng vai trò Orchestrator trung tâm kết nối toàn bộ các pha:
+  1. Spec Ingestion & Guard (Bước 1-2): Đọc đặc tả, kiểm tra Domain Guard & Architectural Boundary.
+  2. RTL & Testbench Generation (Bước 2): Sinh mã bằng Template / AI Distilled + Hybrid RAG / Dynamic RTLGenerator.
+  3. Static AST Hardware Linter (Bước 2.5): Kiểm tra tĩnh latch, dangling pin, race condition qua VerilogLinter.
+  4. EDA Verification & Self-Healing Reflection Loop (Bước 3): Mô phỏng ModelSim/Icarus và tự vá lỗi tối đa 3 vòng.
+  5. Hardware Packaging & Port Audit (Bước 4 - 4.5): Xuất dự án Quartus II (.qpf/.qsf), Symbol (.bsf), Sơ đồ (.bdf), Dạng sóng (.vwf), đối soát cổng và đo tài nguyên (LE, FF, Pin).
+  6. Knowledge Feedback Loop: Nạp ngược các thiết kế đạt chuẩn (PASS mô phỏng + PASS Linter) vào RAG Knowledge DB.
 """
 
 import os
@@ -37,11 +38,17 @@ from synthesis_profiler import SynthesisProfiler
 from vwf_generator import VWFGenerator
 
 def get_base_dir():
-    """Tự động xác định thư mục gốc của dự án trên mọi máy tính và hệ điều hành."""
+    """
+    Tự động xác định thư mục gốc của dự án trên mọi máy tính và hệ điều hành.
+    (Đi lên 1 cấp từ thư mục agent/ chứa file hiện tại).
+    """
     return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 def get_circuit_quartus_dir(ThuMucGoc, TenMach):
-    """Tự động tạo và trả về thư mục riêng cho từng mạch trong quartus/."""
+    """
+    Tự động tạo và trả về thư mục riêng cho từng mạch trong quartus/<TenMach>/.
+    Chuẩn hóa tên mạch (chỉ giữ chữ, số, dấu gạch dưới) để tránh lỗi đường dẫn Quartus.
+    """
     if not ThuMucGoc:
         ThuMucGoc = get_base_dir()
     TenSach = re.sub(r'[^A-Za-z0-9_]', '_', str(TenMach)).strip('_') or "circuit"
@@ -52,10 +59,15 @@ def get_circuit_quartus_dir(ThuMucGoc, TenMach):
     return ThuMucQuartus
 
 def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachRtl, DuongDanVcd=None):
-    """Tự động tạo dự án Quartus, biểu tượng BSF và sơ đồ nguyên lý BDF."""
+    """
+    [Spec2RTL Fig. 3 - Pha Đóng gói Phần cứng & Tổng hợp Backend EDA]
+    Tự động tạo dự án Quartus II (.qpf/.qsf), biểu tượng khối (.bsf), sơ đồ nguyên lý (.bdf),
+    file dạng sóng (.vwf) và chạy tổng hợp tĩnh quartus_map (nếu có sẵn trên máy).
+    """
     os.makedirs(ThuMucQuartus, exist_ok=True)
     FileQuartusMap = find_quartus_map()
 
+    # Đặt tên sơ đồ top là sch_<TenMach> để không trùng tên entity RTL gốc
     TenSoDoTop = f"sch_{TenMach}"
 
     # Xóa file BDF cũ nếu trùng tên để tránh lỗi Quartus 12049
@@ -69,7 +81,7 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
     FileBsf = os.path.join(ThuMucQuartus, f"{TenMach}.bsf")
     FileBdf = os.path.join(ThuMucQuartus, f"{TenSoDoTop}.bdf")
 
-    # 1. Tạo file cấu hình QPF & QSF với đường dẫn tương đối
+    # 1. Tạo file cấu hình QPF & QSF với đường dẫn tương đối (nhắm đích FPGA Cyclone II EP2C35F672C6)
     with open(FileQpf, "w", encoding="utf-8") as TepTin:
         TepTin.write(f'PROJECT_REVISION = "{TenDuAn}"\n')
 
@@ -84,6 +96,7 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
         'set_global_assignment -name SEARCH_PATH "."',
         f'set_global_assignment -name BDF_FILE "{TenSoDoTop}.bdf"',
     ]
+    # Lọc bỏ file testbench (tb_*), chỉ copy và đăng ký các file RTL tổng hợp được vào QSF
     for FileRtl in DanhSachRtl:
         if not os.path.basename(FileRtl).startswith("tb_"):
             FileRtlDich = os.path.join(ThuMucQuartus, os.path.basename(FileRtl))
@@ -96,18 +109,18 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
     with open(FileQsf, "w", encoding="utf-8") as TepTin:
         TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
 
-    # 2. Sinh Symbol BSF từ cổng RTL
+    # 2. Sinh Symbol BSF từ cổng RTL để có thể nhúng vào sơ đồ khối Quartus
     BoTaoBdf = BDFGenerator()
     if os.path.exists(FileRtlChinh):
         BoTaoBdf.generate_bsf_from_rtl(FileRtlChinh, FileBsf)
 
-    # 3. Sinh sơ đồ nguyên lý BDF từ BSF
+    # 3. Sinh sơ đồ nguyên lý BDF từ BSF (chỉ tạo khi BSF tồn tại)
     DaTaoBdf = False
     if os.path.exists(FileBsf):
         BoTaoBdf.generate_bdf_from_bsf(FileBsf, FileBdf)
         DaTaoBdf = True
 
-    # 3.5. Sinh duy nhất 1 file dạng sóng Quartus VWF (Waveform.vwf)
+    # 3.5. Sinh duy nhất 1 file dạng sóng Quartus VWF (Waveform.vwf) từ VCD mô phỏng hoặc cấu trúc cổng RTL
     FileVwf = os.path.join(ThuMucQuartus, "Waveform.vwf")
     FileVwfMachCu = os.path.join(ThuMucQuartus, f"Waveform_{TenMach}.vwf")
     if os.path.exists(FileVwfMachCu):
@@ -118,12 +131,13 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
     if os.path.exists(FileRtlChinh):
         BoTaoVwf.generate_vwf_from_rtl(FileRtlChinh, FileVwf, DuongDanVcd=DuongDanVcd)
         TenVwfTuongDoi = "Waveform.vwf"
+        # Cập nhật lại QSF để tránh trùng lặp VECTOR_WAVEFORM_FILE
         DongCauHinhQsf = [dong for dong in DongCauHinhQsf if "VECTOR_WAVEFORM_FILE" not in dong]
         DongCauHinhQsf.append(f'set_global_assignment -name VECTOR_WAVEFORM_FILE "{TenVwfTuongDoi}"')
         with open(FileQsf, "w", encoding="utf-8") as TepTin:
             TepTin.write('\n'.join(DongCauHinhQsf) + '\n')
 
-    # 4. Tổng hợp Quartus Map
+    # 4. Tổng hợp Quartus Map (nhánh có quartus_map.exe vs nhánh FALLBACK chỉ xuất file dự án)
     if FileQuartusMap and os.path.exists(FileQuartusMap):
         for ThuMucTam in ["db", "incremental_db"]:
             DuongDanTam = os.path.join(ThuMucQuartus, ThuMucTam)
@@ -141,12 +155,18 @@ def setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSac
         except Exception as e:
             print(f" -> [Lưu ý EDA]: Quá trình chạy quartus_map gặp cảnh báo: {e}")
     elif not FileQuartusMap:
+        # FALLBACK: Máy không cài Quartus CLI -> vẫn giữ đủ .qpf, .bdf, .vwf để mở thủ công trong GUI
         print(f" -> [Lưu ý EDA]: Không tìm thấy quartus_map.exe trên máy. Project {TenDuAn}.qpf, sơ đồ {TenSoDoTop}.bdf và sóng Waveform.vwf đã sẵn sàng để mở trực tiếp trong Quartus II GUI.")
 
     return FileQpf, FileBsf, FileBdf if DaTaoBdf else None, FileVwf
 
 def _extract_verilog_code(raw_text):
-    """Trích xuất mã Verilog hợp lệ (có module/endmodule) từ output mô hình AI."""
+    """
+    Trích xuất mã Verilog hợp lệ (có đủ cặp module/endmodule) từ output thô của mô hình AI.
+    - Ưu tiên bóc từ block code markdown ```verilog ... ```.
+    - Fallback: dùng regex tìm trực tiếp đoạn `module ... endmodule`.
+    - Trả về None nếu không hợp lệ (kích hoạt nhánh fallback sang RTLGenerator).
+    """
     if not raw_text or not isinstance(raw_text, str):
         return None
     blocks = re.findall(r"```(?:verilog|systemverilog|v)?\s*([\s\S]*?)```", raw_text, flags=re.IGNORECASE)
@@ -160,7 +180,19 @@ def _extract_verilog_code(raw_text):
 
 
 def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=False, MoTrangWeb=False, DungAiChinh=False):
-    """Thực thi toàn bộ quy trình Spec2RTL cho một bài toán đặc tả."""
+    """
+    [Spec2RTL Fig. 3 - Pipeline Chính Cho 1 Đặc Tả]
+    Thực thi toàn bộ quy trình khép kín cho một bài toán đặc tả:
+      - Pha 1 (Spec Ingestion): Đọc nội dung văn bản đặc tả.
+      - Pha 2 (Guards & Code Gen): Kiểm tra Domain Guard / Architectural Boundary; sinh RTL + TB
+        theo Template, hoặc AI Distilled + Hybrid RAG (fallback sang RTLGenerator nếu lỗi).
+      - Pha 2.5 (Static AST Linter): Dọn cú pháp và kiểm tra Latch / Dangling Pin / Race Condition.
+      - Pha 3 (Simulation & Reflection Loop): Chạy ModelSim/Icarus và tự sửa lỗi vòng lặp kín.
+      - Pha 4 - 4.5 (Packaging, Audit, Profiling & Knowledge Feedback): Xuất Quartus QPF/BSF/BDF/VWF,
+        đối soát cổng, đo tài nguyên LE/FF và nạp ngược vào RAG DB nếu PASS cả mô phỏng lẫn Linter.
+      - Pha 5 (Final Verdict): Kết luận PASS hoặc chẩn đoán lỗi FAIL.
+    """
+    # Pha 0: Khởi tạo các thư mục đầu ra chuẩn (src/, sim/, quartus/)
     if not ThuMucGoc:
         ThuMucGoc = get_base_dir()
     ThuMucGoc = os.path.abspath(ThuMucGoc)
@@ -176,7 +208,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     print(f"   [XỬ LÝ BÀI TOÁN]: {os.path.basename(DuongDanSpec)}")
     print("=" * 80)
 
-    # Bước 1: Đọc và phân tích đặc tả
+    # Pha 1 (Bước 1): Đọc và xem trước văn bản đặc tả đầu vào
     print(f"[Bước 1] Đang đọc và phân tích văn bản đặc tả...")
     with open(DuongDanSpec, "r", encoding="utf-8", errors="replace") as TepTin:
         NoiDungSpec = TepTin.read()
@@ -184,7 +216,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     print(NoiDungSpec.strip()[:350] + ("..." if len(NoiDungSpec) > 350 else ""))
     print("-" * 80)
 
-    # Bước 2: Tự động sinh mã RTL và Testbench
+    # Pha 2 (Bước 2): Phân tích đặc tả, kiểm tra rào chắn an toàn (Guards) và sinh mã RTL & Testbench
     print(f"\n[Bước 2] Tự động sinh mã nguồn Verilog RTL & Testbench...")
     BoSinhRtl = RTLGenerator(ThuMucSrc)
     BoSinhTb  = TBGenerator(ThuMucSim)
@@ -193,12 +225,14 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     PhanLoai = BoPhanTich.classify_system()
     TenModule = BoPhanTich.extract_module_name()
 
+    # Bảng ánh xạ các hệ thống mẫu kinh điển có sẵn bộ sinh chuyên biệt
     BangMachMau = {
         "VENDING":  ("vending_machine", "Vending_Machine", BoSinhRtl.generate_vending_machine, BoSinhTb.generate_vending_tb),
         "ELEVATOR": ("elevator_controller", "Elevator_Controller", BoSinhRtl.generate_elevator_controller, BoSinhTb.generate_elevator_tb),
         "TRAFFIC":  ("traffic_light", "Traffic_Light", BoSinhRtl.generate_traffic_light, BoSinhTb.generate_traffic_tb),
     }
 
+    # Rẽ nhánh FAIL #1 (Domain Guard): Từ chối sớm các yêu cầu ngoài phạm vi RTL số (analog, RF, phần mềm thuần...)
     is_unsup, domain_cat, reject_reason = BoPhanTich.check_unsupported_domain()
     if is_unsup:
         print("\n" + "=" * 80)
@@ -211,6 +245,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         print(">>> [SPEC2RTL STATUS: REJECTED (OUT OF SCOPE)] <<<\n")
         return False, 0.0, TenModule, None, {"rejected_reason": reject_reason, "category": domain_cat}
 
+    # Rẽ nhánh FAIL #2 (Architectural Boundary Guard): Chặn sinh nguyên khối các SoC/AI NPU phức tạp
     if PhanLoai == "SOC_AI" or BoPhanTich.is_30_percent_architecture():
         print("\n" + "=" * 80)
         print("   [CHIẾN LƯỢC PHÂN TÁCH KIẾN TRÚC]: BÁO HIỆU GIỚI HẠN KIẾN TRÚC PHẦN CỨNG")
@@ -225,6 +260,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         print(">>> [SPEC2RTL STATUS: FAILED (REJECTED BY ARCHITECTURAL BOUNDARY GUARD)] <<<\n")
         return False, 0.0, TenModule, None, {}
 
+    # Nhánh 2A: Bài toán thuộc nhóm mạch mẫu (VENDING / ELEVATOR / TRAFFIC) -> sinh từ bộ sinh chuyên biệt nếu chưa có
     elif PhanLoai in BangMachMau:
         TenMach, TenDuAn, HamSinhRtl, HamSinhTb = BangMachMau[PhanLoai]
         ThuMucQuartus = get_circuit_quartus_dir(ThuMucGoc, TenMach)
@@ -239,6 +275,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
             print(f" -> [Auto-Gen] Đã sinh TB : sim/{TenModuleTb}.v")
         DanhSachVerilog, DanhSachFileRtl, FileRtlChinh = [FileRtl, FileTb], [FileRtl], FileRtl
 
+    # Nhánh 2B: Bài toán tùy ý -> ưu tiên AI Distilled + Hybrid RAG (nếu bật cờ), FALLBACK về RTLGenerator
     else:
         # Tự động sinh mã cho bài toán tùy ý
         TenMach = TenModule
@@ -248,7 +285,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         FileRtl = os.path.join(ThuMucSrc, f"{TenMach}.v")
         FileTb = os.path.join(ThuMucSim, f"{TenModuleTb}.v")
 
-        # Xóa các file cũ nếu có
+        # Xóa các file sơ đồ cũ trong quartus/ để tránh dùng nhầm bản cũ khi tái sinh RTL
         for FileCu in [os.path.join(ThuMucQuartus, f"{TenMach}.bsf"), os.path.join(ThuMucQuartus, f"{TenMach}.bdf"), os.path.join(ThuMucQuartus, f"top_{TenMach}.bdf"), os.path.join(ThuMucQuartus, f"sch_{TenMach}.bdf")]:
             if os.path.exists(FileCu):
                 try: os.remove(FileCu)
@@ -264,6 +301,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
                 ket_qua_ai = generate_verilog(NoiDungSpec, use_rag=True)
                 ma_rtl_ai = _extract_verilog_code(ket_qua_ai)
                 if ma_rtl_ai:
+                    # Ép chuẩn lại danh sách cổng theo spec và lọc lỗi cú pháp cơ bản trước khi lưu
                     DanhSachCongSpec = BoPhanTich.extract_ports()
                     if DanhSachCongSpec:
                         ma_rtl_ai = RTLPortEnforcer.enforce(ma_rtl_ai, DanhSachCongSpec)
@@ -272,15 +310,19 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
                         TepRtl.write(ma_rtl_ai)
                     print(f" -> [AI Distilled + RAG] Đã sinh & chuẩn hóa RTL: src/{os.path.basename(FileRtl)}")
                 else:
+                    # FALLBACK: Output AI không có module/endmodule hợp lệ -> chuyển sang bộ sinh động
                     print(" -> [AI Distilled + RAG] Output AI chưa có module/endmodule hợp lệ -> fallback RTLGenerator...")
             except Exception as ai_err:
+                # FALLBACK: Lỗi khi gọi model AI (thiếu trọng số, lỗi runtime...) -> chuyển sang bộ sinh động
                 print(f" -> [AI Distilled + RAG] Không khả dụng ({ai_err}) -> fallback RTLGenerator...")
                 ma_rtl_ai = None
 
+        # Thực thi FALLBACK hoặc luồng mặc định (khi không dùng AI chính): sinh RTL từ RTLGenerator
         if not ma_rtl_ai:
             _, FileRtl = BoSinhRtl.generate_from_spec(NoiDungSpec, DuongDanSpec)
             print(f" -> [Auto-Gen Dynamic RTL] Đã sinh: src/{os.path.basename(FileRtl)}")
 
+        # Luôn sinh Testbench tương ứng theo spec và file RTL vừa có
         _, FileTb = BoSinhTb.generate_tb_from_spec(NoiDungSpec, FileRtl, DuongDanSpec)
         print(f" -> [Auto-Gen Dynamic TB] Đã sinh: sim/{os.path.basename(FileTb)}")
 
@@ -288,7 +330,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         DanhSachFileRtl = [FileRtl]
         FileRtlChinh = FileRtl
 
-    # Đảm bảo TenMach và TenModuleTb khớp chính xác với khai báo module Verilog
+    # Đồng bộ lại TenMach và TenModuleTb theo khai báo `module <name>` thực tế trong file .v (tránh lệch tên khi tạo QPF/BDF/vsim)
     if FileRtlChinh and os.path.exists(FileRtlChinh):
         with open(FileRtlChinh, "r", encoding="utf-8", errors="replace") as TepTin:
             NoiDungRtl = re.sub(r"//.*", "", TepTin.read())
@@ -312,7 +354,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     for FileV in DanhSachVerilog:
         print(f"    * {os.path.basename(FileV)}")
 
-    # Bước 2.5: Kiểm tra tĩnh AST và dọn dẹp cú pháp Verilog
+    # Pha 2.5 (Bước 2.5): Kiểm tra tĩnh AST và dọn dẹp cú pháp Verilog trước khi mô phỏng EDA
     print(f"\n[Bước 2.5] Phân tích tĩnh AST & dọn dẹp cú pháp Verilog (VerilogLinter)...")
     for FileV in DanhSachVerilog:
         VerilogLinter.sanitize_file(FileV)
@@ -320,12 +362,13 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         VerilogLinter.lint_file(FileRtlChinh)
     print(f" -> [VerilogLinter]: Toàn bộ {len(DanhSachVerilog)} file đã được kiểm tra và chuẩn hóa.")
 
-    # Bước 3: Mô phỏng và phản hồi tự sửa lỗi (Reflection Loop)
+    # Pha 3 (Bước 3): Mô phỏng EDA & Vòng lặp phản hồi tự sửa lỗi (Reflection Loop - Fig. 3)
     print(f"\n[Bước 3] Chạy mô phỏng EDA với vòng lặp tự phản hồi (Reflection Loop)...")
     BoMoPhong = EDASimulator(ThuMucSim)
     BoPhanHoi = ReflectionAgent(BoMoPhong)
 
     ThoiGianBatDau = time.time()
+    # Chạy vòng lặp khép kín tối đa 3 lần tự vá lỗi (PASS trả kết quả ngay, FAIL chuyển xuống Bước 5 chẩn đoán)
     KetQuaMoPhong = BoPhanHoi.execute_closed_loop_flow(DanhSachVerilog, top_module=TenModuleTb, max_retries=3)
     ThoiGianChay = time.time() - ThoiGianBatDau
 
@@ -335,7 +378,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     print(KetQuaMoPhong.get("log", "").strip())
     print("-" * 80)
 
-    # Bước 4: Tự động sinh Symbol BSF, sơ đồ BDF, sóng VWF và Dự án Quartus
+    # Pha 4 (Bước 4): Đóng gói dự án Quartus II (QPF/QSF), Symbol BSF, Sơ đồ BDF và Sóng VWF
     print(f"\n[Bước 4] Tự động tạo Symbol BSF, Sơ đồ BDF, Sóng VWF & Dự án Quartus...")
     FileVcd = os.path.join(ThuMucSim, f"{TenMach}.vcd")
     FileQpf, FileBsf, FileBdf, FileVwf = setup_quartus_and_bdf(ThuMucQuartus, TenDuAn, TenMach, FileRtlChinh, DanhSachFileRtl, DuongDanVcd=FileVcd)
@@ -346,7 +389,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     if FileVwf and os.path.exists(FileVwf):
         print(f" -> Dạng sóng (.vwf)     : {FileVwf}")
 
-    # Bước 4.2: Đối soát cổng tín hiệu
+    # Pha 4.2 (Bước 4.2): Đối soát tính toàn vẹn cổng tín hiệu giữa Spec <-> RTL <-> BSF <-> BDF
     print(f"\n[Bước 4.2] Đối soát tính toàn vẹn cổng tín hiệu...")
     DanhSachCongSpec = BoPhanTich.extract_ports()
     PortAuditor.audit(DanhSachCongSpec, FileRtlChinh, FileBsf, FileBdf)
@@ -356,17 +399,19 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
     ThongTinModelSim = find_modelsim()
     ThuMucBinModelSim = ThongTinModelSim.get("bin_dir") if ThongTinModelSim else ""
 
+    # Nếu người dùng truyền cờ --gui và có ModelSim, bật cửa sổ xem dạng sóng trực quan
     if MoGiaoDien and ThuMucBinModelSim:
         print(f"\n[ModelSim GUI]: Đang khởi động giao diện sóng ModelSim...")
         FileVsimExe = os.path.join(ThuMucBinModelSim, "vsim.exe")
         subprocess.Popen([FileVsimExe, "-novopt", f"work.{TenModuleTb}", "-do", "add wave -r /*; run -all; wave zoom full;"], cwd=ThuMucSim)
 
-    # Bước 4.5: Đo đạc tài nguyên phần cứng
+    # Pha 4.5 (Bước 4.5): Đo đạc mức tiêu thụ tài nguyên phần cứng (LEs, Flip-Flops, I/O Pins)
     print(f"\n[Bước 4.5] Đo đạc mức độ tiêu thụ tài nguyên phần cứng...")
     ThongSoTaiNguyen = SynthesisProfiler.profile_module(ThuMucQuartus, TenDuAn, FileRtlChinh)
     print(SynthesisProfiler.format_profiler_card(ThongSoTaiNguyen, TenMach))
 
-    # Khép kín vòng nạp ngược tri thức: Synthesizability Check -> DB
+    # Pha phản hồi tri thức (Knowledge Feedback Loop): Chỉ nạp ngược vào RAG DB khi ĐẠT CẢ 2 điều kiện:
+    # 1) Mô phỏng passed == True  VÀ  2) Kiểm tra Linter AST không có bất kỳ lỗi nào (lint_hop_le == True)
     if KetQuaMoPhong.get("passed") is True and FileRtlChinh and os.path.exists(FileRtlChinh):
         try:
             ket_qua_lint = VerilogLinter.lint_file(FileRtlChinh)
@@ -383,8 +428,9 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         except Exception as db_err:
             print(f" -> [Knowledge DB]: Bỏ qua nạp ngược DB ({db_err}).")
 
-    # Bước 5: Đánh giá kết quả
+    # Pha 5 (Bước 5): Rẽ nhánh đánh giá kết quả cuối cùng (PASS / FAIL)
     if KetQuaMoPhong["success"]:
+        # Nhánh PASS: Trả về True cùng thời gian chạy, tên module, file BDF và thống kê tài nguyên
         print(f"\n>>> [SPEC2RTL STATUS: THÀNH CÔNG (100% PASS)] <<<")
         print(f"Thời gian thực thi: {ThoiGianChay:.2f} giây")
         print(f"Thư mục dạng sóng mô phỏng: {ThuMucSim}")
@@ -397,6 +443,7 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         print(f" 4. Dữ liệu VCD : {FileVcd}")
         return True, ThoiGianChay, TenMach, FileBdf, ThongSoTaiNguyen
     else:
+        # Nhánh FAIL: Chẩn đoán nguyên nhân lỗi chi tiết qua ReflectionAgent và trả về False
         print(f"\n>>> [SPEC2RTL STATUS: THẤT BẠI] <<<")
         ChanDoan = BoPhanHoi.diagnose_error(KetQuaMoPhong)
         print(f"Giai đoạn lỗi: {ChanDoan['stage']}")
@@ -406,15 +453,16 @@ def run_single_spec(DuongDanSpec, ThuMucGoc=None, MoGiaoDien=False, DungHarness=
         return False, ThoiGianChay, TenMach, None, ThongSoTaiNguyen
 
 def get_spec_description(TenFile, ThuMucSpecs=None):
-    """Lấy mô tả ngắn gọn dễ hiểu cho bài toán."""
+    """Lấy mô tả ngắn gọn dễ hiểu cho bài toán (dùng để hiển thị trong menu chọn tương tác)."""
     DuongDanDayDu = os.path.join(ThuMucSpecs, TenFile) if ThuMucSpecs else TenFile
     try:
         return SpecAnalyzer(DuongDanDayDu).get_friendly_description()
     except Exception:
+        # FALLBACK: trả về nhãn mặc định nếu đọc/phân tích file spec lỗi
         return "Bài toán thiết kế vi mạch tùy chỉnh"
 
 def get_benchmark_suites(ThuMucGoc):
-    """Tìm kiếm các bộ kiểm thử benchmark trong thư mục benchmarks/."""
+    """Tìm kiếm và gom nhóm các bộ kiểm thử chuẩn quốc tế trong thư mục benchmarks/."""
     ThuMucBenchmark = os.path.join(ThuMucGoc, "benchmarks")
     BoKiemThu = {
         "verilog_eval": {"name": "VerilogEval (NVIDIA Research)", "specs": []},
@@ -430,9 +478,13 @@ def get_benchmark_suites(ThuMucGoc):
     return BoKiemThu
 
 def run_benchmark_suite(TenBoKiemThu, ThuMucGoc):
-    """Chạy toàn bộ bài toán kiểm thử trong bộ benchmark."""
+    """
+    Điều phối chạy hàng loạt các bài toán kiểm thử trong một bộ benchmark (hoặc tất cả 'all').
+    Trả về True (PASS toàn bộ) chỉ khi 100% bài trong bộ đều đạt chuẩn.
+    """
     BoKiemThu = get_benchmark_suites(ThuMucGoc)
     DanhSachChay = []
+    # Điều kiện chọn bộ: 'all'/'benchmark'/'b' -> chạy cả 3 bộ; ngược lại chạy đúng 1 bộ được chỉ định
     if TenBoKiemThu in ["all", "benchmark", "b"]:
         for Khoa, GiaTri in BoKiemThu.items():
             for DuongDan in GiaTri["specs"]:
@@ -479,6 +531,10 @@ def run_benchmark_suite(TenBoKiemThu, ThuMucGoc):
     return TongSoPass == len(DanhSachChay)
 
 def main():
+    """
+    Hàm điều phối giao diện dòng lệnh (CLI) & menu tương tác của hệ thống Spec2RTL.
+    Xử lý các nhánh chạy: Benchmark Suite / Chạy tất cả specs (--all) / Chạy 1 spec theo tên hoặc số thứ tự.
+    """
     ThuMucGoc = get_base_dir()
     ThuMucSpecs = os.path.join(ThuMucGoc, "specs")
 
@@ -490,6 +546,7 @@ def main():
     DanhSachSpecs = sorted([f for f in os.listdir(ThuMucSpecs) if f.endswith(".txt") or f.endswith(".md")])
     BoTienIch = get_benchmark_suites(ThuMucGoc)
 
+    # Phân tích tham số dòng lệnh CLI
     BoPhanTichThamSo = argparse.ArgumentParser(description="Hệ thống tự động Spec2RTL")
     BoPhanTichThamSo.add_argument("spec_pos", nargs="?", default=None, help="Tên spec, số thứ tự hoặc 'all'")
     BoPhanTichThamSo.add_argument("--spec", dest="spec_flag", default=None, help="Tên spec hoặc số")
@@ -503,6 +560,7 @@ def main():
 
     LuaChonDauVao = ThamSo.spec_flag or ThamSo.spec_pos
 
+    # Bảng ánh xạ từ khóa tắt cho các bộ benchmark
     BangChon = {
         "benchmark": "all", "benchmarks": "all", "bm": "all",
         "b1": "verilog_eval", "verilog_eval": "verilog_eval",
@@ -510,8 +568,10 @@ def main():
         "b3": "veriprefer", "veriprefer": "veriprefer",
     }
 
+    # Tránh nhầm chữ 'a' (viết tắt của 'all') nếu trong specs/ có file tên a.txt / a.md
     CoSpecA = any(s.lower() in ["a", "a.txt", "a.md"] for s in DanhSachSpecs)
 
+    # Nhánh điều phối 0: Kiểm tra xem người dùng có chọn chạy Benchmark không -> chạy và thoát theo exit code 0/1
     BoBenchmarkChon = ThamSo.benchmark_suite
     if not BoBenchmarkChon and LuaChonDauVao:
         ChuThuong = LuaChonDauVao.lower()
@@ -530,6 +590,7 @@ def main():
     else:
         CheDoChayTatCa = False
 
+    # Nếu không truyền spec hoặc --all trên CLI, hiển thị menu để người dùng chọn tương tác
     if not LuaChonDauVao and not ThamSo.all:
         print("\n[DANH SÁCH CÁC BÀI TOÁN CÓ SẴN TRONG specs/]:")
         for ChiSo, TenTep in enumerate(DanhSachSpecs):
@@ -549,7 +610,7 @@ def main():
         else:
             LuaChonDauVao = LuaChon
 
-    # Trường hợp 1: Chạy TẤT CẢ các bài toán
+    # Trường hợp 1: Chạy TẤT CẢ các bài toán trong specs/ rồi in bảng tổng kết LE/FF/PASS-FAIL
     if CheDoChayTatCa:
         print(f"\n>>> [CHẾ ĐỘ TỰ ĐỘNG]: TIẾN HÀNH CHẠY TẤT CẢ {len(DanhSachSpecs)} BÀI TOÁN <<<\n")
         DanhSachKetQuaTongHop = []
@@ -572,7 +633,7 @@ def main():
         print("\n[Tất cả các sơ đồ BDF và Project Quartus đều đã sẵn sàng trong thư mục quartus/!]")
         sys.exit(0)
 
-    # Trường hợp 2: Chạy MỘT bài toán cụ thể
+    # Trường hợp 2: Chạy MỘT bài toán cụ thể (phân giải theo số thứ tự, đường dẫn hoặc khớp tên gần đúng)
     MucTieuSpec = LuaChonDauVao
     if MucTieuSpec.isdigit():
         ChiSo = int(MucTieuSpec) - 1
@@ -589,6 +650,7 @@ def main():
     elif os.path.exists(MucTieuSpec):
         DuongDanMucTieu = os.path.abspath(MucTieuSpec)
     else:
+        # Thử khớp chính xác tên file (có/không đuôi .txt/.md), fallback sang tìm chuỗi con
         KhopTen = None
         for TenTep in DanhSachSpecs:
             if TenTep.lower() == MucTieuSpec.lower() or TenTep.lower() == f"{MucTieuSpec.lower()}.txt" or TenTep.lower() == f"{MucTieuSpec.lower()}.md":
@@ -614,6 +676,7 @@ def main():
         sys.exit(1)
 
     ThanhCong, ThoiGian, ThucThe, SodoBdf, ChiSo = run_single_spec(DuongDanMucTieu, ThuMucGoc, MoGiaoDien=ThamSo.gui, DungHarness=ThamSo.harness, MoTrangWeb=ThamSo.web, DungAiChinh=ThamSo.use_distilled)
+    # Exit code 0 nếu PASS, 1 nếu FAIL để tích hợp CI/script tự động
     sys.exit(0 if ThanhCong else 1)
 
 if __name__ == "__main__":

@@ -8,11 +8,22 @@ import os
 import re
 
 class VWFGenerator:
+    """
+    Bộ sinh tệp dạng sóng mô phỏng Vector Waveform File (.vwf) chuẩn Quartus II.
+    Ưu tiên ánh xạ dữ liệu chuyển trạng thái thực tế từ file VCD của ModelSim/Icarus,
+    nếu không có VCD sẽ tự tổng hợp xung clock, reset và xung kích thích mẫu cho từng chân.
+    """
+
     def __init__(self):
+        """Khởi tạo bộ sinh file Waveform (.vwf)."""
         pass
 
     def _parse_vcd_transitions(self, DuongDanVcd, DanhSachCong, ThoiGianNs=1000.0):
-        """Đọc file VCD mô phỏng từ ModelSim và trích xuất chuỗi chuyển trạng thái cho từng tín hiệu."""
+        """
+        Đọc file VCD (Value Change Dump) xuất ra từ mô phỏng ModelSim/Icarus Verilog,
+        quy đổi mốc thời gian về nanosecond (ns) và gom thành các đoạn (mức logic, độ dài thời gian)
+        để điền trực tiếp vào khối `TRANSITION_LIST` của Quartus .vwf.
+        """
         if not DuongDanVcd or not os.path.exists(DuongDanVcd):
             return None
 
@@ -139,7 +150,13 @@ class VWFGenerator:
         return KetQuaChuyenTrangThai
 
     def generate_vwf_from_rtl(self, DuongDanRtl, DuongDanVwf, DuongDanVcd=None, ThoiGianNs=1000.0):
-        """Trích xuất cổng tín hiệu từ Verilog RTL và tạo file Waveform .vwf chuẩn Quartus."""
+        """
+        Sinh file Quartus Vector Waveform (.vwf) hoàn chỉnh từ cổng của module Verilog RTL:
+          - Khai báo HEADER thời gian mô phỏng (TIME_UNIT = ns, DATA_DURATION = ThoiGianNs).
+          - Tạo các khối `SIGNAL` (đơn bit và bus cha/bit con).
+          - Tạo `TRANSITION_LIST` từ VCD thực tế hoặc sinh xung clock/reset/kích thích mặc định.
+          - Tạo cây hiển thị `DISPLAY_LINE` liên kết chỉ số cha-con cho Waveform Editor.
+        """
         if not os.path.exists(DuongDanRtl):
             return None
 

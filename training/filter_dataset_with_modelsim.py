@@ -17,12 +17,14 @@ import json
 import subprocess
 import time
 
+# Đường dẫn thư mục gốc, thư mục chạy biên dịch tạm sim/, pool đầu vào và file sạch + báo cáo đầu ra
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SIM_DIR = os.path.join(PROJECT_ROOT, "sim")
 INPUT_POOL = os.path.join(PROJECT_ROOT, "training", "dataset_candidate_pool.json")
 OUTPUT_VERIFIED = os.path.join(PROJECT_ROOT, "training", "dataset_clean_verified.json")
 OUTPUT_REPORT = os.path.join(PROJECT_ROOT, "training", "REPORT_NHOM_1_DATASET.md")
 
+# Nạp module eda_finder từ thư mục agent/ để tự động dò vị trí ModelSim trên máy
 sys.path.append(os.path.join(PROJECT_ROOT, "agent"))
 from eda_finder import find_modelsim
 
@@ -65,10 +67,12 @@ def check_linter(verilog_code):
     return len(issues) == 0, issues
 
 def run_truth_oracle_filter():
+    """Chạy bộ lọc ModelSim Truth Oracle hàng loạt trên dataset_candidate_pool.json và xuất dataset sạch + báo cáo."""
     print("================================================================================")
     print(">>> NHÓM 1: BỘ LỌC THẨM ĐỊNH MODELSIM TRUTH ORACLE (BATCH COMPILATION)")
     print("================================================================================")
 
+    # Bước 1: Kiểm tra sự tồn tại của trình biên dịch ModelSim vlog.exe
     vlog_path, vlib_path = get_vlog_path()
     if not vlog_path:
         print("[LỖI NGHIÊM TRỌNG] Không tìm thấy ModelSim vlog.exe để thẩm định cú pháp!")
@@ -77,11 +81,12 @@ def run_truth_oracle_filter():
     print(f"[*] Công cụ ModelSim Compiler: {vlog_path}")
     os.makedirs(SIM_DIR, exist_ok=True)
 
-    # Đảm bảo thư viện work tồn tại trong sim_dir
+    # Đảm bảo thư viện work tồn tại trong sim_dir (bắt buộc để vlog.exe biên dịch vào work)
     work_dir = os.path.join(SIM_DIR, "work")
     if not os.path.exists(work_dir) and vlib_path and os.path.exists(vlib_path):
         subprocess.run([vlib_path, "work"], cwd=SIM_DIR, capture_output=True)
 
+    # Bước 2: Nạp danh sách các mẫu ứng viên thô từ dataset_candidate_pool.json
     if not os.path.exists(INPUT_POOL):
         print(f"[LỖI] Không tìm thấy file {INPUT_POOL}. Hãy chạy prepare_dataset_group1.py trước.")
         return
@@ -95,9 +100,11 @@ def run_truth_oracle_filter():
     clean_verified = []
     rejected = []
     
+    # Dùng chung một file Verilog tạm trong sim/ để tránh tạo hàng trăm file rác
     start_time = time.time()
     test_file_path = os.path.join(SIM_DIR, "_oracle_batch_check.v")
 
+    # Bước 3: Thẩm định từng mẫu ứng viên qua 2 cửa (ModelSim vlog.exe + Linter tĩnh)
     for idx, item in enumerate(candidates):
         rtl = item.get("raw_rtl", "")
         item_id = item.get("id", f"item_{idx}")
@@ -107,7 +114,7 @@ def run_truth_oracle_filter():
         with open(test_file_path, "w", encoding="utf-8") as f:
             f.write(rtl)
 
-        # 2. Biên dịch bằng ModelSim vlog -work work
+        # 2. Biên dịch bằng ModelSim vlog -work work (yêu cầu exit code 0, có '-- Compiling' và 0 Error/Fatal)
         try:
             cmd = [vlog_path, "-work", "work", "_oracle_batch_check.v"]
             res = subprocess.run(cmd, cwd=SIM_DIR, capture_output=True, timeout=10)
@@ -124,6 +131,7 @@ def run_truth_oracle_filter():
             is_linter_pass, linter_issues = check_linter(rtl)
 
             if is_compile_pass and is_linter_pass:
+                # Gắn nhãn kiểm chứng đạt chuẩn và xóa trường tạm raw_rtl trước khi đưa vào tập SFT sạch
                 # Chuẩn hóa trạng thái
                 item["verification_status"] = "PASS_100_MODELSIM_VLOG"
                 item["linter_status"] = "CLEAN_0_LATCH_0_DANGLING_PIN"
@@ -132,6 +140,7 @@ def run_truth_oracle_filter():
                     del item["raw_rtl"]
                 clean_verified.append(item)
             else:
+                # Ghi nhận lý do bị loại (lỗi biên dịch ModelSim hoặc vi phạm Linter) để thống kê
                 fail_reasons = []
                 if not is_compile_pass:
                     errors = [line.strip() for line in stdout.splitlines() if "** Error" in line or "** Fatal" in line]
@@ -155,7 +164,7 @@ def run_truth_oracle_filter():
         if (idx + 1) % 50 == 0 or (idx + 1) == total_candidates:
             print(f"    -> Đã kiểm tra {idx+1}/{total_candidates} mẫu (Đạt: {len(clean_verified)}, Loại: {len(rejected)})")
 
-    # Dọn dẹp file tạm
+    # Bước 4: Dọn dẹp file tạm và tổng kết tỷ lệ đạt chuẩn
     if os.path.exists(test_file_path):
         os.remove(test_file_path)
 

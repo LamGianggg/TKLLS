@@ -4,6 +4,12 @@ Danh gia kha nang truy xuat tri thuc phan cung cho nhom 70% khoi ha tang pho tho
 bang bo 28 truy van ngon ngu tu nhien (14 tieng Viet + 14 tieng Anh) co tinh ne tu khoa
 va ten module, so sanh 3 che do chinh: `keyword` vs `bm25` vs `hybrid` (kem `vector` ablation).
 
+Vai tro trong luong Spec2RTL (Fig. 3):
+  - Kiem chung dinh luong hieu nang khoi Knowledge Retrieval / Hybrid RAG (`agent/knowledge_matcher.py`)
+    tren nhom 70% khoi ha tang pho thong (UART, SPI, I2C, FIFO, FSM, ALU, Counter, PWM...).
+  - Dam bao mo hinh truy xuat hieu dung ngu nghia ngay ca khi nguoi dung mo ta hanh vi mach
+    bang ngon ngu tu nhien ma khong go dung ten module hoac tu khoa ky thuat truc tiep.
+
 Chi so do luong (Top-K = 3):
 - Recall@1: Ty le truy van co ket qua dung ngay tai vi tri #1.
 - Recall@3: Ty le truy van co ket qua dung nam trong Top-3.
@@ -14,6 +20,7 @@ import os
 import sys
 import time
 
+# Them thu muc agent/ vao sys.path de import KnowledgeMatcher va ham chuan hoa dau
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AGENT_DIR = os.path.join(PROJECT_ROOT, "agent")
 
@@ -24,6 +31,10 @@ from knowledge_matcher import KnowledgeMatcher, xoa_dau_tieng_viet
 
 
 # Bo 28 truy van nhom 70% khoi ha tang pho thong (co tinh ne ten module / tu khoa truc tiep)
+# Moi phan tu gom:
+#   - id (Q01..Q28), family (ho mach phan cung), lang ('vi' hoac 'en' — can bang 14/14).
+#   - query: Mo ta hanh vi/tin hieu bang ngon ngu tu nhien, chu dong tranh ten module trong `targets`.
+#   - targets: Danh sach ten module / id ground-truth duoc coi la truy xuat dung.
 BENCHMARK_70_QUERIES = [
     {
         "id": "Q01",
@@ -404,7 +415,15 @@ BENCHMARK_70_QUERIES = [
 
 
 def _item_matches_targets(item, targets):
-    """Kiem tra muc tra ve co khop voi tap muc tieu ground-truth hay khong."""
+    """
+    Kiem tra mot ung vien tra ve tu RAG co khop voi tap muc tieu ground-truth hay khong.
+
+    Input:
+        item (dict | None): Ban ghi mau phan cung tra ve tu `KnowledgeMatcher`.
+        targets (list[str]): Danh sach id / module_name hop le cho truy van hien tai.
+    Output:
+        bool: True neu id, name, module_name (hoac module_name bo tien to 'verified_') thuoc `targets`.
+    """
     if not item:
         return False
     target_set = {t.lower() for t in targets}
@@ -414,13 +433,21 @@ def _item_matches_targets(item, targets):
         str(item.get("name") or "").strip().lower(),
         mod,
     }
+    # Bo tien to 'verified_' do `save_verified_design` gan khi luu thiet ke da kiem chung
     if mod.startswith("verified_"):
         candidates.add(mod[9:])
     return bool(candidates & target_set)
 
 
 def _format_candidate_name(item):
-    """Lay ten gon cua ung vien de hien thi trong bang ket qua."""
+    """
+    Lay ten ngan gon cua ung vien de hien thi trong bang bao cao benchmark.
+
+    Input:
+        item (dict | None): Ban ghi ung vien trong Top-K.
+    Output:
+        str: Ten module cu the (uu tien `name`/`id` neu `module_name` la ten chung chung nhu RefModule).
+    """
     if not item:
         return "-"
     mod = str(item.get("module_name") or "").strip()
@@ -431,7 +458,15 @@ def _format_candidate_name(item):
 
 
 def _check_no_module_name_leakage(queries):
-    """Xac nhan khong co ten module muc tieu nao xuat hien nguyen ven trong cau truy van."""
+    """
+    Kiem tra tinh cong bang cua benchmark: xac nhan khong co ten module muc tieu nao
+    (tu 4 ky tu tro len) bi ro ri nguyen ven trong cau truy van ne tu khoa.
+
+    Input:
+        queries (list[dict]): Danh sach truy van benchmark.
+    Output:
+        list[tuple[str, str]]: Danh sach cac cap (query_id, target_bi_ro_ri), rong neu sach 100%.
+    """
     leaks = []
     for q in queries:
         q_norm = xoa_dau_tieng_viet(q["query"])
@@ -443,7 +478,19 @@ def _check_no_module_name_leakage(queries):
 
 
 def evaluate_modes(matcher, queries=BENCHMARK_70_QUERIES, modes=("keyword", "bm25", "hybrid", "vector"), top_k=3):
-    """Chay benchmark Recall@1, Recall@3, MRR va do tre tren danh sach truy van."""
+    """
+    Chay danh gia dinh luong Recall@1, Recall@3, MRR va do tre trung binh tren tung che do truy xuat.
+
+    Input:
+        matcher (KnowledgeMatcher): Doi tuong kho tri thuc da nap index.
+        queries (list[dict]): Bo 28 truy van chuan hoa (14 VI + 14 EN).
+        modes (tuple[str, ...]): Cac che do can so sanh ('keyword', 'bm25', 'hybrid', 'vector').
+        top_k (int): So ung vien toi da xet trong Top-K (mac dinh 3).
+    Output:
+        tuple[dict, dict]:
+            - summary: Chi so tong hop tung mode (recall_at_1, recall_at_3, mrr, total_ms, avg_ms).
+            - per_query: Ket qua chi tiet rank/top1/top3/confidence cho tung Q01..Q28 theo tung mode.
+    """
     summary = {}
     per_query = {q["id"]: {} for q in queries}
 
@@ -457,6 +504,7 @@ def evaluate_modes(matcher, queries=BENCHMARK_70_QUERIES, modes=("keyword", "bm2
             best, match_type, conf, top_results = matcher.search_by_mode(
                 q["query"], mode=mode, top_k=top_k
             )
+            # Xac dinh thu hang (1..top_k) cua ung vien dung dau tien; 0 neu khong co trong Top-K
             hit_rank = 0
             for rank_idx, cand in enumerate(top_results[:top_k], 1):
                 if _item_matches_targets(cand, q["targets"]):
@@ -495,13 +543,23 @@ def evaluate_modes(matcher, queries=BENCHMARK_70_QUERIES, modes=("keyword", "bm2
 
 
 def main():
+    """
+    Ham thuc thi chinh: kiem tra ro ri tu khoa, khoi tao KnowledgeMatcher,
+    chay benchmark 4 che do va in 3 bang bao cao (Tong hop, VI vs EN, Chi tiet Q01..Q28).
+
+    Output:
+        tuple[dict, dict, dict]: (summary, per_query, backend_info).
+    """
+    # 1. Kiem tra bo 28 truy van co bi ro ri ten module muc tieu hay khong
     leaks = _check_no_module_name_leakage(BENCHMARK_70_QUERIES)
     matcher = KnowledgeMatcher()
     backend_info = matcher.get_vector_backend_info()
 
+    # 2. Chay danh gia tren 4 che do: baseline keyword, BM25, Hybrid RRF va Vector ablation
     modes = ("keyword", "bm25", "hybrid", "vector")
     summary, per_query = evaluate_modes(matcher, BENCHMARK_70_QUERIES, modes=modes, top_k=3)
 
+    # 3. In bang tong hop Recall@1, Recall@3, MRR@3 va do tre trung binh
     print("=" * 92)
     print("   BENCHMARK TRUY XUAT NHOM 70% HA TANG PHO THONG (28 TRUY VAN NE TU KHOA / TEN MODULE)")
     print(
@@ -520,7 +578,7 @@ def main():
         r3_str = f"{s['r3_hits']}/{s['n']} ({s['recall_at_3']*100:.1f}%)"
         print(f"| {mode:<14} | {r1_str:<18} | {r3_str:<18} | {s['mrr']:<10.4f} | {s['avg_ms']:<10.2f} |")
 
-    # Breakdown theo ngon ngu VI vs EN
+    # 4. Phan tich tach biet theo ngon ngu: 14 truy van Tieng Viet vs 14 truy van Tieng Anh
     vi_queries = [q for q in BENCHMARK_70_QUERIES if q["lang"] == "vi"]
     en_queries = [q for q in BENCHMARK_70_QUERIES if q["lang"] == "en"]
     print("\n--- PHAN TICH THEO NGON NGU (14 VI / 14 EN) ---")
@@ -533,6 +591,7 @@ def main():
             parts.append(f"{mode}: R@1={r1}/{len(subset)} R@3={r3}/{len(subset)} MRR={mrr:.3f}")
         print(f"  {lang_label}: " + " | ".join(parts))
 
+    # 5. In chi tiet thu hang (rank 1..3 hoac 0 neu truot) cho tung truy van Q01..Q28
     print("\n--- CHI TIET TUNG TRUY VAN (RANK: 1..3, 0 = MISS) ---")
     print(f"| {'ID':<4} | {'Lang':<4} | {'Family':<24} | {'kw':<3} | {'bm25':<4} | {'hyb':<3} | {'vec':<3} | {'Hybrid Top-1':<28} |")
     print("-" * 92)

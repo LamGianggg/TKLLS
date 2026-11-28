@@ -3,17 +3,22 @@ Test Suite: test_group3_linter.py
 Nhiệm vụ Nhóm 3: Kỹ thuật Vi mạch & Bộ phân tích AST (Hardware Engineering & AST Linter)
 Áp dụng phong cách Ponytail (Zero-dependency, Lazy Senior Dev Mode, Assert-based check).
 
-Kiểm tra:
-1. Phát hiện Chốt ẩn (Inferred Latches): case thiếu default, if thiếu else.
+Vai trò trong luồng Spec2RTL Fig. 3:
+  Bộ kiểm thử hồi quy (Unit Test) xác minh độ chính xác của lớp Gatekeeper tĩnh (VerilogLinter)
+  và bộ đo tài nguyên (SynthesisProfiler) trước khi đưa vào pipeline chính.
+
+Các kịch bản kiểm tra:
+1. Xác nhận mã chuẩn (Clean RTL): 100% PASS không báo lỗi giả (False Positive).
 2. Phát hiện Chân lơ lửng (Dangling Pins): input không dùng (như lỗi button_debouncer), output không gán.
-3. Phát hiện Race Condition: gán '=' trong khối tuần tự posedge clk.
-4. Xác nhận mã chuẩn (Clean RTL): 100% PASS không báo lỗi giả.
+3. Phát hiện Chốt ẩn (Inferred Latches): case thiếu default, if thiếu else không gán mặc định.
+4. Phát hiện Race Condition: gán blocking '=' trong khối tuần tự posedge clk.
+5. Đo đạc tài nguyên FPGA (SynthesisProfiler): ước lượng LEs, Registers, Pins.
 """
 
 import os
 import sys
 
-# Đưa thư mục agent vào sys.path để import VerilogLinter
+# Đưa thư mục agent vào sys.path để chạy độc lập file test từ bất kỳ thư mục làm việc nào
 ThuMucGoc = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ThuMucAgent = os.path.join(ThuMucGoc, "agent")
 if ThuMucAgent not in sys.path:
@@ -23,7 +28,13 @@ from verilog_linter import VerilogLinter
 from synthesis_profiler import SynthesisProfiler
 
 def test_clean_counter():
-    """Kiểm tra mạch chuẩn (Counter 4-bit) -> 100% PASS."""
+    """
+    [Test 1 - Positive Case -> Kỳ vọng PASS]
+    Kiểm tra mạch đếm đồng bộ 4-bit viết đúng chuẩn:
+    - Mọi input (clk, rst_n, enable) đều được dùng; output (count) được gán.
+    - Khối tuần tự @(posedge clk or negedge rst_n) dùng non-blocking '<='.
+    Kỳ vọng: res['valid'] == True và 0 cảnh báo Latch / Dangling / Race.
+    """
     clean_code = '''
     module sync_counter (
         input wire clk,
@@ -40,6 +51,7 @@ def test_clean_counter():
     endmodule
     '''
     res = VerilogLinter.lint_check(clean_code)
+    # Khẳng định PASS tuyệt đối, không phát sinh cảnh báo giả
     assert res["valid"] is True, f"Mã chuẩn bị báo lỗi: {res['issues']}"
     assert len(res["latches"]) == 0
     assert len(res["dangling_pins"]) == 0
@@ -47,7 +59,13 @@ def test_clean_counter():
     print("[PASS] Test 1: Clean Counter 4-bit -> 100% PASS (0 Latch, 0 Dangling, 0 Race)")
 
 def test_dangling_pins_debouncer():
-    """Kiểm tra phát hiện chân lơ lửng (btn_in bị cô lập trong button_debouncer)."""
+    """
+    [Test 2 - Negative Case -> Kỳ vọng FAIL Linter (Dangling Pins)]
+    Kiểm tra phát hiện chân lơ lửng trên mạch chống dội phím button_debouncer:
+    - `btn_in`: khai báo input nhưng không hề được nối vào shift_reg (DANGLING_INPUT).
+    - `btn_pressed_pulse`: khai báo output nhưng bị bỏ quên không gán (UNASSIGNED_OUTPUT).
+    Kỳ vọng: res['valid'] == False và bắt đúng cả 2 chân lỗi.
+    """
     buggy_debouncer = '''
     module button_debouncer (
         input wire clk,
@@ -78,7 +96,13 @@ def test_dangling_pins_debouncer():
     print("[PASS] Test 2: Dangling Pin Detection -> Bắt chính xác 'btn_in' cô lập & 'btn_pressed_pulse' chưa gán")
 
 def test_inferred_latches():
-    """Kiểm tra phát hiện chốt ẩn trong khối tổ hợp always @(*)."""
+    """
+    [Test 3 - Negative Case -> Kỳ vọng FAIL Linter (Inferred Latches)]
+    Kiểm tra phát hiện chốt ẩn trong khối tổ hợp always @(*):
+    - Trường hợp 1: khối `case(op)` thiếu nhánh `default:` -> sinh latch cho `res_case`.
+    - Trường hợp 2: khối `if(en)` thiếu `else` và chưa gán mặc định cho `res_if` trước đó -> sinh latch.
+    Kỳ vọng: res['valid'] == False và res['latches'] ghi nhận cả 2 lỗi.
+    """
     latch_code = '''
     module alu_comb (
         input wire [1:0] op,
@@ -110,7 +134,11 @@ def test_inferred_latches():
     print("[PASS] Test 3: Inferred Latch Detection -> Bắt chính xác case thiếu default & if thiếu else")
 
 def test_race_conditions():
-    """Kiểm tra phát hiện gán blocking '=' trong khối tuần tự."""
+    """
+    [Test 4 - Negative Case -> Kỳ vọng FAIL Linter (Race Condition)]
+    Kiểm tra phát hiện vi phạm dùng phép gán blocking '=' trong khối tuần tự `always @(posedge clk)`.
+    Kỳ vọng: res['valid'] == False và xuất hiện cảnh báo 'BLOCKING_IN_SEQUENTIAL'.
+    """
     race_code = '''
     module bad_pipeline (
         input wire clk,
@@ -131,9 +159,14 @@ def test_race_conditions():
     print("[PASS] Test 4: Race Condition Detection -> Bắt chính xác gán '=' trong khối posedge clk")
 
 def test_synthesis_profiler():
-    """Kiểm tra module ước lượng và đo đạc tài nguyên phần cứng (FPGA Resource Profiler)."""
+    """
+    [Test 5 - Resource Profiler -> PASS hoặc SKIP nếu thiếu file mẫu]
+    Kiểm tra module ước lượng tài nguyên phần cứng tĩnh (LEs, Registers, Pins)
+    trên file RTL mẫu `quartus/bcd_to_7seg_anode/bcd_to_7seg_anode.v`.
+    """
     rtl_sample = os.path.join(ThuMucGoc, "quartus", "bcd_to_7seg_anode", "bcd_to_7seg_anode.v")
     if os.path.exists(rtl_sample):
+        # Nhánh PASS: đo được số chân I/O > 0, logic_elements > 0 và render được bảng thống kê
         stats = SynthesisProfiler.estimate_static_resources(rtl_sample)
         assert stats["total_pins"] > 0, "Không đo được số chân I/O"
         assert stats["logic_elements"] > 0, "Không ước lượng được Logic Elements"
@@ -141,9 +174,11 @@ def test_synthesis_profiler():
         assert "THỐNG KÊ TÀI NGUYÊN PHẦN CỨNG" in card
         print("[PASS] Test 5: Synthesis Resource Profiler -> Đo đạc chính xác LEs, Registers, Pins cho FPGA")
     else:
+        # Nhánh FALLBACK/SKIP: không làm gãy test suite nếu file mẫu chưa được sinh sẵn
         print("[SKIP] Test 5: File bcd_to_7seg_anode.v không tồn tại để test profiler")
 
 def run_all_checks():
+    """Hàm điều phối chạy tuần tự toàn bộ 5 bài kiểm tra của Nhóm 3."""
     print("================================================================================")
     print("      KIỂM TRA TỰ ĐỘNG BỘ PHÂN TÍCH TĨNH AST NHÓM 3 (PONYTAIL MODE)            ")
     print("================================================================================")

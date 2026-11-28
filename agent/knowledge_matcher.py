@@ -9,6 +9,12 @@ Ho tro 3 backend tao Semantic Vector theo thu tu uu tien (khong dung torch):
      khi runtime co `GEMINI_API_KEY` & ket noi mang.
   3. Pure-offline `TfidfVectorizer + TruncatedSVD` (LSA dense vector bang sklearn/numpy)
      lam semantic branch mac dinh khi chua co `.npz`/`fastembed`.
+
+Vai tro trong luong Spec2RTL (Fig. 3):
+  - Giai doan Knowledge Retrieval (RAG): cung cap Top-K thiet ke RTL mau da xac minh
+    qua `format_rag_context()` de giam loi cu phap/logic khi LLM sinh Verilog.
+  - Giai doan Closed-Loop Learning: luu nguoc cac thiet ke moi da qua mo phong & tong hop
+    thanh cong vao `hardware_db.json` qua `save_verified_design()`.
 """
 
 from collections import Counter
@@ -26,6 +32,7 @@ try:
 except ImportError:
     np = None
 
+# Cac duong dan mac dinh toi kho tri thuc, quy tac phan chieu, du lieu Teacher va cache vector
 ThuMucGoc = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DuongDanDb = os.path.join(ThuMucGoc, "knowledge_base", "hardware_db.json")
 DuongDanQuyTac = os.path.join(ThuMucGoc, "knowledge_base", "reflection_db.json")
@@ -39,10 +46,11 @@ REFL_PATH = DuongDanQuyTac
 TEACHER_DB_PATH = DuongDanTeacher
 EMBEDDINGS_PATH = DuongDanEmbeddings
 
-_PREFIX_BO_QUA_LUU = ("test_", "tc", "web_spec_", "custom_hw_module")
-_NGUONG_RAG_TOI_THIEU = 0.28
-_SO_DONG_RTL_TOI_DA = 45
-_RRF_K = 30.0
+# Tham so dieu khien luu nguoc Closed-Loop va nguong loc RAG/RRF
+_PREFIX_BO_QUA_LUU = ("test_", "tc", "web_spec_", "custom_hw_module")  # Bo qua ten module tam/test khi luu DB
+_NGUONG_RAG_TOI_THIEU = 0.28  # Nguong tin cay toi thieu de bom mau tham khao vao prompt LLM
+_SO_DONG_RTL_TOI_DA = 45      # Cat ngan moi mau RTL <= 45 dong de khong lam tran context window LLM
+_RRF_K = 30.0                 # Hang so lam muot thu hang trong cong thuc Reciprocal Rank Fusion
 _RRF_WEIGHTS = {
     "vector": 1.25,
     "bm25": 1.15,
@@ -55,7 +63,14 @@ _LSA_MEMORY_CACHE = {}
 
 
 def xoa_dau_tieng_viet(VanBan):
-    """Loai bo dau tieng Viet de tim kiem khong dau."""
+    """
+    Loai bo dau tieng Viet va dua ve chu thuong de so khop song ngu on dinh.
+
+    Input:
+        VanBan (Any): Chuoi dau vao (tieng Viet/Anh).
+    Output:
+        str: Chuoi ASCII khong dau, chu thuong (rong neu input rong).
+    """
     if not VanBan:
         return ""
     VanBanStr = str(VanBan)
@@ -66,6 +81,7 @@ def xoa_dau_tieng_viet(VanBan):
 
 remove_vietnamese_accents = xoa_dau_tieng_viet
 
+# Tap tu dung (stopwords) tieng Viet & tieng Anh + tu mo ta chung tranh lam nhieu BM25
 _TU_DUNG = {
     "va", "thi", "la", "cac", "cho", "co", "the", "duoc", "mot", "trong",
     "a", "an", "and", "or", "to", "of", "in", "with", "is", "for", "on", "by",
@@ -76,7 +92,14 @@ _TU_DUNG = {
 
 
 def tach_tu(VanBan):
-    """Tach van ban thanh danh sach cac tu khoa co nghia."""
+    """
+    Tach van ban thanh danh sach cac tu khoa co nghia (da bo dau va loc stopword).
+
+    Input:
+        VanBan (str): Chuoi mo ta hoac truy van.
+    Output:
+        list[str]: Cac token dai > 1 ky tu khong nam trong `_TU_DUNG`.
+    """
     VanBanSach = xoa_dau_tieng_viet(VanBan)
     DanhSachTu = re.findall(r"[a-z0-9_]+", VanBanSach)
     return [Tu for Tu in DanhSachTu if len(Tu) > 1 and Tu not in _TU_DUNG]
@@ -86,8 +109,16 @@ tokenize = tach_tu
 
 
 def _tach_tu_mo_rong(VanBan):
-    """Tach tu cho BM25: giu ca dinh danh ghep va cac thanh phan snake_case/camelCase."""
+    """
+    Tach tu cho BM25: giu ca dinh danh ghep va tach nho thanh phan `snake_case`/`camelCase`.
+
+    Input:
+        VanBan (str): Chuoi can tach (vd: 'uartTx_8bit').
+    Output:
+        list[str]: Danh sach token gom ca cum ghep lan thanh phan con.
+    """
     VanBanStr = str(VanBan or "")
+    # Chen khoang trang truoc chu hoa de tach camelCase truoc khi ha ve chu thuong
     VanBanTachCamel = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", VanBanStr)
     VanBanSach = xoa_dau_tieng_viet(VanBanTachCamel)
     TokensGoc = re.findall(r"[a-z0-9_]+", VanBanSach)
@@ -96,6 +127,7 @@ def _tach_tu_mo_rong(VanBan):
         if len(Tok) <= 1 or Tok in _TU_DUNG:
             continue
         KetQua.append(Tok)
+        # Neu la snake_case, bo sung tung thanh phan con de tang kha nang khop tu khoa
         if "_" in Tok:
             for Phan in Tok.split("_"):
                 if len(Phan) > 1 and Phan not in _TU_DUNG:
@@ -104,7 +136,14 @@ def _tach_tu_mo_rong(VanBan):
 
 
 def _tao_3gram(VanBan):
-    """Tao tap character 3-gram tu van ban da chuan hoa khong dau."""
+    """
+    Tao tap character 3-gram tu van ban da chuan hoa khong dau (phuc vu khop mo/fuzzy).
+
+    Input:
+        VanBan (str): Chuoi can bam 3-gram.
+    Output:
+        frozenset[str]: Tap cac chuoi con 3 ky tu lien tiep.
+    """
     Sach = re.sub(r"[^a-z0-9]+", " ", xoa_dau_tieng_viet(VanBan)).strip()
     if not Sach:
         return frozenset()
@@ -114,7 +153,14 @@ def _tao_3gram(VanBan):
 
 
 def _jaccard_3gram(TapA, TapB):
-    """Tinh do tuong dong Jaccard giua hai tap 3-gram."""
+    """
+    Tinh he so tuong dong Jaccard |A & B| / |A | B| giua hai tap character 3-gram.
+
+    Input:
+        TapA, TapB (frozenset[str]): Hai tap 3-gram can so sanh.
+    Output:
+        float: Gia tri trong [0.0, 1.0].
+    """
     if not TapA or not TapB:
         return 0.0
     Giao = len(TapA & TapB)
@@ -125,7 +171,15 @@ def _jaccard_3gram(TapA, TapB):
 
 
 def _chuan_hoa_code_md5(VerilogCode):
-    """Tinh MD5 cua ma Verilog sau khi loai bo comment va toan bo khoang trang."""
+    """
+    Tinh MD5 cua ma Verilog sau khi loai bo comment va toan bo khoang trang.
+    Dung de chong luu trung code giong het nhau trong `save_verified_design()`.
+
+    Input:
+        VerilogCode (str): Ma nguon Verilog.
+    Output:
+        str: Chuoi hex MD5 hoac "" neu code rong sau khi lam sach.
+    """
     if not VerilogCode:
         return ""
     Sach = re.sub(r"/\*.*?\*/", "", str(VerilogCode), flags=re.DOTALL)
@@ -137,7 +191,14 @@ def _chuan_hoa_code_md5(VerilogCode):
 
 
 def _trich_rtl_tu_output(OutputText):
-    """Trich xuat code Verilog va phan CoT tu truong output cua Gemini Teacher."""
+    """
+    Trich xuat khoi code Verilog va phan suy luan Chain-of-Thought (CoT) tu output cua Gemini Teacher.
+
+    Input:
+        OutputText (str): Noi dung truong `output` trong `dataset_teacher_distilled.json`.
+    Output:
+        tuple[str, str]: (RtlCode, CotText).
+    """
     if not OutputText:
         return "", ""
     Text = str(OutputText)
@@ -260,7 +321,14 @@ _CAU_NOI_NGU_NGHIA = (
 
 
 def _mo_rong_ngu_nghia_vector(VanBan):
-    """Chuan hoa khong dau, tach camelCase/snake_case va bo sung the ngu nghia song ngu cho nhanh Vector."""
+    """
+    Chuan hoa khong dau, tach camelCase/snake_case va bo sung the ngu nghia song ngu cho nhanh Vector.
+
+    Input:
+        VanBan (str): Mo ta mach hoac truy van nguoi dung (tieng Viet/Anh).
+    Output:
+        str: Chuoi da chuan hoa kem cac the mo rong tu `_CAU_NOI_NGU_NGHIA` neu khop.
+    """
     if not VanBan:
         return ""
     VanBanStr = str(VanBan)
@@ -268,6 +336,7 @@ def _mo_rong_ngu_nghia_vector(VanBan):
     Sach = xoa_dau_tieng_viet(VanBanTachCamel)
     Sach = Sach.replace("_", " ")
     TheBoSung = []
+    # Gan them cac tu khoa ngu nghia tieng Anh tuong duong de nhanh Vector noi Viet <-> Anh
     for Triggers, Tags in _CAU_NOI_NGU_NGHIA:
         for Trig in Triggers:
             if Trig in Sach:
@@ -278,7 +347,7 @@ def _mo_rong_ngu_nghia_vector(VanBan):
     return Sach
 
 
-# Tap khai niem phan cung de nhan dien kieu mach
+# Tap khai niem phan cung de nhan dien kieu mach (nhanh Concept trong RRF va Keyword baseline)
 KHAI_NIEM_PHAN_CUNG = {
     "vending_machine": {
         "triggers": ["ban nuoc", "vending", "lon nuoc", "15000", "5000", "10000", "thoi tien", "nhan tien"],
@@ -376,6 +445,16 @@ class KnowledgeMatcher:
     def __init__(self, DuongDanCoSo=DuongDanDb, DuongDanPhanChieu=DuongDanQuyTac,
                  db_path=None, refl_path=None, teacher_path=None,
                  embeddings_path=None, vector_backend="auto"):
+        """
+        Khoi tao kho tri thuc phan cung va dung toan bo chi muc tim kiem trong RAM.
+
+        Input:
+            DuongDanCoSo / db_path (str): Duong dan toi `hardware_db.json`.
+            DuongDanPhanChieu / refl_path (str): Duong dan toi `reflection_db.json`.
+            teacher_path (str): Duong dan toi `dataset_teacher_distilled.json` (nap chi doc trong RAM).
+            embeddings_path (str): Duong dan toi file cache `hardware_embeddings.npz`.
+            vector_backend (str): 'auto' | 'fastembed' | 'npz_gemini' | 'lsa' | 'none'.
+        """
         self.DuongDanDb = db_path if db_path is not None else DuongDanCoSo
         self.DuongDanQuyTac = refl_path if refl_path is not None else DuongDanPhanChieu
         self.DuongDanTeacher = teacher_path if teacher_path is not None else DuongDanTeacher
@@ -386,11 +465,12 @@ class KnowledgeMatcher:
         self.embeddings_path = self.DuongDanEmbeddings
         self._requested_vector_backend = str(vector_backend or "auto").strip().lower()
 
+        # Du lieu goc va cac cau truc chi muc phuc vu BM25 / 3-gram / Keyword / Dedup
         self.DanhSachMau = []
         self.TeacherMau = []
         self.QuyTacPhanChieu = []
         self._corpus = []
-        self._db_code_hashes = set()
+        self._db_code_hashes = set()  # Tap MD5 code da co trong hardware_db.json de chong luu trung
         self._inverted = {}
         self._idf = {}
         self._doc_tfs = []
@@ -413,23 +493,29 @@ class KnowledgeMatcher:
         self._tai_du_lieu()
 
     def _tai_du_lieu(self):
-        """Doc du lieu tu file JSON chinh, quy tac phan chieu va index Gemini Teacher (trong RAM)."""
+        """
+        Doc du lieu tu `hardware_db.json`, `reflection_db.json` va `dataset_teacher_distilled.json`,
+        sau do goi `_xay_dung_chi_muc()` de danh chi muc tim kiem.
+        """
         self.DanhSachMau = []
         self.TeacherMau = []
         self.QuyTacPhanChieu = []
 
+        # 1. Nap kho thiet ke phan cung da xac minh (co the duoc ghi bo sung qua Closed-Loop)
         if self.DuongDanDb and os.path.exists(self.DuongDanDb):
             with open(self.DuongDanDb, "r", encoding="utf-8", errors="replace") as TepTin:
                 DuLieuDb = json.load(TepTin)
                 if isinstance(DuLieuDb, list):
                     self.DanhSachMau = DuLieuDb
 
+        # 2. Nap bang quy tac phan chieu sua loi EDA (reflection rules)
         if self.DuongDanQuyTac and os.path.exists(self.DuongDanQuyTac):
             with open(self.DuongDanQuyTac, "r", encoding="utf-8", errors="replace") as TepTin:
                 DuLieuQuyTac = json.load(TepTin)
                 if isinstance(DuLieuQuyTac, list):
                     self.QuyTacPhanChieu = DuLieuQuyTac
 
+        # 3. Nap bo du lieu chung cat tu Gemini Teacher vao RAM (khong ghi de file hardware_db.json)
         if self.DuongDanTeacher and os.path.exists(self.DuongDanTeacher):
             try:
                 with open(self.DuongDanTeacher, "r", encoding="utf-8", errors="replace") as TepTin:
@@ -466,7 +552,13 @@ class KnowledgeMatcher:
         self._xay_dung_chi_muc()
 
     def _xay_dung_chi_muc(self):
-        """Xay dung chi muc BM25, IDF, 3-gram, Keyword va Semantic Vector cho kho tri thuc."""
+        """
+        Xay dung toan bo chi muc cho 4 nhanh truy xuat:
+        - Inverted index + TF/IDF cho BM25.
+        - Tap 3-gram nhan ngan & nhan day du cho so khop mo.
+        - Metadata chuan hoa cho nhanh Concept & Exact Name.
+        - Ma tran Semantic Vector thong qua `_khoi_tao_vector_backend()`.
+        """
         self._corpus = list(self.DanhSachMau) + list(self.TeacherMau)
         self._db_code_hashes = set()
         for Muc in self.DanhSachMau:
@@ -505,6 +597,7 @@ class KnowledgeMatcher:
 
             SigHasher.update(f"{Muc.get('id','')}|{TenModule}|{len(Spec)}|".encode("utf-8", errors="ignore"))
 
+            # Tinh tan suat co trong so theo truong: ten/module (x3), keywords (x2), category & spec (x1)
             Tf = Counter()
             for Tok in _tach_tu_mo_rong(f"{TenMuc} {TenModule}"):
                 Tf[Tok] += 3
@@ -549,6 +642,7 @@ class KnowledgeMatcher:
                 "cat_tokens": set(_tach_tu_mo_rong(DanhMuc)),
             })
 
+        # Chu ky corpus dung de cache ma tran LSA trong RAM khi DB chua thay doi
         self._corpus_signature = f"{N}_{SigHasher.hexdigest()}"
         self._avgdl = max(1.0, sum(self._doc_lens) / float(N))
         for Term, Df in DocFreq.items():
@@ -558,7 +652,15 @@ class KnowledgeMatcher:
 
     @staticmethod
     def _chuan_hoa_vector_ma_tran(MaTran):
-        """Chuan hoa L2 tung hang vector thanh float32."""
+        """
+        Chuan hoa L2 tung vector (1D) hoac tung hang ma tran (2D) sang float32
+        de tich vo huong (dot product) tuong duong cosine similarity.
+
+        Input:
+            MaTran (array-like): Vector 1D hoac ma tran 2D [N, D].
+        Output:
+            ndarray (1D) hoac tuple[ndarray, ndarray] (2D + mask hang hop le co norm > 0).
+        """
         Arr = np.asarray(MaTran, dtype=np.float32)
         if Arr.ndim == 1:
             Norm = float(np.linalg.norm(Arr))
@@ -569,7 +671,14 @@ class KnowledgeMatcher:
         return Arr / SafeNorms, Mask
 
     def _tao_van_ban_vector(self, Muc):
-        """Tao van ban dai dien ngu nghia cho 1 mau trong kho tri thuc."""
+        """
+        Tao chuoi van ban dai dien ngu nghia cho 1 ban ghi trong corpus de dua vao encoder vector.
+
+        Input:
+            Muc (dict): Ban ghi mau phan cung.
+        Output:
+            str: Chuoi da gop truong va mo rong ngu nghia song ngu.
+        """
         TenMuc = str(Muc.get("name") or "")
         TenModule = str(Muc.get("module_name") or "")
         DanhMuc = str(Muc.get("category") or "")
@@ -582,7 +691,12 @@ class KnowledgeMatcher:
         return _mo_rong_ngu_nghia_vector(VanBanGop)
 
     def _khoi_tao_vector_backend(self):
-        """Chon tu dong 1 trong 3 backend vector theo thu tu uu tien (khong dung torch)."""
+        """
+        Chon tu dong 1 trong 3 backend Semantic Vector theo thu tu uu tien (tuyet doi khong dung torch):
+          1. `fastembed` (ONNX Runtime CPU offline).
+          2. `npz_gemini` (`hardware_embeddings.npz` + `gemini-embedding-001` khi co API key).
+          3. `lsa_tfidf_svd` (pure-offline TfidfVectorizer + TruncatedSVD bang sklearn/numpy).
+        """
         self.vector_backend = "none"
         self._doc_vectors = None
         self._doc_vector_mask = None
@@ -594,22 +708,27 @@ class KnowledgeMatcher:
         if Req == "none" or np is None or not self._corpus:
             return
 
-        # 1. Uu tien 1: Offline fastembed (ONNX CPU, tuyet doi khong import torch)
+        # Backend 1 (Uu tien 1): Offline fastembed (ONNX CPU, tuyet doi khong import torch)
         if Req in ("auto", "fastembed"):
             if self._thu_khoi_tao_fastembed():
                 return
 
-        # 2. Uu tien 2: Pre-computed cache hardware_embeddings.npz + gemini-embedding-001
+        # Backend 2 (Uu tien 2): Pre-computed cache hardware_embeddings.npz + gemini-embedding-001
         if Req in ("auto", "npz_gemini", "npz", "gemini"):
             if self._thu_khoi_tao_npz_gemini(allow_without_key=(Req != "auto")):
                 return
 
-        # 3. Uu tien 3 (Mac dinh pure-offline): TfidfVectorizer + TruncatedSVD (LSA)
+        # Backend 3 (Uu tien 3 - Mac dinh pure-offline): TfidfVectorizer + TruncatedSVD (LSA)
         if Req in ("auto", "lsa", "lsa_tfidf_svd", "tfidf_svd"):
             self._khoi_tao_lsa_tfidf_svd()
 
     def _thu_khoi_tao_fastembed(self):
-        """Thu nap backend ONNX CPU `fastembed` neu da cai san va dung duoc offline."""
+        """
+        Backend Vector 1: Thu nap mo hinh ONNX CPU `fastembed` neu da cai san va dung duoc offline.
+
+        Output:
+            bool: True neu nap va tao ma tran `_doc_vectors` thanh cong, nguoc lai False.
+        """
         try:
             from fastembed import TextEmbedding
         except Exception:
@@ -636,7 +755,15 @@ class KnowledgeMatcher:
             return False
 
     def _thu_khoi_tao_npz_gemini(self, allow_without_key=False):
-        """Thu nap pre-computed cache `hardware_embeddings.npz` va kiem tra GEMINI_API_KEY."""
+        """
+        Backend Vector 2: Nap pre-computed cache `hardware_embeddings.npz` va kiem tra GEMINI_API_KEY
+        (can API key de nhung cau truy van runtime cung khong gian vector voi `.npz`).
+
+        Input:
+            allow_without_key (bool): Cho phep nap cache du khong co API key khi user ep mode 'npz'.
+        Output:
+            bool: True neu nap va canh hang dung ma tran embedding cho corpus.
+        """
         if not self.DuongDanEmbeddings or not os.path.isfile(self.DuongDanEmbeddings):
             return False
 
@@ -660,6 +787,7 @@ class KnowledgeMatcher:
                 if Mat is None or getattr(Mat, "ndim", 0) != 2 or Mat.shape[0] == 0:
                     return False
 
+                # Canh hang cac hang vector trong .npz theo dung thu tu `self._corpus`
                 Dim = int(Mat.shape[1])
                 Aligned = np.zeros((len(self._corpus), Dim), dtype=np.float32)
                 IdsArr = None
@@ -701,7 +829,14 @@ class KnowledgeMatcher:
             return False
 
     def _khoi_tao_lsa_tfidf_svd(self):
-        """Khoi tao pure-offline TfidfVectorizer + TruncatedSVD (LSA dense vector)."""
+        """
+        Backend Vector 3 (Pure-Offline Mac Dinh): Ket hop Word TF-IDF (1-2 gram) + Char TF-IDF (3-4 gram)
+        qua `FeatureUnion`, sau do giam chieu bang `TruncatedSVD` (LSA <= 96 chieu).
+        Co dung `_LSA_MEMORY_CACHE` theo `_corpus_signature` de khoi fit lai nhieu lan.
+
+        Output:
+            bool: True neu khoi tao thanh cong, False neu thieu sklearn hoac loi.
+        """
         if np is None or not self._corpus:
             return False
 
@@ -725,6 +860,7 @@ class KnowledgeMatcher:
 
         Docs = [self._tao_van_ban_vector(M) for M in self._corpus]
         try:
+            # Nhanh Word n-gram nam bat cum tu ngu nghia; nhanh Char n-gram bat bien the chinh ta/ten ghep
             WordVec = TfidfVectorizer(
                 ngram_range=(1, 2),
                 token_pattern=r"(?u)\b[a-z0-9_]+\b",
@@ -773,7 +909,15 @@ class KnowledgeMatcher:
             return False
 
     def _embed_query_gemini(self, QueryText):
-        """Goi gemini-embedding-001 qua google.genai hoac REST API voi timeout ngan."""
+        """
+        Goi `gemini-embedding-001` qua SDK `google.genai` hoac REST API voi timeout 5s
+        de nhung cau truy van khi dang dung backend `npz_gemini`.
+
+        Input:
+            QueryText (str): Noi dung truy van goc.
+        Output:
+            np.ndarray | None: Vector chuan hoa L2 hoac None neu mat mang/thieu API key.
+        """
         ApiKey = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not ApiKey:
             return None
@@ -812,7 +956,14 @@ class KnowledgeMatcher:
             return None
 
     def _embed_query(self, VanBanCanTim):
-        """Tao vector truy van tuong ung voi backend dang hoat dong."""
+        """
+        Tao vector truy van tuong ung voi backend dang hoat dong (co tu dong fallback ve LSA neu `npz_gemini` loi mang).
+
+        Input:
+            VanBanCanTim (str): Cau truy van hoac mo ta mach.
+        Output:
+            np.ndarray | None: Vector truy van da chuan hoa L2.
+        """
         if np is None or self.vector_backend == "none":
             return None
 
@@ -849,7 +1000,12 @@ class KnowledgeMatcher:
         return None
 
     def get_vector_backend_info(self):
-        """Tra ve thong tin trang thai backend vector dang hoat dong."""
+        """
+        Tra ve thong tin trang thai backend Semantic Vector dang hoat dong (phuc vu log/benchmark).
+
+        Output:
+            dict: Gom `backend`, `corpus_size`, `vector_shape`, `has_npz_cache`, `has_gemini_key`.
+        """
         Shape = tuple(self._doc_vectors.shape) if self._doc_vectors is not None else (0, 0)
         return {
             "backend": self.vector_backend,
@@ -861,7 +1017,14 @@ class KnowledgeMatcher:
 
     @staticmethod
     def _khoa_khop_khai_niem(VanBanChuanHoa):
-        """Nhan dien cac khai niem phan cung trong van ban da bo dau."""
+        """
+        Nhan dien cac khai niem phan cung trong van ban da bo dau dua tren `KHAI_NIEM_PHAN_CUNG`.
+
+        Input:
+            VanBanChuanHoa (str): Chuoi truy van da bo dau va viet thuong.
+        Output:
+            list[tuple[str, dict]]: Danh sach (ten_khai_niem, metadata_khai_niem) duoc kich hoat.
+        """
         KhaiNiemKhop = []
         for TenKhaiNiem, DuLieuKhaiNiem in KHAI_NIEM_PHAN_CUNG.items():
             for TuKichHoat in DuLieuKhaiNiem["triggers"]:
@@ -872,7 +1035,14 @@ class KnowledgeMatcher:
 
     @staticmethod
     def _khoa_loai_trung(Muc):
-        """Tao khoa dinh danh duy nhat de loc Top-K khong bi trung lap."""
+        """
+        Tao khoa dinh danh duy nhat de loc Top-K khong bi trung lap giua DB chinh, Teacher va ban verified.
+
+        Input:
+            Muc (dict): Ban ghi thiet ke phan cung.
+        Output:
+            tuple[str, str]: Khoa loai trung da chuan hoa bo tien to `verified_`.
+        """
         TenMod = str(Muc.get("module_name") or "").strip()
         TenMuc = str(Muc.get("name") or "").strip()
         if TenMod.lower() in ("", "refmodule", "topmodule"):
@@ -883,14 +1053,21 @@ class KnowledgeMatcher:
         return ("mod", ModNorm)
 
     def _tinh_diem_bm25_va_khai_niem(self, VanBanCanTim):
-        """Tinh diem cho tung nhanh thanh phan: BM25, 3-gram, Concept va Semantic Vector."""
+        """
+        Tinh tin hieu cho cac nhanh tu vung va tri thuc: BM25, 3-gram truy van, Concept va Exact Bonus.
+
+        Input:
+            VanBanCanTim (str): Cau truy van hoac mo ta mach.
+        Output:
+            dict: Chua `van_ban_chuan`, `gram_truy_van`, `bm25_raw`, `bm25_norm`, `concept`, `exact_bonus`.
+        """
         VanBanChuanHoa = xoa_dau_tieng_viet(VanBanCanTim)
         TuKhoaTruyVan = _tach_tu_mo_rong(VanBanCanTim)
         TruyVanDuyNhat = list(dict.fromkeys(TuKhoaTruyVan))
         GramTruyVan = _tao_3gram(VanBanCanTim)
         KhaiNiemKhop = self._khoa_khop_khai_niem(VanBanChuanHoa)
 
-        # 1. BM25 qua inverted index
+        # 1. Nhanh BM25 (Okapi BM25 voi k1=1.5, b=0.75) qua inverted index
         K1 = 1.5
         B = 0.75
         Bm25Raw = {}
@@ -909,13 +1086,14 @@ class KnowledgeMatcher:
                 Bm25Raw[DocIdx] = Bm25Raw.get(DocIdx, 0.0) + Idf * (TuSo / MauSo)
                 MatchedIdf[DocIdx] = MatchedIdf.get(DocIdx, 0.0) + Idf
 
+        # Chuan hoa diem BM25 ve [0, 1] bang to hop IDF Recall va ham bao hoa Raw/(Raw+6)
         Bm25NormMap = {}
         for Idx, Raw in Bm25Raw.items():
             IdfRecall = (MatchedIdf.get(Idx, 0.0) / TotalQueryIdf) if TotalQueryIdf > 0 else 0.0
             Bm25Sat = Raw / (Raw + 6.0)
             Bm25NormMap[Idx] = 0.55 * IdfRecall + 0.45 * Bm25Sat
 
-        # 2. Concept + Exact Name
+        # 2. Nhanh Concept (KHAI_NIEM_PHAN_CUNG) + Exact Name Bonus (trung khop nguyen ten module)
         ConceptMap = {}
         ExactBonusMap = {}
         TargetNamesAll = {T.lower() for _, D in KhaiNiemKhop for T in D["target_names"]}
@@ -975,11 +1153,18 @@ class KnowledgeMatcher:
         }
 
     def _tinh_diem_vector(self, VanBanCanTim):
-        """Tinh cosine similarity giua truy van va toan bo kho tri thuc (co loc nhieu OOV)."""
+        """
+        Tinh cosine similarity giua vector truy van va toan bo ma tran `_doc_vectors`.
+
+        Input:
+            VanBanCanTim (str): Chuoi truy van can tim.
+        Output:
+            dict[int, float]: Anh xa doc_idx -> cosine similarity (> 0.0); rong neu truy van OOV vo nghia.
+        """
         if self._doc_vectors is None or np is None:
             return {}
 
-        # Chan truy van vo nghia / ngoai tu dien (vd: 'xyzzy_khong_ton_tai_99999')
+        # Chan truy van vo nghia / ngoai tu dien (vd: 'xyzzy_khong_ton_tai_99999') de tranh false-positive o LSA
         TruyVanTokens = list(dict.fromkeys(_tach_tu_mo_rong(VanBanCanTim)))
         if TruyVanTokens and self.vector_backend == "lsa_tfidf_svd":
             SoTuBiet = sum(1 for T in TruyVanTokens if T in self._idf)
@@ -989,13 +1174,21 @@ class KnowledgeMatcher:
         QVec = self._embed_query(VanBanCanTim)
         if QVec is None:
             return {}
+        # Ma tran da chuan hoa L2 nen tich ma tran `@` chinh la cosine similarity
         Sims = (self._doc_vectors @ QVec).ravel()
         if self._doc_vector_mask is not None:
             Sims = np.where(self._doc_vector_mask, Sims, 0.0)
         return {int(Idx): float(Score) for Idx, Score in enumerate(Sims) if Score > 0.0}
 
     def _cham_diem_keyword(self, VanBanCanTim):
-        """Che do co dien (Keyword overlap + KHAI_NIEM_PHAN_CUNG), dung lam baseline benchmark."""
+        """
+        Che do co dien (Keyword overlap + KHAI_NIEM_PHAN_CUNG), dung lam baseline so sanh trong benchmark.
+
+        Input:
+            VanBanCanTim (str): Chuoi truy van.
+        Output:
+            list[tuple[float, float, dict]]: Danh sach (diem_sap_xep, do_tin_cay, ban_ghi) giam dan.
+        """
         if not self._corpus or not VanBanCanTim or not str(VanBanCanTim).strip():
             return []
 
@@ -1040,7 +1233,14 @@ class KnowledgeMatcher:
         return DanhSach
 
     def _cham_diem_bm25(self, VanBanCanTim):
-        """Che do thuan BM25 (khong semantic vector, khong 3-gram, khong RRF)."""
+        """
+        Che do thuan BM25 (khong Semantic Vector, khong 3-gram, khong RRF), dung lam ablation/baseline.
+
+        Input:
+            VanBanCanTim (str): Chuoi truy van.
+        Output:
+            list[tuple[float, float, dict]]: Danh sach (bm25_raw, do_tin_cay, ban_ghi) giam dan.
+        """
         if not self._corpus or not VanBanCanTim or not str(VanBanCanTim).strip():
             return []
         TinHieu = self._tinh_diem_bm25_va_khai_niem(VanBanCanTim)
@@ -1057,7 +1257,14 @@ class KnowledgeMatcher:
         return DanhSach
 
     def _cham_diem_vector(self, VanBanCanTim):
-        """Che do thuan Semantic Vector (cosine similarity)."""
+        """
+        Che do thuan Semantic Vector (cosine similarity), dung cho ablation trong benchmark.
+
+        Input:
+            VanBanCanTim (str): Chuoi truy van.
+        Output:
+            list[tuple[float, float, dict]]: Danh sach (cosine_sim, do_tin_cay, ban_ghi) giam dan.
+        """
         if not self._corpus or not VanBanCanTim or not str(VanBanCanTim).strip():
             return []
         VecMap = self._tinh_diem_vector(VanBanCanTim)
@@ -1072,7 +1279,21 @@ class KnowledgeMatcher:
         return DanhSach
 
     def _cham_diem_hybrid(self, VanBanCanTim):
-        """Cham diem Hybrid = Semantic Vector + BM25 + 3-gram + KHAI_NIEM_PHAN_CUNG bang RRF."""
+        """
+        Che do chinh Hybrid RRF: hop nhat 4 nhanh (Semantic Vector + BM25 + 3-gram + Concept)
+        bang cong thuc Reciprocal Rank Fusion (RRF) co trong so.
+
+        Quy trinh 4 buoc:
+          1. Thu thap tap ung vien hop tu BM25, Concept, Exact Name va Semantic Vector.
+          2. Tinh them 3-gram Jaccard tren tap ung vien (hoac quet toan corpus neu tap ung vien rong).
+          3. Xep hang doc lap tung nhanh (co nguong loc nhieu rieng cho moi nhanh).
+          4. Tinh `RrfScore = sum(w_i / (_RRF_K + rank_i))` va dieu tiet qua `SignalGate` thanh do tin cay.
+
+        Input:
+            VanBanCanTim (str): Chuoi truy van hoac mo ta mach.
+        Output:
+            list[tuple[float, float, dict]]: Danh sach (diem_thuc, do_tin_cay, ban_ghi) da sap xep giam dan.
+        """
         if not self._corpus or not VanBanCanTim or not str(VanBanCanTim).strip():
             return []
 
@@ -1085,7 +1306,7 @@ class KnowledgeMatcher:
 
         VecMap = self._tinh_diem_vector(VanBanCanTim)
 
-        # Tap ung vien tu ca 4 nhanh
+        # Buoc 1: Tap ung vien hop tu cac nhanh chinh
         UngVien = set(Bm25Raw.keys()) | set(ConceptMap.keys()) | set(ExactBonusMap.keys())
         for Idx, Sim in VecMap.items():
             if Sim >= 0.14:
@@ -1093,7 +1314,7 @@ class KnowledgeMatcher:
         if not UngVien and not GramTruyVan:
             return []
 
-        # Tinh 3-gram Jaccard tren tap ung vien (va quet nhe toan corpus neu can tim fuzzy)
+        # Buoc 2: Tinh 3-gram Jaccard tren tap ung vien (va quet toan corpus neu chua co ung vien nao)
         GramMap = {}
         TapQuet3Gram = UngVien if UngVien else range(len(self._corpus))
         for Idx in TapQuet3Gram:
@@ -1108,7 +1329,7 @@ class KnowledgeMatcher:
         if not UngVien:
             return []
 
-        # Xep hang tung nhanh de dua vao Reciprocal Rank Fusion (RRF)
+        # Buoc 3: Xep hang doc lap tung nhanh de dua vao Reciprocal Rank Fusion (RRF)
         RankVec = {
             Idx: Rank
             for Rank, (Idx, _) in enumerate(
@@ -1158,6 +1379,7 @@ class KnowledgeMatcher:
             )
         }
 
+        # Buoc 4: Hop nhat diem RRF co trong so va tinh do tin cay cuoi cung
         MaxRrfTheoretical = sum(_RRF_WEIGHTS.values()) / (_RRF_K + 1.0)
         DanhSachChamDiem = []
 
@@ -1183,6 +1405,7 @@ class KnowledgeMatcher:
 
             RrfNorm = RrfScore / MaxRrfTheoretical
             BestSignal = max(VecSim, Bm25Val, GramVal, ConVal)
+            # SignalGate giam diem cac ung vien yeu o tat ca cac nhanh du co mat trong tap ung vien
             SignalGate = min(1.0, BestSignal / 0.35)
             DoTinCay = min(1.0, (0.52 * RrfNorm + 0.38 * BestSignal) * SignalGate + 0.22 * ExactVal)
 
@@ -1194,7 +1417,17 @@ class KnowledgeMatcher:
         return DanhSachChamDiem
 
     def search_by_mode(self, spec_text, mode="hybrid", top_k=3):
-        """Tim kiem theo che do cu the ('hybrid'|'bm25'|'keyword'|'vector') de ho tro benchmark."""
+        """
+        Tim kiem Top-K mau thiet ke theo che do chi dinh (`hybrid`, `bm25`, `keyword`, `vector`).
+
+        Input:
+            spec_text (str): Van ban dac ta hoac cau truy van.
+            mode (str): Che do cham diem ('hybrid'|'bm25'|'keyword'|'vector').
+            top_k (int): So luong ket qua toi da sau khi khu trung lap.
+        Output:
+            tuple[dict | None, str, float, list[dict]]:
+                (MauTotNhat, LoaiKhop ['EXACT'|'SIMILAR'|'CUSTOM'], DoTinCay, DanhSachTopK).
+        """
         if not self._corpus or not spec_text or not str(spec_text).strip() or top_k <= 0:
             return None, "CUSTOM", 0.0, []
 
@@ -1216,6 +1449,7 @@ class KnowledgeMatcher:
         if not DanhSachChamDiem:
             return None, "CUSTOM", 0.0, []
 
+        # Loc bo ban sao trung module_name de Top-K luon da dang
         MauDuyNhat = []
         KhoaDaGap = set()
         for _, _, Muc in DanhSachChamDiem:
@@ -1228,6 +1462,7 @@ class KnowledgeMatcher:
 
         _, DoTinCayCaoNhat, MauTotNhat = DanhSachChamDiem[0]
 
+        # Phan nguong muc do khop de pipeline ben ngoai quyet dinh tai su dung hay sinh moi
         if DoTinCayCaoNhat >= 0.70:
             LoaiKhop = "EXACT"
         elif DoTinCayCaoNhat >= 0.35:
@@ -1238,13 +1473,32 @@ class KnowledgeMatcher:
         return MauTotNhat, LoaiKhop, round(DoTinCayCaoNhat, 3), MauDuyNhat
 
     def search(self, VanBanSpec, TopK=3, spec_text=None, top_k=None, mode="hybrid"):
-        """Tim kiem mach phu hop nhat trong CSDL tri thuc bang Hybrid RRF Retrieval."""
+        """
+        Ham giao dien chinh tim kiem mach phu hop nhat trong CSDL tri thuc (mac dinh Hybrid RRF).
+
+        Input:
+            VanBanSpec / spec_text (str): Dac ta yeu cau dau vao.
+            TopK / top_k (int): So luong mau goi y can lay.
+            mode (str): Che do truy xuat (mac dinh 'hybrid').
+        Output:
+            tuple[dict | None, str, float, list[dict]]: Tuong tu `search_by_mode`.
+        """
         VanBanCanTim = spec_text if spec_text is not None else VanBanSpec
         SoLuongCanLay = top_k if top_k is not None else TopK
         return self.search_by_mode(VanBanCanTim, mode=mode, top_k=SoLuongCanLay)
 
     def format_rag_context(self, spec_text, top_k=2):
-        """Tra ve chuoi ngan gon Top-K mau RTL tham khao (<= 45 dong/mau) cho LLM; tra '' neu khong dat nguong."""
+        """
+        Tao ngu canh RAG ngan gon gom Top-K mau RTL tham khao (<= 45 dong/mau) de bom vao prompt LLM.
+        Tra ve chuoi rong "" neu khong co mau nao dat nguong `_NGUONG_RAG_TOI_THIEU` (0.28),
+        giup tranh dua mau nhieu/khong lien quan vao mo hinh sinh Verilog trong Spec2RTL Fig. 3.
+
+        Input:
+            spec_text (str): Van ban dac ta dau vao.
+            top_k (int): So mau tham khao toi da (mac dinh 2).
+        Output:
+            str: Chuoi Markdown chua cac khoi Verilog tham khao hoac "".
+        """
         if not spec_text or not isinstance(spec_text, str) or not spec_text.strip() or top_k <= 0:
             return ""
 
@@ -1255,6 +1509,7 @@ class KnowledgeMatcher:
         CacDoan = []
         KhoaDaGap = set()
         for _, DoTinCay, Muc in DanhSachChamDiem:
+            # Dung ngay khi do tin cay giam xuong duoi nguong an toan
             if DoTinCay < _NGUONG_RAG_TOI_THIEU:
                 break
             Khoa = self._khoa_loai_trung(Muc)
@@ -1267,6 +1522,7 @@ class KnowledgeMatcher:
             KhoaDaGap.add(Khoa)
             TenMod = Muc.get("module_name") or Muc.get("name") or "unknown_module"
             Nguon = Muc.get("source") or "Hardware Knowledge Base"
+            # Cat ngan ma RTL toi da _SO_DONG_RTL_TOI_DA dong de giu prompt gon nhe cho model 3B/GGUF
             DongRtl = Rtl.splitlines()
             if len(DongRtl) > _SO_DONG_RTL_TOI_DA:
                 DongRtl = DongRtl[:_SO_DONG_RTL_TOI_DA - 1] + ["// ... (truncated)"]
@@ -1284,7 +1540,25 @@ class KnowledgeMatcher:
 
     def save_verified_design(self, module_name, spec_text, verilog_code,
                              category="Auto-Verified", source="Spec2RTL Closed-Loop EDA"):
-        """Luu nguoc thiet ke da kiem chung thanh cong vao hardware_db.json neu hop le va khong trung."""
+        """
+        Closed-Loop Learning (Spec2RTL Fig. 3): Luu nguoc thiet ke RTL da qua xac minh EDA
+        (Bien dich/Mo phong/Tong hop thanh cong) vao `hardware_db.json` de kho tri thuc tu lon manh.
+
+        Cac lop bao ve chat luong du lieu:
+          1. Bo qua ten module test/tam (`_PREFIX_BO_QUA_LUU`).
+          2. Khong ghi de hoac trung lap ten module da ton tai.
+          3. Khong luu trung ma logic qua bam MD5 sau khi bo comment/khoang trang (`_db_code_hashes`).
+          4. Ghi nguyen tu (atomic write) qua file `.tmp` + `os.replace` roi dung lai chi muc RAM ngay.
+
+        Input:
+            module_name (str): Ten module Verilog da kiem chung.
+            spec_text (str): Dac ta yeu cau ban dau.
+            verilog_code (str): Ma nguon Verilog da dat chuan EDA.
+            category (str): Nhom kien truc.
+            source (str): Nguon tao thiet ke.
+        Output:
+            bool: True neu luu thanh cong ban ghi moi, False neu bi loc/trung/loi I/O.
+        """
         if not module_name or not verilog_code:
             return False
 
@@ -1293,16 +1567,19 @@ class KnowledgeMatcher:
         if not TenModSach or not CodeSach:
             return False
 
+        # 1. Loc cac module tam/test de khong lam o nhiem kho tri thuc
         TenModLower = TenModSach.lower()
         if TenModLower.startswith(_PREFIX_BO_QUA_LUU):
             return False
 
+        # 2. Chong trung ten module trong DB chinh
         for Muc in self.DanhSachMau:
             ModCu = str(Muc.get("module_name") or "").strip().lower()
             TenCu = str(Muc.get("name") or "").strip().lower()
             if TenModLower == ModCu or TenModLower == TenCu:
                 return False
 
+        # 3. Chong trung lap ma logic Verilog bang MD5 (bo qua khac biet comment/format)
         HashCode = _chuan_hoa_code_md5(CodeSach)
         if not HashCode or HashCode in self._db_code_hashes:
             return False
@@ -1332,6 +1609,7 @@ class KnowledgeMatcher:
         if ThuMucDich:
             os.makedirs(ThuMucDich, exist_ok=True)
 
+        # 4. Ghi nguyen tu (atomic write) qua file tam .tmp de tranh hong JSON neu mat dien/crash
         DanhSachMoi = list(self.DanhSachMau) + [BanGhiMoi]
         DuongDanTam = f"{self.DuongDanDb}.tmp"
         try:
@@ -1346,6 +1624,7 @@ class KnowledgeMatcher:
                     pass
             return False
 
+        # Cap nhat RAM va tai xay dung chi muc ngay lap tuc cho cac truy van ke tiep
         self.DanhSachMau = DanhSachMoi
         self.entries = self.DanhSachMau
         self._xay_dung_chi_muc()

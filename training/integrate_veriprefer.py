@@ -22,6 +22,7 @@ import subprocess
 import urllib.request
 import time
 
+# Đường dẫn thư mục gốc, thư mục mô phỏng tạm, file dataset sạch và file báo cáo nghiệm thu
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SIM_DIR = os.path.join(PROJECT_ROOT, "sim")
 DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_clean_verified.json")
@@ -31,6 +32,7 @@ sys.path.append(os.path.join(PROJECT_ROOT, "agent"))
 from eda_finder import find_modelsim
 
 def get_vlog_path():
+    """Tìm đường dẫn trình biên dịch ModelSim (vlog.exe và vlib.exe)."""
     ms = find_modelsim()
     if ms and "vlog" in ms and os.path.exists(ms["vlog"]):
         return ms["vlog"], ms.get("vlib")
@@ -41,6 +43,7 @@ def get_vlog_path():
     return None, None
 
 def generate_cot(module_name, category):
+    """Tạo phần phân tích kiến trúc vi mạch (CoT chuẩn hóa) đi kèm mỗi mẫu VeriPrefer."""
     return (
         f"### Phân tích kiến trúc vi mạch:\n"
         f"1. Thiết kế module `{module_name}` chuẩn hóa từ bài báo VeriPrefer (CityU HK, arXiv:2504.15804).\n"
@@ -58,6 +61,7 @@ def normalize_code(code_str):
     return clean
 
 def check_linter(verilog_code):
+    """Kiểm tra tĩnh cơ bản: có module/endmodule, cân bằng begin-end và khối case có nhánh default."""
     issues = []
     if not re.search(r"\bmodule\s+[a-zA-Z_]", verilog_code):
         issues.append("Thiếu khai báo module")
@@ -74,10 +78,11 @@ def check_linter(verilog_code):
     return len(issues) == 0, issues
 
 def fetch_veriprefer_candidates():
+    """Tải danh sách bài toán & mã Verilog gốc từ 2 benchmark rtllm2 và veriloghuman trên GitHub VeriPrefer."""
     print("[*] Đang kết nối kho VeriPrefer (CatIIIIIIII/VeriPrefer) trên GitHub...")
     ctx = ssl._create_unverified_context()
 
-    # 1. Danh sách bài toán từ rtllm2
+    # 1. Tải danh sách đặc tả bài toán từ rtllm2.json
     rtllm2_url = "https://raw.githubusercontent.com/CatIIIIIIII/VeriPrefer/main/data/benchmark/rtllm2.json"
     req = urllib.request.Request(rtllm2_url, headers={"User-Agent": "Mozilla/5.0"})
     
@@ -88,7 +93,7 @@ def fetch_veriprefer_candidates():
     except Exception as e:
         print(f"[!] Không thể tải rtllm2.json ({e})")
 
-    # 2. Danh sách bài toán từ veriloghuman
+    # 2. Tải danh sách đặc tả bài toán từ veriloghuman.json
     vhuman_url = "https://raw.githubusercontent.com/CatIIIIIIII/VeriPrefer/main/data/benchmark/veriloghuman.json"
     req_vh = urllib.request.Request(vhuman_url, headers={"User-Agent": "Mozilla/5.0"})
     vhuman_items = []
@@ -101,7 +106,7 @@ def fetch_veriprefer_candidates():
     candidates = []
     print(f"[*] Tìm thấy {len(rtllm2_items)} bài toán RTLLM2 và {len(vhuman_items)} bài toán VerilogHuman trong VeriPrefer.")
 
-    # Tải RTLLM2
+    # Tải từng file RTL tham chiếu thuộc tập RTLLM2
     print("[*] Đang tải mã nguồn từ VeriPrefer rtllm2...")
     for idx, item in enumerate(rtllm2_items):
         mod_name = item.get("name")
@@ -128,7 +133,7 @@ def fetch_veriprefer_candidates():
         if (idx + 1) % 15 == 0:
             print(f"    -> Đã quét {idx+1}/{len(rtllm2_items)} bài rtllm2 (Thu thập: {len(candidates)})")
 
-    # Tải VerilogHuman (lấy 40 mẫu tiêu biểu)
+    # Tải VerilogHuman (lấy 40 mẫu tiêu biểu và chuyển từ khóa SystemVerilog `logic` sang `wire` chuẩn Verilog-2001)
     print("[*] Đang tải các mẫu tiêu biểu từ VeriPrefer veriloghuman...")
     for idx, item in enumerate(vhuman_items[:40]):
         mod_name = item.get("name")
@@ -158,6 +163,7 @@ def fetch_veriprefer_candidates():
     return candidates
 
 def main():
+    """Luồng chính: Nạp tập sạch -> Tải & lọc VeriPrefer qua ModelSim -> Khử trùng lặp ID/MD5 -> Cập nhật báo cáo."""
     print("================================================================================")
     print(">>> NHÓM 1: TÍCH HỢP VERIPREFER & KIỂM TRA TOÀN DIỆN (TRÙNG LẶP + LỌC SẠCH)")
     print("================================================================================")
@@ -167,7 +173,7 @@ def main():
         print("[LỖI] Không tìm thấy ModelSim vlog.exe")
         return
 
-    # 1. Nạp tập dữ liệu sạch hiện tại
+    # 1. Nạp tập dữ liệu sạch hiện tại từ dataset_clean_verified.json
     if not os.path.exists(DATASET_PATH):
         print(f"[LỖI] Không tìm thấy file {DATASET_PATH}")
         return
@@ -177,7 +183,7 @@ def main():
 
     print(f"[*] Dữ liệu sạch hiện tại: {len(existing_dataset)} mẫu.")
 
-    # 2. Tải và thẩm định các mẫu mới từ VeriPrefer
+    # 2. Tải và thẩm định các mẫu mới từ VeriPrefer qua ModelSim vlog.exe + Linter tĩnh
     veriprefer_candidates = fetch_veriprefer_candidates()
 
     test_file_path = os.path.join(SIM_DIR, "_veriprefer_test.v")
@@ -205,6 +211,7 @@ def main():
             )
             is_linter_pass, _ = check_linter(rtl)
 
+            # Chỉ nhận mẫu vượt qua cả ModelSim lẫn Linter và đóng gói theo schema SFT chuẩn
             if is_compile_pass and is_linter_pass:
                 cot = generate_cot(mod_name, item["category"])
                 new_entry = {
@@ -227,7 +234,7 @@ def main():
 
     print(f"[+] Có {len(new_verified_items)} mẫu VeriPrefer đạt chuẩn ModelSim 100%!")
 
-    # 3. Gộp và KIỂM TRA TRÙNG LẶP TOÀN DIỆN (DEDUPLICATION)
+    # 3. Gộp và KIỂM TRA TRÙNG LẶP TOÀN DIỆN (DEDUPLICATION theo ID + MD5 Code Hash)
     print("\n--------------------------------------------------------------------------------")
     print("[*] TIẾN HÀNH KIỂM TRA TOÀN DIỆN (DEDUPLICATION & AUDIT)...")
     print("--------------------------------------------------------------------------------")
@@ -248,7 +255,7 @@ def main():
         output_str = item.get("output", "")
         input_str = item.get("input", "")
 
-        # Trích xuất mã Verilog
+        # Trích xuất mã Verilog thuần để băm hash và quét linter
         match = re.search(r"```(?:verilog)?\s*(.*?)\s*```", output_str, re.DOTALL | re.IGNORECASE)
         code = match.group(1).strip() if match else output_str.strip()
 
@@ -257,7 +264,7 @@ def main():
             duplicate_count += 1
             continue
 
-        # 2. Kiểm tra trùng lặp Code logic (Code Hash)
+        # 2. Kiểm tra trùng lặp Code logic (băm MD5 sau khi bỏ comment & khoảng trắng thừa)
         norm_code = normalize_code(code)
         code_hash = hashlib.md5(norm_code.encode("utf-8")).hexdigest()
         if code_hash in seen_code_hashes:
@@ -270,7 +277,7 @@ def main():
             linter_fail_count += 1
             continue
 
-        # Thêm vào tập sạch
+        # Thêm vào tập sạch duy nhất
         seen_ids.add(item_id)
         seen_code_hashes.add(code_hash)
         seen_specs.add(input_str.strip().lower()[:100])

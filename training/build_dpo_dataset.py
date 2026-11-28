@@ -18,6 +18,7 @@ import re
 import json
 import argparse
 
+# Định nghĩa đường dẫn các tập dữ liệu SFT đầu vào, tập DPO đầu ra và checkpoint chưng cất
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SFT_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_clean_verified.json")
 TEACHER_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_teacher_distilled.json")
@@ -26,11 +27,13 @@ TEACHER_DPO_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_teach
 CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, "training", "distill_checkpoint.json")
 
 def extract_verilog(text):
+    """Tách phần mã Verilog thuần nằm trong thẻ ```verilog ... ``` (làm mẫu CHOSEN chuẩn sạch)."""
     match = re.search(r"```(?:verilog)?\s*(.*?)\s*```", text, re.DOTALL | re.IGNORECASE)
     return match.group(1).strip() if match else text.strip()
 
 def mutate_inject_latch(code):
     """Đột biến tạo chốt ẩn (Inferred Latch): Xóa bỏ nhánh default hoặc else trong khối tổ hợp."""
+    # Chỉ coi là khối tổ hợp nếu có always @(*) và không có cạnh xung clock (posedge/negedge)
     is_comb = ("always @*" in code or "always @(*)" in code or "always @ (" in code) and not ("posedge" in code or "negedge" in code)
     if "default:" in code:
         # Xóa nhánh default trong khối case
@@ -52,6 +55,7 @@ def mutate_inject_dangling_pin(code):
     if candidate_inputs:
         target_pin = candidate_inputs[0]
         # Tách phần header cổng và thân logic để chỉ thay thế trong thân logic, giữ nguyên header
+        # Mục tiêu: cổng vẫn khai báo ở module header nhưng không hề tham gia tính toán bên trong -> tạo Dangling Pin
         m_mod = re.search(r"\bmodule\s+[A-Za-z0-9_]+\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", code)
         if m_mod:
             header_end = m_mod.end()
@@ -65,6 +69,7 @@ def mutate_inject_dangling_pin(code):
 
 def mutate_inject_blocking_assignment(code):
     """Đột biến vi phạm chuẩn IEEE: Dùng phép gán blocking (=) trong khối tuần tự clock."""
+    # Thay non-blocking (<=) thành blocking (=) để mô phỏng lỗi Race Condition trong Flip-Flop
     if "posedge clk" in code and "<=" in code:
         mutated = code.replace("<=", "=")
         return mutated, "BLOCKING_IN_SEQUENTIAL (Dùng phép gán = trong khối tuần tự gây Race Condition)"
@@ -77,6 +82,7 @@ def clean_prompt_text(text):
 
 def load_teacher_dpo_pairs():
     """Nạp các cặp DPO thật từ quá trình Teacher Self-Correction (checkpoint hoặc tập DPO hiện có)."""
+    # Cặp DPO thật = (lần 1 Teacher sinh lỗi bị Oracle từ chối) vs (lần 2 Teacher tự sửa đạt 100% Oracle)
     pairs_by_id = {}
 
     if os.path.exists(DPO_DATASET_PATH):
@@ -109,6 +115,7 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
     """Sinh tập cặp DPO (Chosen vs Rejected) ưu tiên cặp Teacher Self-Correction + đột biến 3 lỗi RTL."""
     print(f"\n[*] Đang tạo {label}: nạp {len(clean_items)} mẫu CHOSEN...")
 
+    # Đưa các cặp DPO thật từ quá trình Self-Correction vào đầu tập dữ liệu
     dpo_pairs = list(real_teacher_dpo)
     teacher_dpo_count = len(dpo_pairs)
     latch_count = 0
@@ -129,6 +136,7 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
         rejected_code = None
         error_type = None
 
+        # Xoay vòng phân bổ 3 dạng lỗi vi mạch kinh điển theo chỉ số idx % 3 để cân bằng dữ liệu phạt:
         # 1. Thử tạo lỗi Chốt ẩn (Inferred Latch)
         if idx % 3 == 0:
             rejected_code, error_type = mutate_inject_latch(chosen_code)
@@ -151,7 +159,7 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
                 error_type = err
                 blocking_count += 1
 
-        # Dự phòng nếu 3 phép đột biến trên không áp dụng được
+        # Dự phòng nếu 3 phép đột biến trên không áp dụng được (đảo bit logic hoặc vô hiệu hóa reset)
         if not rejected_code or rejected_code == chosen_code:
             if "assign " in chosen_code:
                 rejected_code = re.sub(r"\b1'b0\b", "1'b1", chosen_code, count=1)
@@ -162,10 +170,12 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
                 rejected_code = chosen_code.replace("if (!rst_n)", "if (1'b0)").replace("if (rst)", "if (1'b0)")
                 error_type = "MISSING_RESET_INITIALIZATION (Không khởi tạo thanh ghi khi có tín hiệu reset)"
 
+        # Phương án cuối cùng nếu code vẫn không đổi: cắt bỏ từ khóa endmodule tạo lỗi cú pháp
         if rejected_code == chosen_code:
             rejected_code = chosen_code.replace("endmodule", "// Lỗi thiếu kết thúc module\n")
             error_type = "SYNTAX_TRUNCATED (Mã nguồn bị ngắt quãng giữa chừng)"
 
+        # Đóng gói cặp preference (prompt, chosen, rejected) phục vụ huấn luyện DPO trên Colab
         dpo_pairs.append({
             "id": f"dpo_{item_id}",
             "category": item.get("category", "General"),
@@ -179,6 +189,7 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
             "rejected_verification": "FAIL_LINTER_OR_SIMULATION",
         })
 
+    # Ghi tập cặp DPO ra file JSON
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(dpo_pairs, f, ensure_ascii=False, indent=2)
 
@@ -194,12 +205,15 @@ def generate_dpo_pairs_from_items(clean_items, real_teacher_dpo, out_path, label
 
 
 def build_dpo_dataset(pure_teacher_only=False):
+    """Điều phối xuất cả bản DPO hợp nhất (Full) và bản DPO thuần từ tập Gemini Teacher."""
     print("================================================================================")
     print(">>> NHÓM 1: KHỞI TẠO TẬP DỮ LIỆU DPO PREFERENCE (CHOSEN VS REJECTED)")
     print("================================================================================")
 
+    # Bước 1: Nạp các cặp DPO thật thu được khi Teacher tự sửa lỗi trước ModelSim Oracle
     real_teacher_dpo = load_teacher_dpo_pairs()
 
+    # Bước 2: Sinh bản DPO đầy đủ từ toàn bộ tập SFT đã kiểm chứng (trừ khi bật cờ --pure-teacher-only)
     if not pure_teacher_only:
         if os.path.exists(SFT_DATASET_PATH):
             with open(SFT_DATASET_PATH, "r", encoding="utf-8") as f:
@@ -208,6 +222,7 @@ def build_dpo_dataset(pure_teacher_only=False):
         else:
             print(f"[CẢNH BÁO] Không tìm thấy {SFT_DATASET_PATH}, bỏ qua xuất DPO hợp nhất.")
 
+    # Bước 3: Sinh thêm bản DPO riêng cho tập thuần Gemini Teacher (dataset_teacher_dpo.json)
     if os.path.exists(TEACHER_DATASET_PATH):
         with open(TEACHER_DATASET_PATH, "r", encoding="utf-8") as f:
             teacher_items = json.load(f)

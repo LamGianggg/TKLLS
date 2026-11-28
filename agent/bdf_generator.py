@@ -8,18 +8,30 @@ import os
 import re
 
 class BDFGenerator:
+    """
+    Bộ sinh biểu tượng khối (.bsf) và sơ đồ nguyên lý (.bdf) chuẩn Quartus II 13.0sp1.
+    Cho phép chuyển trực tiếp mã Verilog RTL thành sơ đồ khối có chân INPUT/OUTPUT/BIDIR
+    và dây nối (connector) để mở ngay trong Block Editor của Quartus.
+    """
+
     def __init__(self):
+        """Khởi tạo bộ sinh BDF/BSF."""
         pass
 
     def generate_bsf_from_rtl(self, DuongDanRtl, DuongDanBsf):
-        """Tự động tạo file Symbol .bsf của Quartus từ mã nguồn Verilog RTL."""
+        """
+        Bước 1 trong quy trình Quartus Schematic:
+        Phân tích header module Verilog RTL để tách cổng vào/ra (đơn bit và bus),
+        tính kích thước hình học theo lưới 8px/16px rồi xuất file Block Symbol (.bsf).
+        """
         with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaNguon = TepTin.read()
 
-        # Dọn dẹp chú thích
+        # Dọn dẹp chú thích Verilog trước khi tách danh sách cổng
         MaSach = re.sub(r"//.*", "", MaNguon)
         MaSach = re.sub(r"/\*.*?\*/", "", MaSach, flags=re.DOTALL)
 
+        # Trích xuất tên module và phần khai báo cổng nằm trong dấu ngoặc (...)
         KhopModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", MaSach)
         if not KhopModule:
             return None
@@ -27,6 +39,7 @@ class BDFGenerator:
         TenModule = KhopModule.group(1)
         KhoiCong = KhopModule.group(2)
 
+        # Phân loại các cổng thành ngõ vào (bên trái symbol) và ngõ ra / hai chiều (bên phải symbol)
         DanhSachVao = []
         DanhSachRa = []
         HuongHienTai = "input"
@@ -65,13 +78,14 @@ class BDFGenerator:
                 else:
                     DanhSachRa.append(ThongTinCong)
 
+        # Tính chiều cao khung symbol theo số cổng tối đa (bội số của 16px chuẩn lưới Quartus)
         SoCongToiDa = max(len(DanhSachVao), len(DanhSachRa), 2)
         ChieuCaoSymbol = max(112, (SoCongToiDa + 2) * 24)
         ChieuCaoSymbol = (ChieuCaoSymbol // 16) * 16
         ChieuRongSymbol = 192
 
         DongCong = []
-        # Cổng vào bên trái (x = 0)
+        # Vẽ các cổng vào (input) ở cạnh trái symbol (x = 0)
         BuocYVao = ChieuCaoSymbol // (len(DanhSachVao) + 1)
         for ChiSo, CongVao in enumerate(DanhSachVao):
             ToaDoY = ((ChiSo + 1) * BuocYVao // 8) * 8
@@ -124,10 +138,15 @@ the Block Editor! File corruption is VERY likely to occur.
         return DuongDanBsf
 
     def generate_bdf_from_bsf(self, DuongDanBsf, DuongDanBdf, ToaDoX=368, ToaDoY=176):
-        """Đọc file Symbol .bsf và tạo sơ đồ nguyên lý .bdf chuẩn Quartus II."""
+        """
+        Bước 2 trong quy trình Quartus Schematic:
+        Đọc file Symbol .bsf vừa tạo, đặt khối vào tọa độ (ToaDoX, ToaDoY) trên bản vẽ,
+        sinh các chân INPUT/OUTPUT/BIDIR tương ứng và nối dây (single wire hoặc bus) thành file .bdf.
+        """
         with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
             NoiDungBsf = TepTin.read()
 
+        # Đọc kích thước khung bao symbol từ file .bsf
         KhopKichThuoc = re.search(r'\(symbol\s+\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)
         if not KhopKichThuoc:
             KhopKichThuoc = re.search(r'\(symbol\s*\(rect\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\)', NoiDungBsf)

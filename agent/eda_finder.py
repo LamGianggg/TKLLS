@@ -1,7 +1,7 @@
 """
 Module: eda_finder.py
-Mô tả: Tự động tìm kiếm công cụ ModelSim, Quartus II, Icarus Verilog trên máy.
-Hỗ trợ chạy mượt mà trên nhiều máy tính mà không cần cấu hình thủ công.
+Mô tả: Tự động dò tìm đường dẫn các công cụ EDA (ModelSim, Quartus II, Icarus Verilog) trên máy tính.
+Giúp hệ thống chạy ổn định trên nhiều máy mà không cần người dùng cấu hình biến môi trường thủ công.
 """
 
 import os
@@ -9,8 +9,15 @@ import glob
 import shutil
 
 def find_modelsim():
-    """Tìm kiếm phần mềm mô phỏng ModelSim (vlog, vsim, vlib)."""
-    # 1. Kiểm tra trong biến môi trường PATH
+    """
+    Tìm kiếm bộ công cụ mô phỏng ModelSim (gồm `vlog`, `vsim`, `vlib`).
+    Thứ tự ưu tiên:
+      1. Biến môi trường PATH của hệ thống.
+      2. Các biến môi trường đặc thù của Altera/Intel (QUARTUS_ROOTDIR, MODELSIM_ROOT, ALTERA_ROOT).
+      3. Quét trực tiếp các thư mục cài đặt phổ biến trên các ổ đĩa C..H.
+    Trả về dict chứa đường dẫn thực thi nếu tìm thấy, ngược lại trả về None.
+    """
+    # Bước 1: Kiểm tra xem lệnh `vlog` đã có sẵn trong biến môi trường PATH chưa
     DuongDanVlog = shutil.which("vlog")
     if DuongDanVlog:
         ThuMucChay = os.path.dirname(DuongDanVlog)
@@ -23,7 +30,7 @@ def find_modelsim():
                 "type": "modelsim"
             }
 
-    # 2. Kiểm tra biến môi trường của hệ điều hành
+    # Bước 2: Suy ra thư mục ModelSim từ các biến môi trường của Quartus / Altera
     DanhSachMoiTruong = [os.environ.get("QUARTUS_ROOTDIR", ""), os.environ.get("MODELSIM_ROOT", ""), os.environ.get("ALTERA_ROOT", "")]
     for GiaTriMoiTruong in DanhSachMoiTruong:
         if GiaTriMoiTruong:
@@ -39,7 +46,7 @@ def find_modelsim():
                             "type": "modelsim"
                         }
 
-    # 3. Quét tự động trên các ổ đĩa của máy tính
+    # Bước 3: Quét tự động trên các ổ đĩa cục bộ (hỗ trợ cả Altera cũ và Intel FPGA mới)
     for TenODia in ["C", "D", "E", "F", "G", "H"]:
         MauTimKiem = [
             f"{TenODia}:/altera/*/modelsim_ase/win32aloem",
@@ -70,7 +77,11 @@ def find_modelsim():
     return None
 
 def find_iverilog():
-    """Tìm phần mềm mô phỏng Icarus Verilog dự phòng."""
+    """
+    Tìm kiếm trình mô phỏng mã nguồn mở Icarus Verilog (`iverilog` và `vvp`).
+    Dùng làm phương án dự phòng khi máy người dùng chưa cài ModelSim.
+    """
+    # Bước 1: Kiểm tra trong PATH
     FileIVerilog = shutil.which("iverilog")
     FileVvp = shutil.which("vvp")
     if FileIVerilog and FileVvp:
@@ -80,6 +91,7 @@ def find_iverilog():
             "type": "iverilog"
         }
 
+    # Bước 2: Kiểm tra thư mục cài đặt mặc định trên ổ C, D, E
     for TenODia in ["C", "D", "E"]:
         ThuMucChay = f"{TenODia}:/iverilog/bin"
         if os.path.exists(os.path.join(ThuMucChay, "iverilog.exe")):
@@ -91,13 +103,16 @@ def find_iverilog():
     return None
 
 def find_quartus_map():
-    """Tìm bộ biên dịch Quartus II (quartus_map.exe)."""
-    # 1. Kiểm tra trong PATH
+    """
+    Tìm kiếm bộ phân tích và tổng hợp logic Quartus II (`quartus_map.exe`).
+    Dùng để kiểm tra khả năng tổng hợp phần cứng (Synthesis) và lấy báo cáo tài nguyên FPGA.
+    """
+    # Bước 1: Kiểm tra trong PATH
     FileQuartusMap = shutil.which("quartus_map")
     if FileQuartusMap:
         return os.path.abspath(FileQuartusMap)
 
-    # 2. Kiểm tra biến môi trường
+    # Bước 2: Kiểm tra theo biến môi trường QUARTUS_ROOTDIR (ưu tiên bản 64-bit trước)
     GocQuartus = os.environ.get("QUARTUS_ROOTDIR")
     if GocQuartus:
         for ThuMucCon in ["bin64", "bin"]:
@@ -105,7 +120,7 @@ def find_quartus_map():
             if os.path.exists(FileTimThay):
                 return os.path.abspath(FileTimThay)
 
-    # 3. Quét tự động trên tất cả các ổ đĩa
+    # Bước 3: Quét tự động trên các ổ đĩa C..H cho mọi phiên bản Altera / Intel FPGA
     for TenODia in ["C", "D", "E", "F", "G", "H"]:
         MauTimKiem = [
             f"{TenODia}:/altera/*/quartus/bin64/quartus_map.exe",

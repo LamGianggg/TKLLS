@@ -26,6 +26,7 @@ import subprocess
 import urllib.request
 import urllib.error
 
+# Định nghĩa các thư mục gốc, thư mục mô phỏng, nguồn đặc tả đầu vào và các file đầu ra/checkpoint
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 AGENT_DIR = os.path.join(PROJECT_ROOT, "agent")
 TRAINING_DIR = os.path.join(PROJECT_ROOT, "training")
@@ -34,12 +35,14 @@ DOCS_PDF = os.path.join(PROJECT_ROOT, "docs", "100_Prompt_Thiet_Ke_Mach.pdf")
 SPECS_DIR = os.path.join(PROJECT_ROOT, "specs")
 BENCH_DIR = os.path.join(PROJECT_ROOT, "benchmarks")
 
+# Các đường dẫn lưu trạng thái chạy (checkpoint), tập thuần Teacher, tập SFT hợp nhất, tập DPO và báo cáo
 CHECKPOINT_PATH = os.path.join(PROJECT_ROOT, "training", "distill_checkpoint.json")
 TEACHER_OUT_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_teacher_distilled.json")
 CLEAN_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_clean_verified.json")
 DPO_DATASET_PATH = os.path.join(PROJECT_ROOT, "training", "dataset_dpo_preference.json")
 REPORT_PATH = os.path.join(PROJECT_ROOT, "training", "REPORT_NHOM_1_DATASET.md")
 
+# Thêm thư mục agent/ và training/ vào sys.path để import các module nội bộ (Oracle, Linter, Sampler)
 for _p in (AGENT_DIR, TRAINING_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -53,6 +56,7 @@ from verilogdb_sampler import sample_verilogdb_prompts
 
 def load_api_key():
     """Đọc GEMINI_API_KEY từ biến môi trường hoặc file .env nội bộ (không hardcode)."""
+    # Ưu tiên biến môi trường hệ thống trước khi tìm trong file .env
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if key:
         return key
@@ -68,6 +72,7 @@ def load_api_key():
 
 def get_vlog_path():
     """Tìm đường dẫn vlog.exe, vlib.exe và vsim.exe của ModelSim."""
+    # Tự dò qua eda_finder; nếu không thấy thì dùng đường dẫn cài đặt mặc định Altera 13.0sp1
     ms = find_modelsim()
     if ms and "vlog" in ms and os.path.exists(ms["vlog"]):
         return ms["vlog"], ms.get("vlib"), ms.get("vsim")
@@ -91,10 +96,12 @@ def extract_prompts_from_pdf():
         print("[CẢNH BÁO] Thiếu PyMuPDF (fitz), bỏ qua đọc PDF.")
         return prompts
 
+    # Đọc toàn văn PDF rồi tách từng đề bài dựa theo thẻ đánh dấu [PROMPT #N]
     doc = fitz.open(DOCS_PDF)
     full_text = "\n".join(page.get_text() for page in doc)
     chunks = [c for c in re.split(r"(?=\[PROMPT #\d+\])", full_text) if c.startswith("[PROMPT #")]
 
+    # Bảng ánh xạ dải số thứ tự đề bài (1..100) sang 10 họ vi mạch chuẩn
     category_map = [
         (1, 10, "Counter & Timer"),
         (11, 20, "Arithmetic & ALU"),
@@ -120,12 +127,13 @@ def extract_prompts_from_pdf():
         hash_idx = body.find("\n# ")
         spec_body = body[hash_idx + 1:].strip() if hash_idx != -1 else body
 
-        # Trích xuất tên module
+        # Trích xuất tên module nằm trong ngoặc đơn ở dòng tiêu đề đặc tả
         m_mod = re.search(r"#[^\n]*\(([a-zA-Z_][a-zA-Z0-9_]*)\)", spec_body)
         if not m_mod:
             m_mod = re.search(r"\(([a-zA-Z_][a-zA-Z0-9_]*)\)", chunk)
         mod_name = m_mod.group(1) if m_mod else f"ce118_prompt_{p_num:02d}"
 
+        # Gán tên họ vi mạch tương ứng với số thứ tự bài
         cat = "Digital Logic"
         for lo, hi, cname in category_map:
             if lo <= p_num <= hi:
@@ -147,11 +155,13 @@ def extract_extra_specs(seen_modules):
     extras = []
     candidate_files = []
 
+    # Gom các file đặc tả dự án (bỏ qua file tạm web_spec_*)
     if os.path.isdir(SPECS_DIR):
         for fn in sorted(os.listdir(SPECS_DIR)):
             if fn.endswith((".txt", ".md")) and not fn.startswith("web_spec_"):
                 candidate_files.append((os.path.join(SPECS_DIR, fn), f"specs/{fn}", "Project Spec"))
 
+    # Gom thêm các đề bài benchmark dạng Markdown trong thư mục benchmarks/
     if os.path.isdir(BENCH_DIR):
         for dp, _, fns in os.walk(BENCH_DIR):
             for fn in sorted(fns):
@@ -159,6 +169,7 @@ def extract_extra_specs(seen_modules):
                     rel = os.path.relpath(os.path.join(dp, fn), PROJECT_ROOT).replace("\\", "/")
                     candidate_files.append((os.path.join(dp, fn), rel, "Benchmark"))
 
+    # Dùng SpecAnalyzer nhận diện tên module và loại bỏ các module đã xuất hiện trong tập PDF
     for path, origin, cat in candidate_files:
         text = open(path, "r", encoding="utf-8", errors="replace").read().strip()
         if not text:
@@ -181,6 +192,7 @@ def extract_extra_specs(seen_modules):
 def call_gemini_teacher(api_key, model, user_prompt, max_retries=4):
     """Gọi Google Gemini API sinh CoT phần cứng + Verilog chuẩn IEEE 1364-2001."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    # Ép Teacher xuất đúng 2 phần (Phân tích kiến trúc CoT + 1 block Verilog-2001) để Student học theo cấu trúc đồng nhất
     system_prompt = (
         "Bạn là Kiến trúc sư Vi mạch số cao cấp (Senior Digital IC & FPGA Architect). "
         "Nhiệm vụ của bạn là thực hiện quy trình Chưng cất Tri thức (Hardware CoT + RTL Distillation) "
@@ -197,6 +209,7 @@ def call_gemini_teacher(api_key, model, user_prompt, max_retries=4):
         "5. Chỉ sử dụng cú pháp Verilog-2001 chuẩn tương thích ModelSim-Altera và Quartus II 13.0sp1 (KHÔNG dùng SystemVerilog như logic, always_ff, always_comb)."
     )
 
+    # Cấu hình temperature thấp (0.2) để sinh RTL ổn định, kết hợp thinkingBudget=512 cho Teacher suy luận trước khi trả lời
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
@@ -207,6 +220,7 @@ def call_gemini_teacher(api_key, model, user_prompt, max_retries=4):
         },
     }
 
+    # Vòng lặp gọi API có retry tự động khi chạm giới hạn RPM (429) hoặc quá tải tạm thời (503)
     for attempt in range(max_retries):
         req = urllib.request.Request(
             url,
@@ -235,6 +249,7 @@ def call_gemini_teacher(api_key, model, user_prompt, max_retries=4):
                     return None, f"QUOTA_DAILY_EXCEEDED: {body[:250]}"
                 if attempt >= max_retries - 1:
                     return None, f"QUOTA_DAILY_EXCEEDED (429 persistent): {body[:250]}"
+                # Nếu chỉ chạm RPM thì đọc số giây cần chờ từ thông báo lỗi Google và ngủ rồi thử lại
                 wait_sec = 15 * (attempt + 1)
                 m_retry = re.search(r"retry in ([\d.]+)s", body, re.IGNORECASE)
                 if m_retry:
@@ -261,6 +276,7 @@ def extract_cot_and_verilog(response_text):
     """Tách phần suy luận Teacher CoT và khối code Verilog từ phản hồi Gemini."""
     if not response_text:
         return "", ""
+    # Tìm khối code Verilog đầu tiên; phần văn bản đứng trước khối code chính là Teacher CoT
     m_code = re.search(r"```(?:verilog|systemverilog)?\s*(.*?)\s*```", response_text, re.DOTALL | re.IGNORECASE)
     if not m_code:
         return "", ""
@@ -277,11 +293,11 @@ def verify_with_truth_oracle(spec_text, expected_module, verilog_code, vlog_path
     if not verilog_code or "module " not in verilog_code or "endmodule" not in verilog_code:
         return False, ["Thiếu khai báo module/endmodule hợp lệ"]
 
-    # 1. Kiểm tra tên module khớp đặc tả
+    # Tầng 1a (Spec Match): Kiểm tra tên module khớp đặc tả
     if expected_module and not re.search(rf"\bmodule\s+{re.escape(expected_module)}\b", verilog_code):
         issues.append(f"Sai tên module (yêu cầu `{expected_module}`)")
 
-    # 2. Kiểm tra đủ cổng I/O theo SpecAnalyzer (bỏ comment trước khi tách header cổng)
+    # Tầng 1b (SpecAnalyzer I/O Check): Kiểm tra đủ cổng I/O theo đặc tả (xóa comment trước khi bóc tách header cổng)
     spec_ports = SpecAnalyzer(spec_text).extract_ports()
     stripped_code = VerilogLinter.strip_comments_and_strings(verilog_code)
     extracted = VerilogLinter.extract_module_info(stripped_code)
@@ -294,15 +310,16 @@ def verify_with_truth_oracle(spec_text, expected_module, verilog_code, vlog_path
             if pname not in actual_ports:
                 issues.append(f"Thiếu cổng `{pname}` theo đặc tả")
 
-    # 3. Kiểm tra AST Hardware Linter
+    # Tầng 2 (AST Hardware Linter): Bắt chốt ẩn (Inferred Latch), chân lơ lửng (Dangling Pin) và race condition
     lint_res = VerilogLinter.lint_check(verilog_code)
     if not lint_res["valid"]:
         issues.extend(lint_res["issues"])
 
+    # Nếu tầng 1 hoặc tầng 2 đã phát hiện lỗi thì trả về ngay để Teacher tự sửa, không cần gọi ModelSim
     if issues:
         return False, issues
 
-    # 4. Biên dịch thật bằng ModelSim vlog.exe
+    # Tầng 3 (ModelSim Compiler Truth Oracle): Biên dịch thật bằng vlog.exe để xác nhận chuẩn IEEE 1364-2001
     if not vlog_path:
         return False, ["Không tìm thấy ModelSim vlog.exe"]
 
@@ -327,7 +344,7 @@ def verify_with_truth_oracle(spec_text, expected_module, verilog_code, vlog_path
             err_lines = [ln.strip() for ln in out_log.splitlines() if "Error:" in ln or "Fatal:" in ln]
             return False, err_lines[:4] if err_lines else [f"vlog returncode={proc.returncode}"]
 
-        # 5. (Tùy chọn) Chạy mô phỏng thực tế bằng TBGenerator + ModelSim vsim.exe
+        # Tầng 4 (Tùy chọn --verify-sim): Tự sinh testbench tổng quát rồi biên dịch & chạy mô phỏng thực tế bằng vsim.exe
         if verify_sim and vsim_path and actual_mod:
             tb_gen = TBGenerator(sim_dir=SIM_DIR)
             tb_name, tb_code = tb_gen.generate_generic_tb(rtl_path=tmp_v, module_name=actual_mod)
@@ -365,28 +382,33 @@ def verify_with_truth_oracle(spec_text, expected_module, verilog_code, vlog_path
     except Exception as ex:
         return False, [f"ModelSim exception: {ex}"]
     finally:
+        # Luôn dọn dẹp các file RTL/testbench tạm trong sim/ sau mỗi lần kiểm chứng
         for tmp_p in (tmp_v, tmp_tb):
             if os.path.exists(tmp_p):
                 os.remove(tmp_p)
 
 
 def normalize_code(code_str):
+    """Chuẩn hóa mã Verilog (bỏ comment và khoảng trắng thừa) để băm MD5 phát hiện trùng lặp."""
     clean = re.sub(r"//.*", "", code_str)
     clean = re.sub(r"/\*.*?\*/", "", clean, flags=re.DOTALL)
     return re.sub(r"\s+", " ", clean).strip().lower()
 
 
 def save_json(path, obj):
+    """Lưu đối tượng Python xuống file JSON chuẩn UTF-8."""
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
 def load_or_bootstrap_checkpoint():
     """Nạp checkpoint, hoặc tự khôi phục từ dataset_teacher_distilled.json nếu chạy trên máy mới."""
+    # Nếu đã có checkpoint từ đợt chạy trước thì nạp trực tiếp để chạy tiếp (resume)
     if os.path.exists(CHECKPOINT_PATH):
         with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    # Nếu chưa có checkpoint (vd: mới clone repo), tự khôi phục danh sách passed & cặp DPO thật từ file sẵn có
     checkpoint = {"passed": [], "failed": [], "teacher_dpo_pairs": []}
     if os.path.exists(TEACHER_OUT_PATH):
         try:
@@ -412,6 +434,7 @@ def load_or_bootstrap_checkpoint():
 
 def merge_and_export(checkpoint, model_name):
     """Xuất dataset_teacher_distilled.json, gộp vào dataset_clean_verified.json và cập nhật REPORT_NHOM_1_DATASET.md."""
+    # Bước 1: Làm sạch text PDF còn sót và chuẩn hóa nhãn nguồn cho tập thuần Teacher
     teacher_items = checkpoint.get("passed", [])
     default_model = model_name.split(",")[0].strip() if model_name else "gemini-3.1-flash-lite"
     for item in teacher_items:
@@ -421,17 +444,18 @@ def merge_and_export(checkpoint, model_name):
             item["source"] = f"Google Gemini ({t_mod}) Distillation"
     save_json(TEACHER_OUT_PATH, teacher_items)
 
-    # Đọc dataset_clean_verified.json hiện có
+    # Bước 2: Đọc tập SFT sạch hiện có để chuẩn bị hợp nhất
     existing = []
     if os.path.exists(CLEAN_DATASET_PATH):
         with open(CLEAN_DATASET_PATH, "r", encoding="utf-8") as f:
             existing = json.load(f)
 
-    # Ưu tiên giữ các mẫu Teacher-distilled mới (thay thế mẫu cùng module_name cũ dùng template CoT)
+    # Bước 3: Ưu tiên giữ các mẫu Teacher-distilled mới (thay thế mẫu cùng module_name cũ dùng template CoT)
     teacher_mod_names = {item["module_name"] for item in teacher_items}
     seen_hashes = set()
     merged = []
 
+    # Đưa toàn bộ mẫu Teacher vào trước và ghi nhận mã băm MD5 của phần code Verilog
     for item in teacher_items:
         m = re.search(r"```(?:verilog)?\s*(.*?)\s*```", item.get("output", ""), re.DOTALL | re.IGNORECASE)
         code = m.group(1) if m else item.get("output", "")
@@ -439,6 +463,7 @@ def merge_and_export(checkpoint, model_name):
         seen_hashes.add(h)
         merged.append(item)
 
+    # Bổ sung các mẫu cũ không trùng tên module (với nguồn cũ) và không trùng mã băm MD5
     preserved_count = 0
     for item in existing:
         mname = item.get("module_name", "")
@@ -454,6 +479,7 @@ def merge_and_export(checkpoint, model_name):
         merged.append(item)
         preserved_count += 1
 
+    # Lưu tập SFT hợp nhất đã khử trùng lặp
     save_json(CLEAN_DATASET_PATH, merged)
 
     # Thống kê riêng tập 100% Thuần Teacher & tập Hợp nhất
@@ -529,6 +555,8 @@ def merge_and_export(checkpoint, model_name):
 
 
 def main():
+    """Điểm vào CLI điều phối quy trình: Nạp đề bài -> Gọi Gemini Teacher -> Truth Oracle -> Self-Correction -> Xuất DPO & SFT."""
+    # Khai báo tham số dòng lệnh điều khiển model fallback, số lượng chạy, VerilogDB và chế độ kiểm chứng
     parser = argparse.ArgumentParser(description="Chưng cất tri thức từ Gemini Teacher qua ModelSim Truth Oracle")
     parser.add_argument("--model", default="gemini-3.5-flash-lite,gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash", help="Tên model Teacher Gemini (phân cách bằng dấu phẩy để fallback)")
     parser.add_argument("--limit", type=int, default=0, help="Giới hạn số đề bài xử lý mới trong lần chạy (0 = toàn bộ)")
@@ -552,11 +580,13 @@ def main():
 
     checkpoint = load_or_bootstrap_checkpoint()
 
+    # Chế độ chỉ gộp lại dữ liệu và xuất báo cáo từ checkpoint hiện có (không tốn API)
     if args.merge_only:
         t_cnt, m_cnt = merge_and_export(checkpoint, args.model)
         print(f"[DONE] Đã gộp {t_cnt} mẫu Teacher vào {m_cnt} mẫu tổng tại {CLEAN_DATASET_PATH}")
         return
 
+    # Kiểm tra khóa API Gemini và công cụ ModelSim trước khi bắt đầu chưng cất
     api_key = load_api_key()
     if not api_key:
         print("[LỖI] Chưa tìm thấy GEMINI_API_KEY trong biến môi trường hoặc file .env!")
@@ -567,12 +597,13 @@ def main():
         print("[LỖI] Không tìm thấy ModelSim vlog.exe!")
         sys.exit(1)
 
+    # Đảm bảo thư viện biên dịch work của ModelSim tồn tại trong sim/
     os.makedirs(SIM_DIR, exist_ok=True)
     work_dir = os.path.join(SIM_DIR, "work")
     if not os.path.exists(work_dir) and vlib_path:
         subprocess.run([vlib_path, "work"], cwd=SIM_DIR, capture_output=True)
 
-    # Thu thập danh sách đề bài CE118 + specs/ + benchmarks/
+    # Bước 1: Thu thập danh sách đề bài từ PDF (100 bài CE118) + specs/ + benchmarks/ + (tùy chọn) VerilogDB
     prompts = extract_prompts_from_pdf()
     seen_mods = {p["module_name"].lower() for p in prompts}
     extra_prompts = extract_extra_specs(seen_mods)
@@ -593,6 +624,7 @@ def main():
     if args.retry_failed:
         checkpoint["failed"] = []
 
+    # Lọc ra các đề bài chưa xử lý (chưa nằm trong passed hoặc failed của checkpoint)
     done_ids = {item["id"] for item in checkpoint.get("passed", [])}
     done_ids.update(item["id"] for item in checkpoint.get("failed", []))
     pending = [p for p in prompts if p["id"] not in done_ids]
@@ -602,6 +634,7 @@ def main():
         pending = pending[:args.limit]
         print(f"[*] Chế độ giới hạn đợt chạy: {len(pending)} bài.")
 
+    # Hàng đợi model dự phòng: tự động chuyển sang model kế tiếp nếu model hiện tại chạm quota ngày
     model_queue = [m.strip() for m in args.model.split(",") if m.strip()]
     model_idx = 0
 
@@ -617,6 +650,7 @@ def main():
             f"{p['spec_text']}"
         )
 
+        # Bước 2: Gọi Teacher Gemini sinh CoT + code Verilog (hỗ trợ fallback sang model dự phòng khi hết RPD)
         resp_text, err = None, None
         while model_idx < len(model_queue):
             active_model = model_queue[model_idx]
@@ -642,12 +676,13 @@ def main():
             time.sleep(args.delay)
             continue
 
+        # Bước 3: Tách phần suy luận CoT và mã Verilog, rồi đưa qua Bộ lọc Chân lý (Truth Oracle)
         cot, code = extract_cot_and_verilog(resp_text)
         ok, issues = verify_with_truth_oracle(
             p["spec_text"], mod_name, code, vlog_path, vsim_path=vsim_path, verify_sim=args.verify_sim
         )
 
-        # Self-Correction Reflection nếu lần 1 lỗi
+        # Bước 4 (Self-Correction Reflection): Nếu lần 1 trượt Oracle -> gửi log lỗi ngược lại để Teacher tự sửa 1 lần
         if not ok:
             print(f"    [Lần 1 FAIL Oracle]: {issues[0] if issues else 'Lỗi'} -> Gửi log cho Teacher tự sửa...")
             first_bad_code = code
@@ -672,6 +707,7 @@ def main():
                 ok2, issues2 = verify_with_truth_oracle(
                     p["spec_text"], mod_name, code2, vlog_path, vsim_path=vsim_path, verify_sim=args.verify_sim
                 )
+                # Nếu sửa thành công -> vừa thu được mẫu SFT sạch, vừa ghi nhận 1 cặp DPO thật (chosen=code2, rejected=first_bad_code)
                 if ok2:
                     ok = True
                     cot, code = cot2, code2
@@ -692,6 +728,7 @@ def main():
                 else:
                     issues = issues2
 
+        # Bước 5: Ghi nhận mẫu đạt chuẩn vào checkpoint["passed"] hoặc loại bỏ vào checkpoint["failed"]
         if ok:
             verif_tag = "PASS_100_MODELSIM_VSIM" if args.verify_sim else "PASS_100_MODELSIM_VLOG"
             entry = {
@@ -712,10 +749,12 @@ def main():
             checkpoint["failed"].append({"id": p["id"], "module_name": mod_name, "issues": issues})
             print(f"    [REJECTED] Loại bỏ mẫu không đạt chuẩn: {issues[:2]}")
 
+        # Lưu checkpoint ngay sau mỗi bài để tránh mất dữ liệu khi dừng giữa chừng
         save_json(CHECKPOINT_PATH, checkpoint)
         if idx < len(pending):
             time.sleep(args.delay)
 
+    # Bước 6: Hợp nhất dữ liệu Teacher với kho sạch và cập nhật báo cáo nghiệm thu
     t_cnt, m_cnt = merge_and_export(checkpoint, args.model)
     print("\n" + "=" * 80)
     print(f"[HOÀN TẤT ĐỢT CHƯNG CẤT] Teacher PASS: {t_cnt} | Tập sạch hợp nhất: {m_cnt} mẫu.")

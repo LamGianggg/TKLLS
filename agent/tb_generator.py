@@ -1,9 +1,9 @@
 """
 Module: tb_generator.py
-Chuc nang: Tu dong tao testbench cho he thong Spec2RTL va Prompt2Silicon.
-Sinh testbench Verilog-2001 tu kiem tra (Self-Checking) voi assertions,
-xuat dang song VCD va bang diem kiem tra [SUCCESS] / [FAIL] + $finish
-cho ca cac mach FSM dac thu lan nhom 70% khoi ha tang pho thong.
+Chức năng: Tự động sinh Testbench Verilog-2001 tự kiểm tra (Self-Checking Testbench)
+cho cả nhóm mạch FSM đặc thù lẫn nhóm 70% khối hạ tầng số phổ thông (Counter, FIFO,
+Shift Register, Mux, Encoder, Adder/Subtractor/Multiplier/Comparator, PWM, Timer, Handshake, ALU, Gray, Decoder...).
+Mỗi testbench đều tích hợp watchdog chống treo mô phỏng, xuất file VCD và bảng điểm `[SUCCESS]` / `[FAIL]`.
 """
 
 import os
@@ -13,19 +13,24 @@ from verilog_linter import VerilogLinter
 
 
 class TBGenerator:
-    """Bo tao testbench tu dong cho cac mach Verilog (IEEE 1364-2001)."""
+    """
+    Bộ tạo Testbench tự động chuẩn IEEE 1364-2001 (tương thích ModelSim và Icarus Verilog).
+    Đọc trực tiếp cổng thực tế từ file RTL để ánh xạ tên chân chính xác, tránh lệch chân khi mô phỏng.
+    """
 
     def __init__(self, ThuMucSim=None, sim_dir=None):
+        """Khởi tạo thư mục xuất file testbench (`sim/`)."""
         self.ThuMucSim = sim_dir if sim_dir is not None else ThuMucSim
         self.sim_dir = self.ThuMucSim
         if self.ThuMucSim:
             os.makedirs(self.ThuMucSim, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # Helpers phan tich cong RTL & dung khung testbench Verilog-2001
+    # Nhóm hàm tiện ích: Phân tích cổng RTL & dựng khung testbench Verilog-2001
     # ------------------------------------------------------------------
     @staticmethod
     def _eval_dim(expr, params):
+        """Tính giá trị số nguyên của biểu thức độ rộng bit (hỗ trợ thay thế `parameter` như `WIDTH-1`)."""
         expr = expr.strip()
         if expr.isdigit():
             return int(expr)
@@ -39,7 +44,10 @@ class TBGenerator:
         return None
 
     def _parse_rtl_ports(self, DuongDanRtl):
-        """Trich xuat ten module va danh sach cong chi tiet tu file Verilog RTL."""
+        """
+        Trích xuất tên module và danh sách cổng chi tiết (tên, hướng, độ rộng bit, cờ clock/reset)
+        từ file Verilog RTL thực tế (hỗ trợ cả chuẩn ANSI Verilog-2001 và khai báo Verilog-1995).
+        """
         if not DuongDanRtl or not os.path.exists(DuongDanRtl):
             return None, []
         with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as f:
@@ -133,13 +141,13 @@ class TBGenerator:
         return mod_name, ports
 
     def _extract_ports_from_rtl(self, DuongDanRtl):
-        """Trich xuat danh sach ten cong thuc te (chu thuong) tu file Verilog RTL."""
+        """Trích xuất tập hợp tên cổng viết thường từ file Verilog RTL."""
         _, ports = self._parse_rtl_ports(DuongDanRtl)
         return {p["lower"] for p in ports}
 
     @staticmethod
     def _find_port(ports, direction, candidates, exclude=None):
-        """Tim cong phu hop nhat theo danh sach uu tien (khop chinh xac truoc, chua chuoi sau)."""
+        """Tìm cổng phù hợp nhất theo danh sách tên ứng viên (ưu tiên khớp chính xác, sau đó mới khớp chuỗi con)."""
         exclude = exclude or set()
         pool = [p for p in ports if p["direction"] == direction and p["lower"] not in exclude]
         for cand in candidates:
@@ -154,10 +162,12 @@ class TBGenerator:
 
     @staticmethod
     def _mask_expr(width):
+        """Tạo mặt nạ bit `(1 << width) - 1` (giới hạn tối đa 32 bit) để tính giá trị kỳ vọng không tràn."""
         return (1 << min(width, 32)) - 1
 
     @staticmethod
     def _build_decls_and_conns(ports):
+        """Sinh chuỗi khai báo `reg`/`wire` trong testbench và danh sách nối chân `.port(port)` cho DUT."""
         decls = []
         conns = []
         for p in ports:
@@ -171,7 +181,7 @@ class TBGenerator:
 
     @staticmethod
     def _build_reset_sequence(ports):
-        """Sinh doan khoi tao tat ca input va xung reset (ho tro active-high va active-low)."""
+        """Sinh đoạn khởi tạo mức logic ban đầu cho toàn bộ input và tạo xung reset (hỗ trợ cả active-high và active-low)."""
         lines = []
         rst_ports = [p for p in ports if p["direction"] == "input" and p["is_rst"]]
         for p in ports:
@@ -192,6 +202,7 @@ class TBGenerator:
 
     @staticmethod
     def _emit_assert(cond_expr, pass_msg, fail_msg, indent="        "):
+        """Sinh khối lệnh `if (cond_expr)` tự động tăng biến đếm `total_tests` / `passed_tests` / `failed_tests` và in `[PASS]`/`[FAIL]`."""
         return "\n".join([
             f"{indent}total_tests = total_tests + 1;",
             f"{indent}if ({cond_expr}) begin",
@@ -204,6 +215,11 @@ class TBGenerator:
         ])
 
     def _finalize_tb(self, module_name, decls_str, dut_conns_str, clk_port_name, extra_decls, tasks_str, stim_str, banner_title, watchdog_ns=100000):
+        """
+        Hoàn thiện bộ khung testbench chuẩn VeriPrefer:
+        ghép khai báo tín hiệu, instance DUT, bộ tạo xung clock, watchdog timeout,
+        khối `$dumpfile` xuất VCD, kịch bản kích thích `stim_str` và bảng tổng kết điểm số, rồi ghi ra `tb_<module>.v`.
+        """
         tb_name = f"tb_{module_name}"
         clk_block = f"    always #10 {clk_port_name} = ~{clk_port_name};" if clk_port_name else ""
         extra_decls_block = f"\n{extra_decls}\n" if extra_decls else ""
@@ -277,10 +293,17 @@ endmodule
         return DuongDanXuat
 
     # ------------------------------------------------------------------
-    # Diem vao dieu phoi tu Spec + RTL
+    # Bộ điều phối trung tâm: Chọn hàm sinh Testbench dựa trên Spec + cổng RTL thực tế
     # ------------------------------------------------------------------
     def generate_tb_from_spec(self, NoiDungSpec=None, DuongDanRtl=None, DuongDanSpec=None, spec_text=None, rtl_path=None, spec_path=None):
-        """Diem vao duy nhat: Tu dong tao Testbench tu kiem tra cho bat ky module nao."""
+        """
+        Điểm vào duy nhất để sinh testbench tự kiểm tra cho mọi module:
+          1. Phân tích đặc tả (`SpecAnalyzer`) và phân tích cổng RTL thực tế (`_parse_rtl_ports`).
+          2. Ưu tiên định tuyến các hệ thống FSM đặc thù (Vending, Elevator, Traffic, Lock, Sequence, Temp).
+          3. Định tuyến nhóm 70% khối hạ tầng phổ thông (FIFO, Handshake, Gray, PWM, Timer, Counter,
+             Shift/Barrel, Encoder, Mux, Decoder, ALU/Arithmetic/Comparator) dựa theo cổng thực tế.
+          4. Dự phòng sang `generate_generic_tb` nếu gặp kiến trúc tùy biến hoàn toàn.
+        """
         VanBanSpec = spec_text if spec_text is not None else NoiDungSpec
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         TepSpec = spec_path if spec_path is not None else DuongDanSpec
@@ -302,7 +325,7 @@ endmodule
         has_clk = any(p["is_clk"] for p in ports)
         mod_low = (TenModule or "").lower()
 
-        # 1. Cac he thong FSM dac thu co san kiem tra kich ban chuyen biet
+        # Bước 1: Định tuyến các hệ thống FSM đặc thù đã có kịch bản kiểm thử chuyên biệt
         if NhomMach == "VENDING" and TenModule == "vending_machine" and {"coin_5k", "dispense"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_vending_tb(TenModule)
         if NhomMach == "ELEVATOR" and TenModule == "elevator_controller" and ({"floor_req", "current_floor"}.issubset(CongThucTe) or {"req_floor", "current_floor"}.issubset(CongThucTe)):
@@ -318,8 +341,8 @@ endmodule
         if NhomMach == "TEMPERATURE_MONITOR" and {"temp_celsius", "max_temp_limit", "fan_high_speed"}.issubset(CongThucTe):
             return f"tb_{TenModule}", self.generate_temperature_monitor_tb(TenModule, TepRtl)
 
-        # 2. Cac ho mach nhom 70% (Self-Checking theo cong thuc te cua RTL)
-        # 2.1 FIFO / Buffer
+        # Bước 2: Định tuyến các họ mạch nhóm 70% (Self-Checking thích nghi theo cổng thực tế của RTL)
+        # 2.1 Họ FIFO / Buffer: kiểm tra cờ empty/full, chống tràn và đúng thứ tự vào-trước-ra-trước
         if (
             NhomMach == "FIFO"
             or "fifo" in mod_low
@@ -399,14 +422,19 @@ endmodule
         if NhomMach == "COMPARATOR" or "comparator" in mod_low or {"greater", "equal", "less"}.issubset(out_names) or {"gt", "eq", "lt"}.issubset(out_names):
             return f"tb_{TenModule}", self.generate_comparator_tb(TenModule, TepRtl, spec_content)
 
-        # 3. Fallback thong minh: Tu dong sinh testbench dua tren 100% cong thuc te cua RTL
+        # Bước 3: Fallback thông minh: tự động dựng testbench kiểm tra không X/Z trên mọi cổng thực tế
         return f"tb_{TenModule}", self.generate_generic_tb(TepRtl, TenModule)
 
     # ------------------------------------------------------------------
-    # Cac bo sinh Testbench chuyen biet cho nhom 70%
+    # Các bộ sinh Testbench chuyên biệt cho nhóm 70% khối hạ tầng số phổ thông
     # ------------------------------------------------------------------
     def generate_counter_tb(self, TenModule="counter", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Counter / Up-Down / BCD / Stopwatch."""
+        """
+        [Họ 70% - Counter] Sinh testbench tự kiểm tra cho mọi loại bộ đếm đồng bộ:
+          - Bộ đếm BCD 2 chữ số (00..59): kiểm tra tính hợp lệ từng trạng thái và tràn 59->00.
+          - Bộ đếm Stopwatch / BCD 1 chữ số (0..9): kiểm tra chuỗi đếm và giải mã LED 7 đoạn.
+          - Bộ đếm nhị phân lên/xuống: kiểm tra reset, đếm lên, giữ trạng thái (`enable=0`), đếm xuống và nạp song song (`load`).
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -564,7 +592,11 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_p["name"], extra_decls, "", "\n".join(lines), "AUTONOMOUS COUNTER VERIFICATION")
 
     def generate_fifo_tb(self, TenModule="fifo_buffer", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho FIFO / Buffer (empty, full, overflow, data order)."""
+        """
+        [Họ 70% - FIFO] Sinh testbench tự kiểm tra cho hàng đợi FIFO đồng bộ:
+        kiểm tra cờ `empty=1, full=0` sau reset, ghi đầy bộ đệm, thử ghi tràn (overflow),
+        sau đó đọc toàn bộ dữ liệu để đối chiếu đúng thứ tự FIFO và xác nhận cờ `empty=1` trở lại.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -649,7 +681,12 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_p["name"], extra_decls, "", "\n".join(lines), "AUTONOMOUS FIFO VERIFICATION")
 
     def generate_shift_reg_tb(self, TenModule="shift_register", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Shift Register (Universal, Barrel Shifter, SIPO/PISO)."""
+        """
+        [Họ 70% - Shift Register] Sinh testbench tự kiểm tra cho 3 biến thể thanh ghi dịch:
+          - Trường hợp A: Barrel Shifter / Rotator (kiểm tra dịch/xoay 0, trái 1 bit, phải 1 bit).
+          - Trường hợp B: Universal Shift Register 4 chế độ (Nạp song song, Giữ, Dịch trái, Dịch phải).
+          - Trường hợp C: Thanh ghi dịch nối tiếp SIPO / PISO / SISO.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -793,7 +830,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS SHIFT REGISTER VERIFICATION")
 
     def generate_mux_tb(self, TenModule="mux", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Multiplexer (2-to-1, 4-to-1, 8-to-1)."""
+        """
+        [Họ 70% - Multiplexer] Sinh testbench tự kiểm tra cho bộ dồn kênh (2-to-1, 4-to-1, 8-to-1):
+        hỗ trợ cả dạng nhiều cổng dữ liệu rời rạc lẫn dạng bus gộp đầu vào, quét toàn bộ giá trị `sel`.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -873,7 +913,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS MULTIPLEXER VERIFICATION")
 
     def generate_priority_encoder_tb(self, TenModule="priority_encoder", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Priority Encoder (4-to-2, 8-to-3, 16-to-4)."""
+        """
+        [Họ 70% - Priority Encoder] Sinh testbench tự kiểm tra cho bộ mã hóa ưu tiên (4-to-2, 8-to-3, 16-to-4):
+        kiểm tra khi disable, khi đầu vào toàn 0 (`valid=0`), và khi nhiều bit cùng bật (bit MSB phải thắng).
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -929,7 +972,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS PRIORITY ENCODER VERIFICATION")
 
     def generate_adder_tb(self, TenModule="adder", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Adder (co hoac khong co clk/rst/cin/cout)."""
+        """
+        [Họ 70% - Adder] Sinh testbench tự kiểm tra cho bộ cộng nhị phân (có/không có `clk`, `cin`, `cout`),
+        kiểm tra các cặp cộng thông thường, có nhớ vào `cin` và trường hợp tràn bit `cout=1`.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -982,7 +1028,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS ADDER VERIFICATION")
 
     def generate_subtractor_tb(self, TenModule="subtractor", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Binary Subtractor."""
+        """
+        [Họ 70% - Subtractor] Sinh testbench tự kiểm tra cho bộ trừ nhị phân,
+        xác minh kết quả hiệu `diff` và cờ mượn `borrow` trong 3 trường hợp: `a > b`, `a == b`, `a < b`.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1026,7 +1075,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS SUBTRACTOR VERIFICATION")
 
     def generate_multiplier_tb(self, TenModule="multiplier", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Multiplier."""
+        """
+        [Họ 70% - Multiplier] Sinh testbench tự kiểm tra cho bộ nhân nhị phân,
+        kiểm tra nhân với 0, nhân với 1, nhân số thường và nhân hai giá trị cực đại theo độ rộng cổng.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1067,7 +1119,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS MULTIPLIER VERIFICATION")
 
     def generate_comparator_tb(self, TenModule="comparator", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Magnitude Comparator."""
+        """
+        [Họ 70% - Comparator] Sinh testbench tự kiểm tra cho bộ so sánh độ lớn hai số,
+        kiểm tra đầy đủ 3 cờ ngõ ra (`greater`, `equal`, `less`) qua các cặp thử `a > b`, `a == b`, `a < b`.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1114,7 +1169,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_name, "", "", "\n".join(lines), "AUTONOMOUS COMPARATOR VERIFICATION")
 
     def generate_pwm_tb(self, TenModule="pwm_generator", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho PWM Generator (0%, 50%, ~100% duty cycle)."""
+        """
+        [Họ 70% - PWM] Sinh testbench tự kiểm tra cho bộ tạo xung PWM:
+        đo đếm số chu kỳ mức cao `high_cnt` trên một chu kỳ PWM ở các mức duty 0%, 50% và ~100%.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1189,7 +1247,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_p["name"], extra_decls, "", "\n".join(lines), "AUTONOMOUS PWM GENERATOR VERIFICATION")
 
     def generate_timer_tb(self, TenModule="timer", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho Timer / Watchdog Timer."""
+        """
+        [Họ 70% - Timer / Watchdog] Sinh testbench tự kiểm tra cho bộ định thời và Watchdog Timer:
+        xác minh cờ timeout bằng 0 khi reset, chạy 64 chu kỳ không sinh giá trị bất định X/Z và kích hoạt hết giờ đúng ngưỡng.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1240,7 +1301,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_p["name"], extra_decls, "", "\n".join(lines), "AUTONOMOUS TIMER VERIFICATION")
 
     def generate_handshake_tb(self, TenModule="handshake", DuongDanRtl=None, spec_text=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho giao thuc Ready / Valid Handshake."""
+        """
+        [Họ 70% - Ready/Valid Handshake] Sinh testbench tự kiểm tra cho giao thức bắt tay `valid`/`ready` (Skid Buffer / AXI-Stream):
+        kiểm tra truyền gói dữ liệu khi `out_ready=1` và giữ ổn định tín hiệu khi có áp lực ngược (backpressure `out_ready=0`).
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -1326,10 +1390,10 @@ endmodule
         return self._finalize_tb(TenModule, decls_str, conns_str, clk_p["name"], extra_decls, "", "\n".join(lines), "AUTONOMOUS READY/VALID HANDSHAKE VERIFICATION")
 
     # ------------------------------------------------------------------
-    # Cac bo sinh Testbench goc (giu 100% tuong thich nguoc)
+    # Các bộ sinh Testbench chuyên biệt cho hệ thống FSM, ALU, Gray, Decoder & Dự phòng tổng quát
     # ------------------------------------------------------------------
     def generate_vending_tb(self, TenModule="vending_machine", module_name=None):
-        """Tao testbench tu kiem tra cho may ban nuoc tu dong."""
+        """[FSM Đặc thù - Vending Machine] Sinh testbench kiểm thử 4 kịch bản nạp xu 5k/10k, nhả nước, thối tiền và hủy giao dịch."""
         TenMod = module_name if module_name is not None else TenModule
         tb_name = f"tb_{TenMod}"
         module_name = TenMod
@@ -1515,7 +1579,7 @@ endmodule
         return DuongDanXuat
 
     def generate_traffic_tb(self, TenModule="traffic_light", module_name=None):
-        """Tao testbench tu kiem tra cho mach dieu khien den giao thong."""
+        """[FSM Đặc thù - Traffic Light] Sinh testbench kiểm thử 3 kịch bản ưu tiên đường chính, chuyển pha đường phụ khi có xe và trả quyền ưu tiên."""
         TenMod = module_name if module_name is not None else TenModule
         tb_name = f"tb_{TenMod}"
         module_name = TenMod
@@ -1653,7 +1717,7 @@ endmodule
         return DuongDanXuat
 
     def generate_elevator_tb(self, TenModule="elevator_controller", module_name=None):
-        """Tao testbench tu kiem tra cho mach dieu khien thang may."""
+        """[FSM Đặc thù - Elevator] Sinh testbench kiểm thử thang máy 5 tầng: gọi thang từ tầng 1 lên tầng 4 rồi xuống tầng 2 và mở cửa."""
         TenMod = module_name if module_name is not None else TenModule
         tb_name = f"tb_{TenMod}"
         module_name = TenMod
@@ -1778,7 +1842,10 @@ endmodule
         return DuongDanXuat
 
     def generate_alu_tb(self, TenModule="alu_4bit", module_name=None, DuongDanRtl=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho khoi ALU (ho tro moi do rong bit va ca combinational/clocked)."""
+        """
+        [Họ 70% - ALU] Sinh testbench oracle tự kiểm tra cho khối ALU:
+        tự động thích nghi mọi độ rộng bit (có/không có `clk`), kiểm tra đủ 8 phép toán ADD/SUB/AND/OR/XOR/NOT/SHL/COMP cùng cờ `zero`/`carry`.
+        """
         TenMod = module_name if module_name is not None else TenModule
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
 
@@ -1991,7 +2058,10 @@ endmodule
         return DuongDanXuat
 
     def generate_gray_counter_tb(self, TenModule="gray_counter_4bit", module_name=None, DuongDanRtl=None, rtl_path=None):
-        """Tao testbench tu kiem tra bat bien doi 1 bit cho Gray Counter (thich nghi cong thuc te)."""
+        """
+        [Họ 70% - Gray Counter] Sinh testbench kiểm tra bất biến đổi đúng 1 bit (Single-Bit Flip Invariant)
+        trên từng nhịp clock khi đếm lên, đếm xuống và giữ giá trị khi `enable=0`.
+        """
         TenMod = module_name if module_name is not None else TenModule
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
 
@@ -2165,7 +2235,10 @@ endmodule
         return DuongDanXuat
 
     def generate_digital_lock_tb(self, TenModule="digital_lock_fsm", module_name=None, DuongDanRtl=None, rtl_path=None):
-        """Tao testbench tu kiem tra cho khoa ma so dien tu FSM (tu dong thich nghi ten cong)."""
+        """
+        [FSM Đặc thù - Digital Lock] Sinh testbench cho khóa mã số điện tử:
+        tự đọc mật khẩu mẫu (`Password Preset`) và tên cổng thực tế từ RTL để thử mở khóa đúng và thử nhập sai 3 lần kích hoạt còi báo động.
+        """
         TenMod = module_name if module_name is not None else TenModule
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
 
@@ -2287,7 +2360,7 @@ endmodule
         return self._finalize_tb(TenMod, decls_str, conns_str, clk_pin, "", tasks_str, stim_str, "AUTONOMOUS SECURITY LOCK VERIFICATION")
 
     def generate_sequence_detector_tb(self, TenModule="sequence_detector_1011", module_name=None):
-        """Tao testbench tu kiem tra cho mach do chuoi bit 1011."""
+        """[FSM Đặc thù - Sequence Detector] Sinh testbench kiểm thử nhận diện chuỗi `1011` và tính chất không gối đầu (Non-Overlapping) trên chuỗi `1011011`."""
         TenMod = module_name if module_name is not None else TenModule
         tb_name = f"tb_{TenMod}"
         module_name = TenMod
@@ -2425,7 +2498,10 @@ endmodule
         return DuongDanXuat
 
     def generate_generic_tb(self, DuongDanRtl=None, TenModuleDau=None, rtl_path=None, module_name=None):
-        """Tu dong trich xuat cong va tong hop testbench tu kiem tra theo tieu chuan VeriPrefer."""
+        """
+        [Fallback Tổng quát] Tự động trích xuất toàn bộ cổng thực tế của file RTL để dựng testbench:
+        kích hoạt reset chuẩn (hỗ trợ active-high/active-low), bơm 4 tổ hợp vector kiểm thử và xác minh mọi ngõ ra không chứa bit X/Z.
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         TenModule = module_name if module_name is not None else TenModuleDau
 
@@ -2568,7 +2644,11 @@ endmodule
         return DuongDanXuat
 
     def generate_decoder_tb(self, TenModule="memory_address_decoder", DuongDanRtl=None, rtl_path=None):
-        """Testbench tu kiem tra cho bo giai ma dia chi 64KB hoac bo giai ma nhi phan N-to-2^N."""
+        """
+        [Họ 70% - Decoder] Sinh testbench tự kiểm tra cho bộ giải mã:
+          - Bộ giải mã địa chỉ 64KB (kiểm tra `mem_en=0` và 3 vùng SRAM/ROM/IO).
+          - Bộ giải mã nhị phân N-sang-2^N (kiểm tra `en=0` và quét đủ 2^N mã đầu vào one-hot).
+        """
         TepRtl = rtl_path if rtl_path is not None else DuongDanRtl
         mod_rtl, ports = self._parse_rtl_ports(TepRtl)
         if mod_rtl:
@@ -2728,7 +2808,7 @@ endmodule
         return self.generate_generic_tb(TepRtl, TenModule)
 
     def generate_temperature_monitor_tb(self, TenModule="temperature_monitor_alarm", DuongDanRtl=None, rtl_path=None):
-        """Testbench tu kiem tra cho mach giam sat nhiet do."""
+        """[FSM Đặc thù - Temperature Monitor] Sinh testbench kiểm thử 4 kịch bản giám sát nhiệt độ: bình thường, cảnh báo quá nhiệt, ngưỡng ngắt khẩn cấp và hạ nhiệt."""
         TenTb = f"tb_{TenModule}"
         code = f"""`timescale 1ns / 1ps
 

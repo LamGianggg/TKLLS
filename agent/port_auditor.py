@@ -8,13 +8,22 @@ import os
 import re
 
 class PortAuditor:
+    """
+    Bộ kiểm toán cổng tín hiệu (Port Integrity Auditor).
+    Đối chiếu danh sách cổng giữa 4 nguồn: Đặc tả (Spec), Mã Verilog RTL,
+    Biểu tượng khối Quartus (.bsf) và Sơ đồ nguyên lý (.bdf).
+    """
+
     @staticmethod
     def audit(CongSpec, DuongDanRtl, DuongDanBsf, DuongDanBdf):
-        """Kiểm tra và đối soát tín hiệu giữa Spec, RTL, BSF và BDF."""
+        """
+        Kiểm tra và in bảng đối soát từng cổng tín hiệu qua Spec, RTL, BSF và BDF.
+        Trả về True nếu toàn bộ cổng khớp 100%, False nếu phát hiện thiếu hoặc lệch tên cổng.
+        """
         if not CongSpec or not os.path.exists(DuongDanRtl):
             return True
 
-        # 1. Trích xuất cổng từ mã RTL Verilog (hỗ trợ cả parameter #(...) và inout)
+        # Bước 1: Trích xuất danh sách cổng từ mã RTL Verilog (hỗ trợ cả parameter #(...) và inout)
         with open(DuongDanRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaRtl = TepTin.read()
         MauModule = re.search(r"module\s+([A-Za-z0-9_]+)\s*(?:#\s*\([\s\S]*?\)\s*)?\(([\s\S]*?)\);", MaRtl)
@@ -29,7 +38,7 @@ class PortAuditor:
                     DoRong = abs(int(Msb) - int(Lsb)) + 1 if (Msb and Lsb) else 1
                     CongRtl[TenCong.lower()] = {"name": TenCong, "dir": Huong, "width": DoRong}
 
-        # 2. Trích xuất cổng từ file Symbol BSF của Quartus (chỉ lấy trong khối (port ...), bỏ qua tên module và inst)
+        # Bước 2: Trích xuất cổng từ file Symbol BSF của Quartus (chỉ đọc khối (port ...), bỏ qua tên module/inst)
         CongBsf = set()
         if os.path.exists(DuongDanBsf):
             with open(DuongDanBsf, "r", encoding="utf-8", errors="replace") as TepTin:
@@ -37,7 +46,7 @@ class PortAuditor:
             for KhopPort in re.finditer(r'\(port[\s\S]*?\(text\s+"([A-Za-z0-9_]+)(?:\[.*?\])?"', NoiDungBsf):
                 CongBsf.add(KhopPort.group(1).lower())
 
-        # 3. Trích xuất chân tín hiệu từ sơ đồ BDF (hỗ trợ input, output, bidir)
+        # Bước 3: Trích xuất chân tín hiệu (pin) từ sơ đồ nguyên lý BDF (input, output, bidir)
         ChanBdf = set()
         if os.path.exists(DuongDanBdf):
             with open(DuongDanBdf, "r", encoding="utf-8", errors="replace") as TepTin:
@@ -45,6 +54,7 @@ class PortAuditor:
             for KhopChan in re.finditer(r'\(pin\s+\((?:input|output|bidir)\)[\s\S]*?\(text\s+"(?:INPUT|OUTPUT|BIDIR)"[\s\S]*?\(text\s+"([A-Za-z0-9_]+)', NoiDungBdf):
                 ChanBdf.add(KhopChan.group(1).lower())
 
+        # Bước 4: Lập bảng báo cáo đối soát trực quan ra console và kết luận PASS/FAIL
         DanhSachDong = []
         DanhSachDong.append("+-------------------------------------------------------------------------------+")
         DanhSachDong.append("|           KIỂM TRA TÍNH TOÀN VẸN CỔNG TÍN HIỆU (PORT AUDIT)                   |")

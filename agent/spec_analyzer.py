@@ -2,6 +2,12 @@
 Module: spec_analyzer.py
 Mô tả: Bộ phân tích đặc tả yêu cầu phần cứng bằng ngôn ngữ tự nhiên (Tiếng Việt & Tiếng Anh).
 Tự động trích xuất tên module, danh sách cổng vào/ra, độ rộng bus và phân loại vi kiến trúc.
+
+Vai trò trong luồng Spec2RTL (Fig. 3):
+  - Đứng ở giai đoạn tiền xử lý & phân tích đặc tả đầu vào (Specification Analysis).
+  - Thực hiện Domain Guard (`check_unsupported_domain`) để chặn yêu cầu ngoài miền Digital RTL.
+  - Phân tách nhánh 70% khối hạ tầng phổ thông và nhánh 30% kiến trúc SoC phức hợp (`is_30_percent_architecture`).
+  - Trích xuất giao diện cổng I/O qua 3 tầng (`extract_ports`) phục vụ sinh RTL và Testbench.
 """
 
 import os
@@ -10,28 +16,54 @@ import unicodedata
 import json
 
 def remove_vietnamese_accents(VanBan):
-    """Chuyển đổi tiếng Việt có dấu thành không dấu để so khớp ngữ nghĩa chuẩn xác."""
+    """
+    Chuyển đổi tiếng Việt có dấu thành chuỗi ASCII không dấu, viết thường.
+
+    Input:
+        VanBan (str): Chuỗi đặc tả gốc (có thể chứa dấu tiếng Việt và chữ hoa).
+    Output:
+        str: Chuỗi không dấu viết thường dùng để so khớp từ khóa ổn định.
+    """
+    # Xử lý riêng chữ 'đ'/'Đ' vì chuẩn Unicode NFKD không tự tách thành 'd'
     VanBan = VanBan.replace('đ', 'd').replace('Đ', 'D')
     VanBan = unicodedata.normalize('NFKD', VanBan).encode('ascii', 'ignore').decode('ascii')
     return VanBan.lower()
 
 def clean_identifier(VanBan):
-    """Chuyển đổi chuỗi bất kỳ thành tên định danh Verilog hợp lệ."""
+    """
+    Chuyển đổi chuỗi văn bản bất kỳ thành tên định danh (identifier) Verilog hợp lệ.
+
+    Input:
+        VanBan (str): Tên thô trích từ tiêu đề hoặc mô tả đặc tả.
+    Output:
+        str: Định danh chỉ gồm [a-zA-Z0-9_], không bắt đầu bằng chữ số.
+    """
     ChuoiSach = remove_vietnamese_accents(VanBan)
+    # Thay thế toàn bộ ký tự đặc biệt/khoảng trắng bằng dấu gạch dưới
     ChuoiSach = re.sub(r'[^a-zA-Z0-9_]+', '_', ChuoiSach).strip('_')
-    # Loại bỏ các tiền tố mô tả thừa
+    # Loại bỏ các tiền tố mô tả thừa tiếng Việt để lấy phần tên cốt lõi của module
     for TienTo in ["thiet_ke_", "xay_dung_", "mo_ta_", "mach_", "he_thong_", "bo_"]:
         if ChuoiSach.startswith(TienTo) and len(ChuoiSach) > len(TienTo):
             ChuoiSach = ChuoiSach[len(TienTo):]
     if not ChuoiSach:
         ChuoiSach = "custom_module"
+    # Định danh Verilog không được bắt đầu bằng chữ số
     if ChuoiSach[0].isdigit():
         ChuoiSach = "mod_" + ChuoiSach
     return ChuoiSach
 
 class SpecAnalyzer:
+    """Bộ phân tích đặc tả phần cứng trung tâm trong luồng Spec2RTL (Fig. 3)."""
+
     def __init__(self, DuongDanSpec):
+        """
+        Khởi tạo SpecAnalyzer từ đường dẫn file đặc tả hoặc chuỗi nội dung trực tiếp.
+
+        Input:
+            DuongDanSpec (str): Đường dẫn tới file đặc tả (.txt/.md) hoặc văn bản đặc tả thô.
+        """
         DuongDanGiaiQuyet = DuongDanSpec
+        # Nếu đường dẫn truyền vào chưa tồn tại trực tiếp, dò tìm ở các thư mục ứng viên (như specs/)
         if isinstance(DuongDanSpec, str) and not os.path.exists(DuongDanGiaiQuyet):
             ThuMucHienTai = os.path.dirname(os.path.abspath(__file__))
             ThuMucGoc = os.path.abspath(os.path.join(ThuMucHienTai, ".."))
@@ -51,13 +83,21 @@ class SpecAnalyzer:
 
         self.spec_path = DuongDanGiaiQuyet
         if os.path.exists(DuongDanGiaiQuyet):
+            # Đọc nội dung file và loại bỏ ký tự BOM (\ufeff) nếu file lưu theo UTF-8 with BOM
             with open(DuongDanGiaiQuyet, "r", encoding="utf-8-sig", errors="replace") as TepTin:
                 self.content = TepTin.read().lstrip('\ufeff')
         else:
+            # Trường hợp người dùng truyền thẳng chuỗi đặc tả thay vì đường dẫn file
             self.content = str(DuongDanSpec).lstrip('\ufeff')
 
     def extract_module_name(self):
-        """Trích xuất hoặc suy luận tên module Verilog từ file đặc tả."""
+        """
+        Trích xuất hoặc suy luận tên module Verilog hợp lệ từ nội dung đặc tả.
+
+        Output:
+            str: Tên module Verilog (viết thường), fallback về 'custom_hw_module' nếu không suy ra được.
+        """
+        # Tập tên mục/từ khóa chung cần bỏ qua để tránh nhận nhầm làm tên module
         TuKhoaLoaiTru = {"name", "entity", "top", "inputs", "outputs", "input", "output", 
                           "dau_vao", "dau_ra", "io", "ports", "tin_hieu", "state", "step",
                           "1_dau_vao_inputs", "dau_vao_inputs", "2_dau_ra_outputs", "dau_ra_outputs",
@@ -68,7 +108,7 @@ class SpecAnalyzer:
         if KhopKhaiBao and KhopKhaiBao.group(1).lower() not in TuKhoaLoaiTru:
             return KhopKhaiBao.group(1).lower()
 
-        # 2. Tìm trong tiêu đề Markdown H1 / H2
+        # 2. Tìm trong tiêu đề Markdown H1 / H2 (ưu tiên tên tiếng Anh đặt trong ngoặc đơn)
         KhopTieuDe = re.search(r"^#+\s+(.+)$", self.content, re.MULTILINE)
         if KhopTieuDe:
             DongTieuDe = KhopTieuDe.group(1).strip()
@@ -88,7 +128,7 @@ class SpecAnalyzer:
             if UngVien and len(UngVien) > 2 and UngVien not in TuKhoaLoaiTru:
                 return UngVien
 
-        # 4. Nếu tên file là dạng chung chung (a, b, spec), lấy từ câu đầu tiên
+        # 4. Nếu tên file là dạng chung chung (a, b, spec), lấy từ câu đầu tiên; ngược lại dùng tên file
         if os.path.exists(self.spec_path):
             PhanTenFile = os.path.splitext(os.path.basename(self.spec_path))[0]
             TenFileSach = clean_identifier(PhanTenFile)
@@ -104,10 +144,20 @@ class SpecAnalyzer:
         return "custom_hw_module"
 
     def is_30_percent_architecture(self):
-        """Phát hiện các hệ thống vi kiến trúc phức hợp SoC AI vượt ngưỡng 1 câu prompt."""
+        """
+        Phát hiện các hệ thống vi kiến trúc phức hợp (nhóm 30% SoC/AI Accelerator) vượt ngưỡng 1-shot prompt.
+
+        Vai trò trong Spec2RTL (Fig. 3):
+            Phân tách luồng xử lý giữa 70% khối phần cứng phổ thông (sinh trực tiếp qua RAG + LLM)
+            với 30% hệ thống đa khối tích hợp (CPU + DMA + RAM + NPU/Systolic Array) cần kiến trúc phân cấp.
+
+        Output:
+            bool: True nếu đặc tả thuộc nhóm kiến trúc SoC/AI phức hợp, ngược lại False.
+        """
         VanBanTho = (os.path.basename(self.spec_path) + " " + self.content)
         VanBan = remove_vietnamese_accents(VanBanTho)
 
+        # Kiểm tra 1: Khớp trực tiếp cụm từ khóa đặc trưng của kiến trúc SoC AI / NPU / Multi-DMA
         if any(TuKhoa in VanBan for TuKhoa in [
             "top_soc", "top soc", "ai accelerator core", "ai_accelerator_core",
             "he thong ai accelerator", "bo xu ly ai da loi", "systolic array processor",
@@ -116,19 +166,34 @@ class SpecAnalyzer:
         ]):
             return True
 
+        # Kiểm tra 2: Xuất hiện đồng thời 'soc' và các khối kiến trúc thành phần (DMA, CPU, datapath...)
         if "soc" in VanBan and any(TuKhoa in VanBan for TuKhoa in ["accelerator", "core", "datapath", "dma", "cpu", "he thong"]):
             return True
 
+        # Kiểm tra 3: Tổ hợp dấu hiệu pipeline tăng tốc AI gồm DMA + ReLU + AI
         if ("dma" in VanBan and "relu" in VanBan and "ai" in VanBan):
             return True
 
         return False
 
     def check_unsupported_domain(self):
-        """Phát hiện các yêu cầu nằm ngoài phạm vi logic số có thể tổng hợp (Analog, PHY Hard IP)."""
+        """
+        Domain Guard: Phát hiện và từ chối sớm các yêu cầu nằm ngoài phạm vi logic số có thể tổng hợp.
+
+        Vai trò trong Spec2RTL (Fig. 3):
+            Đóng vai trò cổng kiểm duyệt đầu vào (Guardrail) trước khi truy xuất RAG hay gọi LLM sinh Verilog,
+            giúp tránh ảo giác (hallucination) trên mạch Analog, High-Speed PHY hoặc văn bản không liên quan.
+
+        Output:
+            tuple[bool, str | None, str | None]:
+                (is_unsupported, category_code, reason)
+                - (True, 'ANALOG_AMS' | 'HIGH_SPEED_PHY' | 'IRRELEVANT_INPUT', lý do) nếu bị chặn.
+                - (False, None, None) nếu là yêu cầu logic số hợp lệ.
+        """
         VanBanTho = (os.path.basename(self.spec_path) + " " + self.content)
         VanBan = remove_vietnamese_accents(VanBanTho)
 
+        # Lớp bảo vệ 1: Chặn thiết kế mạch tương tự / tín hiệu hỗn hợp (Analog / Mixed-Signal)
         AnalogTuKhoa = [
             "op-amp", "opamp", "khuech dai thuat toan", "mach tuong tu", "analog",
             "bandgap", "analog pll", "khuech dai vi sai analog"
@@ -142,6 +207,7 @@ class SpecAnalyzer:
                     "không thể tổng hợp bằng trình tổng hợp FPGA/ASIC (Quartus II)."
                 )
 
+        # Lớp bảo vệ 2: Chặn các khối giao diện vật lý cao tần cần Hard Macro PDK từ Foundry
         PhyTuKhoa = ["pcie phy", "ddr phy", "ddr4 phy", "ddr5 phy", "serdes phy", "gigabit phy", "usb3 phy"]
         for Tu in PhyTuKhoa:
             if Tu in VanBan:
@@ -151,7 +217,7 @@ class SpecAnalyzer:
                     "không thể tổng hợp từ mã Soft RTL thuần túy."
                 )
 
-        # Phát hiện nội dung không liên quan đến thiết kế phần cứng vi mạch (Out-of-Domain / Irrelevant Input)
+        # Lớp bảo vệ 3: Phát hiện nội dung không liên quan đến thiết kế phần cứng vi mạch (Out-of-Domain / Irrelevant Input)
         TuKhoaPhanCung = [
             "mach", "circuit", "module", "port", "cong", "chan", "pin", "input", "output", "inout",
             "wire", "reg", "clk", "clock", "rst", "reset", "fsm", "trang thai", "state", "bit",
@@ -162,6 +228,7 @@ class SpecAnalyzer:
             "led", "sensor", "cam bien", "nhiet do", "bao chay", "bao dong", "step motor", "debounc",
             "chong rung", "so do", "datapath", "register", "flip flop"
         ]
+        # Chỉ kết luận là đầu vào rác khi không có từ khóa phần cứng lẫn không trích xuất được cổng I/O nào
         if not any(Tu in VanBan for Tu in TuKhoaPhanCung) and not self.extract_ports():
             return True, "IRRELEVANT_INPUT", (
                 "Văn bản đầu vào không chứa bất kỳ thông tin, tín hiệu I/O hoặc yêu cầu thiết kế logic vi mạch nào. "
@@ -172,7 +239,13 @@ class SpecAnalyzer:
         return False, None, None
 
     def classify_system(self):
-        """Phân loại vi mạch vào các nhóm kiến trúc phần cứng."""
+        """
+        Phân loại đặc tả vào các nhóm kiến trúc phần cứng chuẩn hóa.
+
+        Output:
+            str: Mã phân loại (vd: 'ANALOG_AMS', 'SOC_AI', 'UART_TX', 'COUNTER', 'CUSTOM_LOGIC'...).
+        """
+        # Ưu tiên chạy Domain Guard trước khi phân nhóm kiến trúc
         is_unsup, cat_code, _ = self.check_unsupported_domain()
         if is_unsup:
             return cat_code
@@ -180,8 +253,10 @@ class SpecAnalyzer:
         VanBanTho = (os.path.basename(self.spec_path) + " " + self.content)
         VanBan = remove_vietnamese_accents(VanBanTho)
 
+        # Kiểm tra nhóm 30% hệ thống phức hợp SoC / AI trước nhóm 70% đơn khối
         if self.is_30_percent_architecture():
             return "SOC_AI"
+        # Phân loại các hệ thống FSM & điều khiển ứng dụng phổ biến
         if "vend" in VanBan or "ban nuoc" in VanBan:
             return "VENDING"
         if any(TuKhoa in VanBan for TuKhoa in ["thang may", "elevator", "lift_ctrl", "cabin_floor"]):
@@ -212,6 +287,7 @@ class SpecAnalyzer:
         if any(TuKhoa in VanBan for TuKhoa in ["fifo", "queue", "hang doi", "buffer"]):
             return "FIFO"
 
+        # Phân loại các khối số học, đếm và logic tuần tự/tổ hợp cơ bản
         if any(TuKhoa in VanBan for TuKhoa in ["multiplier", "nhan 4 bit", "nhan 8 bit", "nhan 16 bit", "mach nhan", "bo nhan", "multi_"]):
             return "MULTIPLIER"
         if any(TuKhoa in VanBan for TuKhoa in ["adder", "cong 4 bit", "cong 8 bit", "cong 16 bit", "mach cong", "bo cong", "full adder", "half adder"]):
@@ -238,10 +314,21 @@ class SpecAnalyzer:
         return "CUSTOM_LOGIC"
 
     def extract_ports(self):
-        """Trích xuất danh sách cổng tín hiệu từ bảng Markdown, danh sách hoặc đoạn văn bản."""
-        DanhSachCong = []
-        DaGap = set()
+        """
+        Trích xuất danh sách cổng tín hiệu I/O từ đặc tả qua kiến trúc 3 tầng (từ có cấu trúc đến tự do).
 
+        Các tầng xử lý:
+            - Tầng 1: Bảng Markdown 4 cột (`| Tên | Hướng | Độ rộng | Mô tả |`).
+            - Tầng 2: Danh sách gạch đầu dòng / đánh số có theo dõi ngữ cảnh phân mục Input/Output.
+            - Tầng 3: Fallback từ đoạn văn xuôi khi cả Tầng 1 và Tầng 2 đều không tìm thấy cổng.
+
+        Output:
+            list[dict]: Mỗi phần tử gồm {name, direction, width, is_clk, is_rst, desc}.
+        """
+        DanhSachCong = []
+        DaGap = set()  # Lưu tên cổng đã thu thập (lowercase) để chống trùng lặp giữa các tầng
+
+        # Danh sách từ tiêu đề/từ nối dễ bị bắt nhầm thành tên cổng tín hiệu
         TuKhoaLoaiTruCong = {
             "port", "port_name", "name", "ten_chan", "ten_cong", "mo_ta", "input", "output",
             "dau_vao", "dau_ra", "tin_hieu", "khi", "neu", "gia_tri", "truong_hop", "so", "chu_so",
@@ -249,13 +336,14 @@ class SpecAnalyzer:
             "wire", "reg", "logic", "ra", "vao"
         }
 
-        # 1. Trích xuất từ bảng Markdown (hỗ trợ cả tiếng Việt 'Đầu vào', 'Đầu ra' có dấu)
+        # --- TẦNG 1: Trích xuất từ bảng Markdown (hỗ trợ cả tiếng Việt 'Đầu vào', 'Đầu ra' có dấu) ---
         MauBang = r"\|\s*`?\*?\*?([A-Za-z0-9_]+)\*?\*?`?\s*\|\s*([^\|]+)\|\s*([^\|]+)\|\s*([^\|]+)\|"
         for KhopBang in re.finditer(MauBang, self.content):
             Ten, Huong, ChuoiRong, MoTa = KhopBang.groups()
             TenSach = Ten.strip()
             if TenSach.lower() not in TuKhoaLoaiTruCong and not TenSach.isdigit():
                 DoRong = 1
+                # Phân tích độ rộng bus dạng [MSB:LSB] hoặc dạng 'N bit'
                 KhopBus = re.search(r"\[\s*(\d+)\s*:\s*(\d+)\s*\]", ChuoiRong)
                 KhopBit = re.search(r"(\d+)\s*(?:bit|b)?", ChuoiRong.lower())
                 if KhopBus:
@@ -275,13 +363,14 @@ class SpecAnalyzer:
                 })
                 DaGap.add(TenSach.lower())
 
-        # 2. Trích xuất từ danh sách gạch đầu dòng Markdown
-        PhanHienTai = None
+        # --- TẦNG 2: Trích xuất từ danh sách gạch đầu dòng / đánh số Markdown ---
+        PhanHienTai = None  # Theo dõi đang đứng trong mục 'input', 'output' hay 'other'
         for DongTho in self.content.splitlines():
             Dong = DongTho.strip()
             DongSach = re.sub(r"\*{1,2}|`", "", Dong).strip()
             DongKhongDau = remove_vietnamese_accents(DongSach.lower())
 
+            # Nhận diện dòng tiêu đề phân mục để gán hướng mặc định cho các gạch đầu dòng bên dưới
             KhopPhanMuc = re.search(r"\b(dau vao|inputs?|ngo vao|dau ra|outputs?|ngo ra|hoat dong|chuc nang|nguyen ly|logic)\b", DongKhongDau)
             LaTieuDePhanMuc = False
             if KhopPhanMuc:
@@ -303,6 +392,7 @@ class SpecAnalyzer:
                     PhanHienTai = "other"
                 continue
 
+            # Bỏ qua các dòng thuộc phần mô tả hoạt động/logic (trừ khi dòng đó nêu rõ input/output)
             if PhanHienTai == "other" and not any(TuKhoa in DongKhongDau for TuKhoa in ["input", "output", "dau vao", "dau ra", "ngo vao", "ngo ra"]):
                 continue
 
@@ -317,6 +407,7 @@ class SpecAnalyzer:
             if KhopHuong:
                 HuongRoRang = "output" if any(TuKhoa in KhopHuong.group(1) for TuKhoa in ["out", "ra"]) else "input"
 
+            # Thử 4 mẫu khai báo cổng phổ biến: [MSB:LSB] name, name [MSB:LSB], name (N bit), name: mô tả
             Khop1 = re.search(r"(?:(?:wire|reg)\s+)?\[\s*(\d+)\s*:\s*(\d+)\s*\]\s*([A-Za-z0-9_]+)\s*[:\-\s](.*)", MucTieu)
             Khop2 = re.search(r"([A-Za-z0-9_]+)\s*\[\s*(\d+)\s*:\s*(\d+)\s*\]\s*[:\-\s](.*)", MucTieu)
             Khop3 = re.search(r"([A-Za-z0-9_]+)\s*\(\s*(\d+)\s*(?:bit|b)?\s*\)\s*[:\-\s](.*)", MucTieu)
@@ -345,6 +436,7 @@ class SpecAnalyzer:
                 if TenSach.lower() in DaGap:
                     continue
 
+                # Ưu tiên hướng ghi trực tiếp trên dòng -> hướng theo phân mục -> đoán từ nội dung dòng
                 HuongCuoi = HuongRoRang if HuongRoRang else (
                     PhanHienTai if PhanHienTai in ["input", "output"] else (
                         "output" if any(TuKhoa in MucTieuKhongDau for TuKhoa in ["out", "ra"]) else "input"
@@ -361,13 +453,14 @@ class SpecAnalyzer:
                 })
                 DaGap.add(TenSach.lower())
 
-        # 3. Trích xuất dự phòng từ đoạn văn xuôi
+        # --- TẦNG 3: Trích xuất dự phòng từ đoạn văn xuôi (khi Tầng 1 và Tầng 2 đều rỗng) ---
         if not DanhSachCong:
             NoiDungKhongDau = remove_vietnamese_accents(self.content.lower())
             KhopVao = re.search(r"(?:dau vao|ngo vao|inputs?)\s*(?:la|gom|:|cac tin hieu)?\s*([^.]+?)(?:dau ra|ngo ra|outputs?|$)", NoiDungKhongDau)
             KhopRa = re.search(r"(?:dau ra|ngo ra|outputs?)\s*(?:la|gom|:|cac tin hieu)?\s*([^.]+?)(?:dau vao|ngo vao|inputs?|$)", NoiDungKhongDau)
 
             def TrichXuatTuDoan(DoanVan, Huong):
+                """Tách danh sách tên tín hiệu và độ rộng bit từ một đoạn liệt kê văn xuôi."""
                 CongTrichXuat = []
                 CacTu = re.split(r"[,;]|\s+\bva\b\s+|\s+\band\b\s+", DoanVan)
                 for Tu in CacTu:
@@ -401,7 +494,12 @@ class SpecAnalyzer:
         return DanhSachCong
 
     def get_friendly_description(self):
-        """Trả về mô tả thân thiện cho giao diện người dùng."""
+        """
+        Trả về mô tả ngắn gọn thân thiện để hiển thị trên UI/log.
+
+        Output:
+            str: Tên mô tả hệ thống kèm nhãn phân loại kiến trúc.
+        """
         PhanLoai = self.classify_system()
         TenModule = self.extract_module_name()
 
@@ -430,6 +528,12 @@ class SpecAnalyzer:
         return TenTheoLoai.get(PhanLoai, f"Mô-đun phần cứng: {TenModule}")
 
     def to_dict(self):
+        """
+        Tổng hợp toàn bộ kết quả phân tích đặc tả thành dictionary chuẩn cho pipeline phía sau.
+
+        Output:
+            dict: Gồm `spec_path`, `module_name`, `category`, `ports`, `description`.
+        """
         return {
             "spec_path": self.spec_path,
             "module_name": self.extract_module_name(),

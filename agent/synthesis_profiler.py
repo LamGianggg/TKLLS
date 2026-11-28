@@ -8,14 +8,21 @@ import os
 import re
 
 class SynthesisProfiler:
-    """Đo đạc mức độ tiêu thụ tài nguyên phần cứng của vi mạch."""
+    """
+    Bộ đo đạc và thống kê mức độ tiêu thụ tài nguyên phần cứng của vi mạch
+    (Logic Elements, Flip-Flops, chân I/O, bộ nhớ, DSP).
+    """
 
     @staticmethod
     def parse_quartus_map_summary(ThuMucQuartus, TenDuAn):
-        """Trích xuất thông số tài nguyên từ file báo cáo .map.summary của Quartus."""
+        """
+        Đọc file báo cáo tổng hợp `<TenDuAn>.map.summary` do `quartus_map` sinh ra
+        để trích xuất số liệu tài nguyên FPGA thực tế (LEs, Registers, Pins, Memory, DSP).
+        """
         FileTomTat = os.path.join(ThuMucQuartus, f"{TenDuAn}.map.summary")
         FileBaoCao = os.path.join(ThuMucQuartus, f"{TenDuAn}.map.rpt")
 
+        # Khởi tạo cấu trúc thông số mặc định cho dòng chip mục tiêu Cyclone II
         ThongSo = {
             "source": "Quartus II Analysis & Synthesis",
             "family": "Cyclone II",
@@ -33,6 +40,7 @@ class SynthesisProfiler:
             with open(FileTomTat, "r", encoding="utf-8", errors="replace") as TepTin:
                 NoiDung = TepTin.read()
 
+            # Trích xuất từng chỉ số tài nguyên từ báo cáo văn bản của Quartus
             MauHoChip = re.search(r"Family\s*:\s*([^\n\r]+)", NoiDung)
             if MauHoChip: ThongSo["family"] = MauHoChip.group(1).strip()
 
@@ -61,18 +69,21 @@ class SynthesisProfiler:
 
     @staticmethod
     def estimate_static_resources(FileRtl):
-        """Ước lượng tĩnh tài nguyên phần cứng từ cây cú pháp RTL khi không có Quartus CLI."""
+        """
+        Ước lượng tĩnh tài nguyên phần cứng trực tiếp từ mã Verilog RTL
+        (dùng làm phương án dự phòng khi máy không cài Quartus CLI hoặc chưa chạy map).
+        """
         if not os.path.exists(FileRtl):
             return {}
 
         with open(FileRtl, "r", encoding="utf-8", errors="replace") as TepTin:
             MaRtl = TepTin.read()
 
-        # Loại bỏ chú thích trước khi phân tích cú pháp
+        # Bước 1: Loại bỏ toàn bộ chú thích (// và /* ... */) để tránh đếm nhầm từ khóa trong comment
         MaSach = re.sub(r"//.*", "", MaRtl)
         MaSach = re.sub(r"/\*[\s\S]*?\*/", "", MaSach)
 
-        # Đếm số bit thanh ghi reg (bao gồm cả reg độc lập và output reg trong danh sách cổng ANSI)
+        # Bước 2: Đếm tổng số bit Flip-Flop (thanh ghi `reg` độc lập và `output reg`)
         SoBitThanhGhi = 0
         KhopThanhGhi = re.finditer(r"\b(?:output\s+)?reg\s+(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_,\s]+?)(?:;|,|\))", MaSach)
         for Khop in KhopThanhGhi:
@@ -81,7 +92,7 @@ class SynthesisProfiler:
             SoLuongBien = len([Ten.strip() for Ten in DanhSachBien.split(",") if Ten.strip()])
             SoBitThanhGhi += DoRong * SoLuongBien
 
-        # Đếm số chân I/O
+        # Bước 3: Đếm tổng số chân vật lý I/O của module
         SoChanVaoRa = 0
         KhopCong = re.finditer(r"\b(input|output|inout)\s+(?:wire|reg)?\s*(?:\[(\d+):(\d+)\])?\s*([A-Za-z0-9_]+)", MaSach)
         for Khop in KhopCong:
@@ -89,7 +100,7 @@ class SynthesisProfiler:
             DoRong = (int(Msb) - int(Lsb) + 1) if (Msb and Lsb) else 1
             SoChanVaoRa += DoRong
 
-        # Ước lượng Logic Elements dựa trên toán tử logic và thanh ghi (trên mã sạch đã lọc chú thích)
+        # Bước 4: Ước lượng số Logic Elements (LEs) từ số bit thanh ghi + mật độ toán tử tổ hợp
         SoToanTu = len(re.findall(r"(\+|\-|\*|<<|>>|&|\||\^|==|!=|<|>|<=|>=|\?)", MaSach))
         UocLuongLe = max(SoBitThanhGhi + (SoToanTu * 2), 4)
 
@@ -108,7 +119,10 @@ class SynthesisProfiler:
 
     @staticmethod
     def profile_module(ThuMucQuartus, TenDuAn, FileRtlChinh):
-        """Phương thức đo đạc tổng hợp: ưu tiên báo cáo Quartus, dự phòng ước lượng tĩnh."""
+        """
+        Điểm vào chính để đo đạc tài nguyên của một module:
+        Ưu tiên đọc số liệu tổng hợp thật từ Quartus; nếu chưa có thì chuyển sang ước lượng tĩnh.
+        """
         ThongSo = SynthesisProfiler.parse_quartus_map_summary(ThuMucQuartus, TenDuAn)
         if ThongSo["logic_elements"] is None:
             ThongSo = SynthesisProfiler.estimate_static_resources(FileRtlChinh)
@@ -116,7 +130,7 @@ class SynthesisProfiler:
 
     @staticmethod
     def format_profiler_card(ThongSo, TenMach):
-        """Định dạng bảng tổng kết tài nguyên phần cứng."""
+        """Định dạng bảng thống kê tài nguyên phần cứng (ASCII card) để hiển thị cho người dùng."""
         SoLe = ThongSo.get("logic_elements", 0)
         SoFf = ThongSo.get("total_registers", 0)
         SoChan = ThongSo.get("total_pins", 0)

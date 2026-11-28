@@ -1,8 +1,9 @@
 """
 Module: rtl_generator.py
-Chuc nang: Tu dong sinh ma Verilog RTL cho he thong Spec2RTL & Prompt2Silicon.
-Phan tich dac ta ngon ngu tu nhien / Markdown va tong hop ma Verilog
-tong hop duoc (synthesizable IEEE 1364-2001) cho moi thiet ke so.
+Chức năng: Tự động sinh mã nguồn Verilog RTL chuẩn tổng hợp được (synthesizable IEEE 1364-2001)
+cho hệ thống Spec2RTL & Prompt2Silicon từ đặc tả ngôn ngữ tự nhiên / Markdown.
+Bao gồm bộ kiểm tra ép buộc khớp cổng 100% với đặc tả (RTLPortEnforcer)
+và các hàm sinh mạch theo từng họ phần cứng (FSM, Số học, Bộ đếm, Giao tiếp, FIFO, Decoder, Generic).
 """
 
 import os
@@ -11,10 +12,19 @@ from spec_analyzer import SpecAnalyzer, remove_vietnamese_accents
 from verilog_linter import VerilogLinter
 
 class RTLPortEnforcer:
-    """Kiem toan va ep buoc cac cong module RTL phai khop 100% voi dac ta dac ta."""
+    """
+    Bộ kiểm toán và ép buộc cổng (Port Enforcer) ở tầng sinh RTL.
+    Đảm bảo danh sách cổng (tên, hướng, độ rộng bit) của module Verilog sinh ra
+    khớp chính xác 100% với danh sách cổng trích xuất từ đặc tả Spec.
+    """
 
     @staticmethod
     def enforce(MaRtl=None, DanhSachCongSpec=None, rtl_code=None, spec_ports=None):
+        """
+        Đối chiếu header `module ... (...)` trong mã RTL với `CongSpec`:
+          - Nếu thiếu cổng so với Spec: bổ sung vào header (và gán mặc định nếu là output chưa được gán).
+          - Nếu dư cổng so với Spec: đưa xuống khai báo dây/thanh ghi nội bộ để tránh hở chân hoặc sai giao diện.
+        """
         NoiDungRtl = rtl_code if rtl_code is not None else MaRtl
         CongSpec = spec_ports if spec_ports is not None else DanhSachCongSpec
 
@@ -29,7 +39,7 @@ class RTLPortEnforcer:
         KhoiKhaiBaoCong = KhopModule.group(2)
         PhanConLai = NoiDungRtl[KhopModule.end():]
 
-        # Phan tich cac cong hien co trong RTL
+        # Bước 1: Phân tích các cổng hiện có trong phần khai báo header của RTL
         KhoiCongSach = re.sub(r"//.*", "", KhoiKhaiBaoCong)
         KhoiCongSach = re.sub(r"/\*.*?\*/", "", KhoiCongSach, flags=re.DOTALL)
         DanhSachCongRtl = []
@@ -50,7 +60,7 @@ class RTLPortEnforcer:
         if not CongThua and not CongThieu:
             return NoiDungRtl
 
-        # Tai tao phan header theo cong spec
+        # Bước 2: Tái tạo lại phần khai báo header module theo đúng thứ tự và độ rộng trong Spec
         KhaiBaoCongMoi = []
         for Cong in CongSpec:
             ChuoiDoRong = f"[{Cong['width']-1}:0] " if Cong['width'] > 1 else "      "
@@ -84,16 +94,21 @@ class RTLPortEnforcer:
 
 
 class RTLGenerator:
-    """Bo tao ma nguon Verilog RTL tu dac ta phan cung."""
+    """
+    Bộ tạo mã nguồn Verilog RTL tự động từ đặc tả phần cứng.
+    Phân loại họ mạch qua `SpecAnalyzer`, điều phối tới hàm sinh chuyên biệt
+    và chuẩn hóa mã qua `VerilogLinter` + `RTLPortEnforcer`.
+    """
 
     def __init__(self, ThuMucSrc=None, src_dir=None):
+        """Khởi tạo thư mục xuất mã Verilog RTL (mặc định là `../src`)."""
         ThuMucMacDinh = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
         self.ThuMucSrc = src_dir if src_dir is not None else (ThuMucSrc if ThuMucSrc is not None else ThuMucMacDinh)
         self.src_dir = self.ThuMucSrc
         os.makedirs(self.ThuMucSrc, exist_ok=True)
 
     def _write_verilog(self, TenFile=None, MaNguon=None, file_name=None, code=None):
-        """Kiem tra va ghi ma nguon Verilog vao thu muc src."""
+        """Làm sạch cú pháp Verilog bằng `VerilogLinter` rồi ghi ra file `.v` trong thư mục `src`."""
         TenTep = file_name if file_name is not None else TenFile
         MaRtl = code if code is not None else MaNguon
         MaRtlSach = VerilogLinter.sanitize_verilog_code(MaRtl)
@@ -103,7 +118,13 @@ class RTLGenerator:
         return DuongDanXuat
 
     def generate_from_spec(self, NoiDungSpec=None, DuongDanSpec=None, spec_text=None, spec_path=None):
-        """Diem vao duy nhat: Tu dong tong hop Verilog RTL cho bat ky dac ta nao."""
+        """
+        Điểm vào duy nhất để sinh Verilog RTL từ đặc tả:
+          1. Gọi `SpecAnalyzer` phân loại họ mạch (`NhomMach`), tên module và danh sách cổng.
+          2. Định tuyến sang bộ sinh RTL tương ứng (hoặc `generate_generic_module` nếu là mạch tùy biến).
+          3. Chạy `RTLPortEnforcer.enforce` để đảm bảo danh sách cổng khớp 100% với đặc tả.
+        Trả về cặp `(TenModule, DuongDanFileVerilog)`.
+        """
         VanBanSpec = spec_text if spec_text is not None else NoiDungSpec
         TepSpec = spec_path if spec_path is not None else DuongDanSpec
 
@@ -167,7 +188,7 @@ class RTLGenerator:
         else:
             TepKetQua = self.generate_generic_module(TenModule, VanBanSpec, DanhSachCong)
 
-        # Ep buoc cong phai khop 100% voi dac ta
+        # Bước 3: Ép buộc danh sách cổng Verilog khớp 100% với đặc tả (bổ sung cổng thiếu / cô lập cổng thừa)
         if DanhSachCong and TepKetQua and os.path.exists(TepKetQua):
             with open(TepKetQua, "r", encoding="utf-8", errors="replace") as TepTin:
                 MaTho = TepTin.read()
@@ -179,8 +200,12 @@ class RTLGenerator:
 
         return TenModule, TepKetQua
 
+    # ==========================================================================
+    # NHÓM 1: MẠCH KHỬ RUNG & CÁC HỆ THỐNG MÁY TRẠNG THÁI HỮU HẠN (FSM)
+    # ==========================================================================
+
     def generate_debouncer(self, module_name="button_debouncer", spec_text="", ports=None):
-        """Tạo module khử rung phím bấm chuẩn synthesizable, không chốt ẩn, không chân lơ lửng."""
+        """Sinh module khử rung nút nhấn (Button Debouncer) dùng thanh ghi dịch 3 bit + phát hiện cạnh lên 1 chu kỳ."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Synchronous Button Debouncer with Pulse Edge Detector
@@ -225,7 +250,7 @@ endmodule
 
 
     def generate_vending_machine(self, spec_text="", module_name="vending_machine"):
-        """Generates synthesizable Verilog for Vending Machine from spec."""
+        """Sinh mạch FSM Máy bán nước tự động (nhận xu 5k/10k, mốc 15k nhả nước, 20k nhả nước + thối 5k)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Automatic Beverage Vending Machine FSM
@@ -329,7 +354,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_traffic_light(self, spec_text="", module_name="traffic_light"):
-        """Generates synthesizable Verilog for Traffic Light Controller."""
+        """Sinh mạch FSM Điều khiển đèn giao thông ngã tư (ưu tiên đường chính, chuyển pha theo `car_sensor` và timer)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Intersection Traffic Light Controller FSM
@@ -436,7 +461,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_elevator_controller(self, spec_text="", module_name="elevator_controller"):
-        """Generates synthesizable Verilog for 5-Floor Elevator Controller."""
+        """Sinh mạch FSM Điều khiển thang máy 5 tầng (lưu yêu cầu gọi tầng, điều khiển động cơ lên/xuống và đóng/mở cửa)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: 5-Floor Intelligent Elevator Controller FSM
@@ -546,8 +571,12 @@ endmodule
 """
         return self._write_verilog(f"{module_name}.v", code)
 
+    # ==========================================================================
+    # NHÓM 2: CÁC KHỐI SỐ HỌC & XỬ LÝ TÍN HIỆU SỐ (ALU, NHÂN, CỘNG, TRỪ, SO SÁNH)
+    # ==========================================================================
+
     def generate_alu(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Arithmetic Logic Unit (ALU)."""
+        """Sinh mạch Khối tính toán số học & logic ALU đồng bộ (mặc định 4-bit, tự nhận diện độ rộng bit từ spec)."""
         width = 4
         m_w = re.search(r"(\d+)\s*[-_]?bit", spec_text.lower())
         if m_w:
@@ -603,7 +632,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_multiplier(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Digital Multiplier."""
+        """Sinh mạch Bộ nhân nhị phân đồng bộ (đầu vào N-bit, tích đầu ra 2N-bit)."""
         width = 4
         m_w = re.search(r"(\d+)\s*[-_]?bit", spec_text.lower())
         if m_w: width = int(m_w.group(1))
@@ -634,7 +663,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_adder(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Digital Full Adder."""
+        """Sinh mạch Bộ cộng toàn phần có nhớ vào/nhớ ra (`cin`/`cout`), mặc định 8-bit."""
         width = 8
         m_w = re.search(r"(\d+)\s*[-_]?bit", spec_text.lower())
         if m_w: width = int(m_w.group(1))
@@ -668,7 +697,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_subtractor(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Digital Binary Subtractor."""
+        """Sinh mạch Bộ trừ nhị phân đồng bộ kèm cờ mượn `borrow` khi `a < b`."""
         width = 4
         m_w = re.search(r"(\d+)\s*[-_]?bit", spec_text.lower())
         if m_w: width = int(m_w.group(1))
@@ -702,7 +731,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_comparator(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Magnitude Comparator."""
+        """Sinh mạch Bộ so sánh độ lớn hai số (`greater`, `equal`, `less`), mặc định 4-bit."""
         width = 4
         m_w = re.search(r"(\d+)\s*[-_]?bit", spec_text.lower())
         if m_w: width = int(m_w.group(1))
@@ -738,8 +767,12 @@ endmodule
 """
         return self._write_verilog(f"{module_name}.v", code)
 
+    # ==========================================================================
+    # NHÓM 3: BỘ ĐẾM, ĐỒNG HỒ BẤM GIỜ, PWM & ĐIỀU KHIỂN ĐỘNG CƠ
+    # ==========================================================================
+
     def generate_stopwatch(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 0-9 BCD Stopwatch with 7-Segment Decoder."""
+        """Sinh mạch Đồng hồ bấm giờ BCD 0–9 tích hợp bộ giải mã LED 7 đoạn (mức tích cực thấp)."""
         en_pin = "start_stop"
         clk_pin = "clk"
         rst_pin = "rst"
@@ -800,7 +833,12 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_counter(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Synchronous Up/Down Counter or BCD Counter."""
+        """
+        Sinh mạch Bộ đếm đồng bộ (tự động phân nhánh theo đặc tả):
+          - Nếu có LED 7 đoạn / stopwatch: gọi `generate_stopwatch`.
+          - Nếu là đếm giây BCD 00–59: tạo bộ đếm 2 chữ số kèm cờ tràn `rollover`.
+          - Mặc định: bộ đếm nhị phân lên/xuống có `enable`, `up_down` và cờ `tc`.
+        """
         raw = remove_vietnamese_accents(spec_text.lower()) if spec_text else ""
         has_seg = any("seg" in (p.get("name") or "").lower() for p in (ports or []))
         if has_seg or any(k in raw for k in ["seg", "7 doan", "7-segment", "stopwatch", "dong ho", "led 7"]):
@@ -894,7 +932,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_pwm(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Pulse Width Modulation (PWM) Generator."""
+        """Sinh mạch Tạo xung điều chế độ rộng PWM 8-bit (so sánh `counter_val < duty_cycle`)."""
         width = 8
         code = f"""//==============================================================================
 // Module: {module_name}
@@ -924,7 +962,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_stepper_motor(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 4-Phase Stepper Motor Controller (Full-Step Mode)."""
+        """Sinh mạch Điều khiển động cơ bước 4 pha (chế độ Full-Step, quay thuận/nghịch theo `dir`)."""
         clk_pin, rst_pin, dir_pin, en_pin, phase_pin = "clk", "rst", "dir", "en", "phase_out"
         if ports:
             for p in ports:
@@ -975,8 +1013,12 @@ endmodule
 """
         return self._write_verilog(f"{module_name}.v", code)
 
+    # ==========================================================================
+    # NHÓM 4: GIAO TIẾP NỐI TIẾP & HỆ THỐNG ĐIỀU KHIỂN / AN NINH THÔNG MINH
+    # ==========================================================================
+
     def generate_uart_tx(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 8-bit UART Transmitter."""
+        """Sinh mạch Bộ phát UART 8-bit chuẩn khung 8N1 (1 Start bit, 8 Data bit LSB trước, 1 Stop bit)."""
         clk_pin, rst_pin, data_pin, start_pin, serial_pin, busy_pin = "clk", "rst", "tx_data", "tx_start", "tx_serial", "tx_busy"
         if ports:
             for p in ports:
@@ -1060,7 +1102,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_washing_machine(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Washing Machine FSM Controller."""
+        """Sinh mạch FSM Điều khiển máy giặt tự động 4 pha (IDLE -> FILL -> WASH -> SPIN, khóa an toàn khi mở nắp)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Multi-Stage Automatic Washing Machine FSM Controller
@@ -1154,7 +1196,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_smart_alarm(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Smart Home Fire & Intruder Alarm System."""
+        """Sinh mạch Hệ thống báo động thông minh (ưu tiên cảnh báo cháy/khói trước đột nhập PIR)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Smart Home Dual-Threat Alarm (Fire & Intruder Priority System)
@@ -1197,8 +1239,12 @@ endmodule
 """
         return self._write_verilog(f"{module_name}.v", code)
 
+    # ==========================================================================
+    # NHÓM 5: THANH GHI DỊCH, BỘ DÒ CHUỖI, KHÓA SỐ, FIFO & HẠ TẦNG SỐ PHỔ THÔNG
+    # ==========================================================================
+
     def generate_shift_reg(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Universal Shift Register."""
+        """Sinh mạch Thanh ghi dịch đa năng 4-bit (Giữ, Dịch trái, Dịch phải, Nạp song song)."""
         width = 4
         code = f"""//==============================================================================
 // Module: {module_name}
@@ -1233,7 +1279,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_sequence_detector(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Sequence Detector FSM (default 1011)."""
+        """Sinh mạch FSM Dò chuỗi bit nối tiếp '1011' (kiến trúc không gối đầu Non-Overlapping)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Synchronous Sequence Detector FSM (Detects '1011')
@@ -1285,7 +1331,10 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_digital_lock(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 4-Digit Security Combination Lock."""
+        """
+        Sinh mạch FSM Khóa mã số điện tử bảo mật (mặc định 4 chữ số `4-2-7-9` hoặc trích từ spec):
+        Tự động ánh xạ tên cổng theo spec, hỗ trợ đếm số lần nhập sai và kích hoạt còi báo động khi sai quá giới hạn.
+        """
         clk_pin = "clk"
         rst_pin = "rst"
         key_pin = "key_in"
@@ -1471,7 +1520,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_fifo(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Synchronous FIFO Buffer."""
+        """Sinh mạch Bộ đệm hàng đợi FIFO đồng bộ (độ sâu 8 ô, rộng 8-bit) kèm cờ `full` và `empty`."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Synchronous FIFO Buffer (8 depth, 8-bit width)
@@ -1523,7 +1572,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_gray_counter(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 4-bit Gray Code Counter."""
+        """Sinh mạch Bộ đếm mã Gray 4-bit đồng bộ (mỗi bước nhảy chỉ đổi đúng 1 bit, hỗ trợ đếm lên/xuống)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: 4-bit Synchronous Gray Code Counter
@@ -1564,7 +1613,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_priority_encoder(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 8-to-3 Priority Encoder."""
+        """Sinh mạch Bộ mã hóa ưu tiên 8-sang-3 đồng bộ (ưu tiên bit MSB cao nhất) kèm tín hiệu `valid`."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: 8-to-3 Priority Encoder with Valid Signal
@@ -1603,7 +1652,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_pulse_detector(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for Rising-Edge Pulse Detector."""
+        """Sinh mạch Phát hiện cạnh lên tạo xung rộng đúng 1 chu kỳ clock (`din_d1 && !din_d2`)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: Single-cycle Rising Edge Pulse Detector
@@ -1635,7 +1684,7 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_barrel_shifter(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for 4-bit Barrel Shifter / Rotator."""
+        """Sinh mạch Bộ dịch/xoay vòng bit nhanh 4-bit (Barrel Shifter/Rotator 2 chiều trái/phải)."""
         code = f"""//==============================================================================
 // Module: {module_name}
 // Description: 4-bit Barrel Shifter / Rotator (Left and Right)
@@ -1677,8 +1726,12 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_generic_module(self, module_name, spec_text="", ports=None):
-        """Generates synthesizable Verilog for any generic custom specification."""
-        # Standard default ports if none extracted
+        """
+        Bộ sinh RTL dự phòng tổng quát cho các đặc tả tùy biến chưa thuộc họ mạch cố định:
+        Tự động dựng khai báo cổng từ `ports` (có clock/reset đồng bộ hoặc tổ hợp thuần)
+        và sinh logic gán/đếm an toàn, không lỗi cú pháp hay hở cổng.
+        """
+        # Khởi tạo cổng mặc định nếu đặc tả không cung cấp danh sách cổng cụ thể
         inputs = []
         outputs = []
         has_clk = False
@@ -1775,7 +1828,11 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_decoder(self, spec_text="", module_name="memory_address_decoder", ports=None):
-        """Generates synthesizable Verilog for address decoders and general decoders."""
+        """
+        Sinh mạch Bộ giải mã tổ hợp (tự động phân nhánh):
+          - Bộ giải mã địa chỉ bộ nhớ 64KB (`cs_ram` 32KB, `cs_rom` 16KB, `cs_io` 16KB).
+          - Bộ giải mã nhị phân tổng quát N-sang-2^N (tùy chọn chân cho phép `enable`).
+        """
         inputs = [p for p in (ports or []) if p["direction"] == "input"]
         outputs = [p for p in (ports or []) if p["direction"] == "output"]
 
@@ -1848,7 +1905,10 @@ endmodule
         return self._write_verilog(f"{module_name}.v", code)
 
     def generate_temperature_monitor(self, spec_text="", module_name="temperature_monitor_alarm", ports=None):
-        """Generates synthesizable Verilog for temperature monitor and alarm system."""
+        """
+        Sinh mạch Giám sát nhiệt độ và cảnh báo quá nhiệt 3 mức:
+        Bình thường (`< max_temp_limit`), Cảnh báo + Quạt tốc độ cao (`>= limit`), và Ngắt khẩn cấp (`>= limit + 10`).
+        """
         port_names = {p["name"].lower(): p for p in (ports or [])}
         clk_name = next((p["name"] for p in (ports or []) if p.get("is_clk") or "clk" in p["name"].lower()), "clk")
         rst_name = next((p["name"] for p in (ports or []) if p.get("is_rst") or "rst" in p["name"].lower()), "rst")
