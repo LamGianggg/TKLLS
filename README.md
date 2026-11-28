@@ -22,63 +22,73 @@
 ### 2.1. Đầu vào: `Đặc tả (Spec)` (Hộp vàng cam bên trái)
 * Tiếp nhận file đặc tả mạch số (`.txt` / `.md` trong `specs/`, hoặc trích từ `docs/100_Prompt_Thiet_Ke_Mach.pdf`), hỗ trợ cả **Tiếng Việt có dấu / không dấu** lẫn **Tiếng Anh** (dạng bảng Markdown, gạch đầu dòng hoặc văn xuôi).
 * Ba mũi tên xanh đẩy nguyên văn đặc tả song song vào 3 bước phân tích đầu tiên trong **Cụm 1**.
+* **Code thực thi:** [`SpecAnalyzer.__init__()`](agent/spec_analyzer.py#L33-L57) (nạp & giải quyết đường dẫn spec) $\leftarrow$ gọi từ [`run_single_spec()`](agent/run_spec2rtl.py#L180-L194).
 
 ### 2.2. Cụm 1 — `1. Iterative Understanding & Planning` (`agent/spec_analyzer.py`, `agent/knowledge_matcher.py`)
 Cụm này chạy tuần tự từ trên xuống qua **4 hộp kiểm chéo** để khóa chặt hợp đồng chân cắm và loại bỏ đề bài sai miền trước khi sinh code:
 1. **`Spec & Port Analyzer` (`spec_analyzer.py`):**
    * Chuẩn hóa tiếng Việt không dấu (`remove_vietnamese_accents()`), bóc tên module (`extract_module_name()`), và trích danh sách cổng `input`/`output`/`inout` + độ rộng bus `[N-1:0]` theo **3 tầng ưu tiên** (`extract_ports()`: Bảng Markdown $\to$ Danh sách $\to$ Văn xuôi).
+   * **Code thực thi:** [`agent/spec_analyzer.py`](agent/spec_analyzer.py#L12) (`remove_vietnamese_accents()` `L12`, `extract_module_name()` `L59`, `extract_ports()` `L240`).
 2. **`Domain & 30% Guard` (Lá chắn đầu vào theo chiến lược 70/30):**
-   * **Trạng thái dừng `REJECTED (OUT OF SCOPE)` (`check_unsupported_domain()`):** Chặn sớm và giải thích lý do nếu đề thuộc mạch tương tự (`ANALOG_AMS`: `op-amp`, `analog`, `bandgap`, `analog pll`), khối vật lý cao tần (`HIGH_SPEED_PHY`: `pcie/ddr4/ddr5/serdes/usb3 phy`), hoặc văn bản không liên quan phần cứng (`IRRELEVANT_INPUT`).
-   * **Trạng thái dừng `REJECTED (ARCHITECTURAL BOUNDARY)` (`is_30_percent_architecture()`):** Chặn sinh nguyên khối 1-prompt đối với **30% hệ thống lõi phức hợp** (`SOC_AI`, `top_soc`, `systolic array processor`, `ai accelerator core`, `npu_core`, `dma+relu+ai`), yêu cầu tách nhỏ thành từng khối phổ thông độc lập.
+   * **Trạng thái dừng `REJECTED (OUT OF SCOPE)`:** Chặn sớm và giải thích lý do nếu đề thuộc mạch tương tự (`ANALOG_AMS`: `op-amp`, `analog`, `bandgap`, `analog pll`), khối vật lý cao tần (`HIGH_SPEED_PHY`: `pcie/ddr4/ddr5/serdes/usb3 phy`), hoặc văn bản không liên quan phần cứng (`IRRELEVANT_INPUT`).
+   * **Trạng thái dừng `REJECTED (ARCHITECTURAL BOUNDARY)`:** Chặn sinh nguyên khối 1-prompt đối với **30% hệ thống lõi phức hợp** (`SOC_AI`, `top_soc`, `systolic array processor`, `ai accelerator core`, `npu_core`, `dma+relu+ai`), yêu cầu tách nhỏ thành từng khối phổ thông độc lập.
    * Nếu vượt qua 2 cửa này, bài toán thuộc **70% khối hạ tầng phổ thông** (Counter, Timer, UART/SPI/I2C, FIFO, ALU, Decoder, PWM, FSM…) và đi tiếp xuống bước 3.
+   * **Code thực thi:** [`check_unsupported_domain()`](agent/spec_analyzer.py#L127-L172), [`is_30_percent_architecture()`](agent/spec_analyzer.py#L106-L125), [`classify_system()`](agent/spec_analyzer.py#L174); kiểm tra dừng sớm tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L202-L226).
 3. **`Hybrid RAG Retrieval (DB)` (`knowledge_matcher.py`):**
    * Tra cứu thiết kế tham khảo trên kho tri thức gồm **`hardware_db.json` (690 mẫu sạch)** + các mẫu Teacher CoT nạp trong RAM từ **`dataset_teacher_distilled.json`**.
    * Dùng **RRF (Reciprocal Rank Fusion)** trộn 4 tín hiệu song song: từ điển `KHAI_NIEM_PHAN_CUNG` + **BM25** (khóa chặt tên giao thức, bit-width) + **Character 3-gram Jaccard** + **Semantic Vector** (tự động chọn `fastembed` ONNX CPU $\to$ cache `hardware_embeddings.npz` + `gemini-embedding-001` $\to$ fallback offline `TfidfVectorizer + TruncatedSVD`).
    * Xuất 2 nhánh: (a) đưa mức độ khớp (`EXACT` $\ge 0.70$, `SIMILAR` $\ge 0.35$, `CUSTOM` $< 0.35$) xuống hộp 4, và (b) **mũi tên đứt `RAG`** gọi `format_rag_context(spec_text, top_k=2)` (ngưỡng $\ge 0.28$, tối đa `45` dòng/mẫu) gửi sang `Qwen2.5-3B DPO`.
+   * **Code thực thi:** [`_khoi_tao_vector_backend()`](agent/knowledge_matcher.py#L584), [`_cham_diem_hybrid()`](agent/knowledge_matcher.py#L1074), [`search_by_mode()`](agent/knowledge_matcher.py#L1196), [`search()`](agent/knowledge_matcher.py#L1240), [`format_rag_context()`](agent/knowledge_matcher.py#L1246); nạp vào prompt tại [`models/run_inference.py`](models/run_inference.py#L65-L83).
 4. **`Port & Plan Verifier` (kiểm chéo $\uparrow\downarrow$ với Hộp 3):**
    * Đối soát lại **Port Contract** với phân loại mạch và kết quả RAG để chốt chiến lược sinh mã (`VENDING`/`ELEVATOR`/`TRAFFIC`, luồng AI `--use-distilled`, hoặc `RTLGenerator`), rồi đẩy qua mũi tên **`Impl. Plan`**.
+   * **Code thực thi:** [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L192-L250) (`classify_system()`, `BangMachMau`, và rẽ nhánh `else` cho mọi mạch 70%).
 
 ### 2.3. Thanh giữa trên — `Implementation Plan (Kế hoạch Thiết kế Trực tiếp)`
 Thay thế hoàn toàn tầng `Sub-Func C++ / HLS` của bài báo gốc bằng **4 gói kế hoạch chốt cứng** đi thẳng xuống Verilog-2001:
-1. **`1. Port Contract`:** Tên module và danh sách cổng/bit-width bất biến từ Cụm 1.
-2. **`2. RAG Top-K Context`:** Tối đa 2 mẫu Verilog tham khảo gần nhất.
-3. **`3. RTL Gen Strategy`:** Chọn `Qwen2.5-3B DPO` (`--use-distilled`) hoặc `RTLGenerator`.
-4. **`4. Self-Check TB Spec`:** Kịch bản Testbench tự chấm điểm theo đúng họ mạch 70%.
+1. **`1. Port Contract`:** Tên module và danh sách cổng/bit-width bất biến từ Cụm 1 ([`extract_module_name()`](agent/spec_analyzer.py#L59) & [`extract_ports()`](agent/spec_analyzer.py#L240)).
+2. **`2. RAG Top-K Context`:** Tối đa 2 mẫu Verilog tham khảo gần nhất ([`format_rag_context()`](agent/knowledge_matcher.py#L1246)).
+3. **`3. RTL Gen Strategy`:** Chọn `Qwen2.5-3B DPO` (`--use-distilled`) hoặc `RTLGenerator` ([`run_single_spec()`](agent/run_spec2rtl.py#L257-L283)).
+4. **`4. Self-Check TB Spec`:** Kịch bản Testbench tự chấm điểm theo đúng họ mạch 70% ([`generate_tb_from_spec()`](agent/tb_generator.py#L282)).
 *(Hai mũi tên đứt 2 chiều giữ cho Cụm 2 luôn bám sát hợp đồng thiết kế này.)*
 
 ### 2.4. Cụm 2 — `2. Direct RTL Coding & Dual-Verifier Harness`
 * **Hàng trên (Sinh mã & Ép chuẩn):**
   1. **`Qwen2.5-3B DPO` (`models/run_inference.py`):** Khi bật `--use-distilled`, gọi `generate_verilog(use_rag=True)` (ưu tiên `.gguf` qua `llama_cpp` $\to$ PyTorch LoRA). Nếu chưa bật cờ, chưa có trọng số trong `models/`, hoặc output AI chưa có `module ... endmodule` hợp lệ (`_extract_verilog_code()`), hệ thống kích hoạt **trạng thái `FALLBACK`** chuyển êm về `RTLGenerator.generate_from_spec()`.
+     * **Code thực thi:** [`generate_verilog()`](models/run_inference.py#L35-L194), [`_fallback_rtl_generator()`](models/run_inference.py#L14-L32); điều phối `--use-distilled` tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L148-L283) (`_extract_verilog_code()` `L148`, `if DungAiChinh:` `L258-L283`).
   2. **`RTLPortEnforcer` (`agent/rtl_generator.py`):** Đối chiếu với `Port Contract`, ép lại header `module ... (...);` khớp **100%** tên, hướng và độ rộng bit (nối nội bộ cổng thừa hoặc gán mặc định nếu thiếu).
+     * **Code thực thi:** [`RTLPortEnforcer.enforce()`](agent/rtl_generator.py#L13-L83) & [`RTLGenerator.generate_from_spec()`](agent/rtl_generator.py#L105), gọi tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L269-L281).
   3. **`Self-Check TB (70%)` (`agent/tb_generator.py`):** Đọc cổng thật của RTL để sinh `sim/tb_<tên_mạch>.v` chuẩn IEEE 1364-2001 có chuỗi reset an toàn (`#22; ... #2;`), **Verification Scoreboard** tự kiểm chứng Đúng/Sai cho các họ mạch 70% (Counter/BCD/Gray, FIFO, Shift Register, Decoder/Mux/Priority Encoder, ALU/Adder/Multiplier/Comparator, PWM/Timer, Ready/Valid, Digital Lock), kèm Watchdog timeout, in `[PASS]` / `[FAIL]` / `[SUCCESS]` và `$finish`.
+     * **Code thực thi:** [`_build_reset_sequence()`](agent/tb_generator.py#L173-L191), [`_emit_assert()`](agent/tb_generator.py#L194-L204), [`generate_tb_from_spec()`](agent/tb_generator.py#L282), [`generate_generic_tb()`](agent/tb_generator.py#L2427), gọi tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L284).
 * **Hàng dưới (Hai trọng tài kiểm chứng `Dual Verifier`):**
   1. **`Verifier 1: AST Static Linter` (`agent/verilog_linter.py`):** Chuẩn hóa `$display("%!")` và dấu phẩy thừa (`sanitize_file()`), kiểm tra cân bằng `begin/end`, `case/endcase`, `module/endmodule`, và quét sạch **3 lỗi phần cứng chí mạng**: `DANGLING_INPUT` / `UNASSIGNED_OUTPUT`, `INFERRED_LATCH`, `BLOCKING_IN_SEQUENTIAL` / `NONBLOCKING_IN_COMBINATIONAL`.
+     * **Code thực thi:** [`sanitize_verilog_code()`](agent/verilog_linter.py#L19), [`extract_module_info()`](agent/verilog_linter.py#L60), [`check_dangling_pins()`](agent/verilog_linter.py#L106), [`check_inferred_latches_and_races()`](agent/verilog_linter.py#L138), [`lint_check()`](agent/verilog_linter.py#L185), [`lint_file()`](agent/verilog_linter.py#L239); chạy tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L316-L321).
   2. **`Verifier 2: ModelSim Oracle` (`agent/simulator.py`):** Biên dịch bằng `vlog.exe` và mô phỏng batch bằng `vsim.exe -c -do "run -all; quit"` (tự fallback `iverilog`/`vvp` nếu máy không có ModelSim).
      * **`PASS 100%` (Mũi tên xanh lên Cụm 4):** Kết thúc sạch (`$finish` hoặc `[SUCCESS]`/`PASSED`) và 0 lỗi (`** Error:`, `[FAIL]`, `MISMATCH`, `TIMEOUT`).
      * **`FAIL` (Mũi tên đỏ sang Cụm 3):** Lỗi biên dịch `stage="compile"`, timeout 60s, hoặc assertion báo `[FAIL]`.
+     * **Code thực thi:** [`run_flow()`](agent/simulator.py#L198), [`run_modelsim_flow()`](agent/simulator.py#L115-L196), [`run_iverilog_flow()`](agent/simulator.py#L28-L103).
 
 ### 2.5. Cụm 3 — `3. Adaptive Reflection (Max 3 vòng)` (`agent/reflection_loop.py`)
 Khi ModelSim báo `FAIL`, hệ thống tự sửa lỗi tối đa **`max_retries = 3` vòng**:
-1. **`Analysis Agent` (`diagnose_error()`):** Đọc log ModelSim, bắt đúng file/dòng lỗi và phân loại (`compile` syntax, `TIMEOUT` treo FSM, hoặc `MISMATCH`/`FAIL` sai logic).
-2. **`Reflection Agent` (`apply_auto_repair()`) $\to$ `Candidate Actions (4 chiến lược)`:**
-   * *1. Vá tên module instance lệch* (`Instantiation of '...' failed`).
-   * *2. Sửa `$display(%!)` & lỗi cú pháp/dấu phẩy* + chạy lại `VerilogLinter.sanitize_verilog_code()`.
-   * *3. Tái tạo TB khớp cổng* (`Port '...' not found` $\to$ gọi `TBGenerator.generate_generic_tb()`).
-   * *4. Dừng nếu vượt phạm vi* (nếu không khớp mẫu tự vá hoặc hết 3 vòng $\to$ dừng và in chẩn đoán `stage / category / root_cause / suggested_fix`).
-3. Mũi tên **`Tự vá RTL/TB`** đưa file vừa sửa quay lại Cụm 2 để mô phỏng lại.
+1. **`Analysis Agent`:** Đọc log ModelSim, bắt đúng file/dòng lỗi và phân loại (`compile` syntax, `TIMEOUT` treo FSM, hoặc `MISMATCH`/`FAIL` sai logic) qua [`diagnose_error()`](agent/reflection_loop.py#L15-L53).
+2. **`Reflection Agent` $\to$ `Candidate Actions (4 chiến lược)`** trong [`apply_auto_repair()`](agent/reflection_loop.py#L55-L136):
+   * *1. Vá tên module instance lệch* (`Instantiation of '...' failed`, `L67-L86`).
+   * *2. Sửa `$display(%!)` & lỗi cú pháp/dấu phẩy* + chạy lại `VerilogLinter.sanitize_verilog_code()` (`L89-L114`).
+   * *3. Tái tạo TB khớp cổng* (`Port '...' not found` $\to$ gọi `TBGenerator.generate_generic_tb()`, `L117-L129`).
+   * *4. Dừng nếu vượt phạm vi* (trả `False` ở `L136` khi hết 3 vòng trong [`execute_closed_loop_flow()`](agent/reflection_loop.py#L138-L180) $\to$ chuyển sang nhánh báo `THẤT BẠI` tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L399-L406)).
+3. Mũi tên **`Tự vá RTL/TB`** đưa file vừa sửa quay lại Cụm 2 để mô phỏng lại (`L170` của `reflection_loop.py`, gọi từ [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L329)).
 
 ### 2.6. Cụm 4 — `4. EDA Synthesis & Visual Output` & Vòng nạp ngược DB
 Mạch đạt **`PASS 100%`** được đóng gói thành hồ sơ FPGA hoàn chỉnh:
-1. **`Port & Cyclone II` (`port_auditor.py`, `synthesis_profiler.py`):** Gọi `quartus_map.exe` tổng hợp thật lên **Altera Cyclone II** đọc `LEs`, `FFs`, `Pins` từ `.map.summary`; đồng thời kiểm toán chân tín hiệu **4 chiều** bảo đảm $\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$.
-2. **`BDF & VWF Gen` (`bdf_generator.py`, `vwf_generator.py`):** Sinh Project Quartus (`.qpf`, `.qsf`), Symbol (`.bsf`), Schematic (`.bdf`), và Vector Waveform (`.vwf`) để mở trực quan trong Quartus II (hoặc ModelSim GUI với `--gui`).
-3. **Vòng nạp ngược DB (`save_verified_design()` — mũi tên đứt xanh dương vòng ngoài cùng):** Nếu mô phỏng đạt `passed is True` **và** qua sạch `VerilogLinter.lint_file()`, hệ thống lưu ngược mẫu mới vào `knowledge_base/hardware_db.json` (lọc bỏ tên rác `test_`, `tc`, `web_spec_`, `custom_hw_module`, chống trùng tên & trùng hash **MD5**) để làm giàu trực tiếp cho **`Hybrid RAG Retrieval (DB)`** ở Cụm 1.
+1. **`Port & Cyclone II`:** Gọi `quartus_map.exe` tổng hợp thật lên **Altera Cyclone II** đọc `LEs`, `FFs`, `Pins` từ `.map.summary` qua [`parse_quartus_map_summary()`](agent/synthesis_profiler.py#L14-L60) & [`profile_module()`](agent/synthesis_profiler.py#L110); kiểm toán chân tín hiệu **4 chiều** ($\text{Spec} \equiv \text{RTL} \equiv \text{BSF} \equiv \text{BDF}$) qua [`PortAuditor.audit()`](agent/port_auditor.py#L12) (gọi tại [`agent/run_spec2rtl.py`](agent/run_spec2rtl.py#L350-L367)).
+2. **`BDF & VWF Gen`:** Sinh Project Quartus (`.qpf`, `.qsf`), Symbol (`.bsf`), Schematic (`.bdf`), và Vector Waveform (`.vwf`) qua [`setup_quartus_and_bdf()`](agent/run_spec2rtl.py#L54-L146), [`generate_bdf()`](agent/bdf_generator.py#L126), [`generate_vwf()`](agent/vwf_generator.py#L141) (kèm tùy chọn `--gui` mở ModelSim tại [`run_spec2rtl.py`](agent/run_spec2rtl.py#L359-L362)).
+3. **Vòng nạp ngược DB (mũi tên đứt xanh dương vòng ngoài cùng):** Khi mô phỏng đạt `passed is True` **và** qua sạch `VerilogLinter.lint_file()`, [`run_spec2rtl.py`](agent/run_spec2rtl.py#L370-L384) gọi [`save_verified_design()`](agent/knowledge_matcher.py#L1285) (lọc bỏ prefix rác `test_`, `tc`, `web_spec_`, `custom_hw_module`, chống trùng tên & trùng hash **MD5**) để nạp ngược vào `knowledge_base/hardware_db.json` cho Cụm 1.
 
 ### 2.7. Cụm 5 — `5. Chưng cất Tri thức Offline & Nạp Trọng Số Student` (`training/`)
 Pipeline chuẩn bị trọng số AI ngoại tuyến:
-1. **`Nguồn Dữ liệu Gốc`:** **VerilogDB** (`Rohan-code/Verilog_DB_read`, 40.755 mẫu) + **100 Prompts CE118** (+ benchmarks).
-2. **`Gemini Teacher (API)` (`training/distill_teacher_cot.py`):** `gemini-3.1-flash-lite` sinh suy luận CoT từng mạch + mã Verilog-2001.
-3. **`Truth Oracle 3 tầng`:** Lọc qua `SpecAnalyzer` + `AST Linter` + `ModelSim vlog.exe` (tập hiện tại trên repo đạt **`1.637` mẫu Teacher CoT**, **`2.724` mẫu SFT** và **`2.881` cặp DPO**); các ca lần 1 lỗi được gửi cho Teacher tự sửa để thu cặp **DPO** thật.
-4. **`Train Colab T4 (Qwen2.5-3B)`:** Chạy `train_spec2rtl_qwen3b_colab.ipynb` (SFT LoRA `r=16`) $\to$ `train_spec2rtl_qwen3b_dpo_colab.ipynb` (DPO `beta=0.1`), xuất LoRA Adapter & **GGUF** đặt vào `models/` (mũi tên **`Nạp trọng số 3B`**) để chạy offline qua `--use-distilled`.
+1. **`Nguồn Dữ liệu Gốc`:** **VerilogDB** (`Rohan-code/Verilog_DB_read`, 40.755 mẫu) + **100 Prompts CE118** (+ benchmarks), trích xuất bởi [`extract_prompts_from_pdf()`](training/distill_teacher_cot.py#L82) & [`extract_extra_specs()`](training/distill_teacher_cot.py#L145).
+2. **`Gemini Teacher (API)`:** `gemini-3.1-flash-lite` sinh suy luận CoT từng mạch + mã Verilog-2001 qua [`call_gemini_teacher()`](training/distill_teacher_cot.py#L181).
+3. **`Truth Oracle 3 tầng`:** Lọc qua `SpecAnalyzer` + `AST Linter` + `ModelSim vlog.exe` trong [`verify_with_truth_oracle()`](training/distill_teacher_cot.py#L274) và đóng gói bằng [`merge_and_export()`](training/distill_teacher_cot.py#L413) (tập hiện tại trên repo đạt **`1.637` mẫu Teacher CoT**, **`2.724` mẫu SFT** và **`2.881` cặp DPO**); các ca lần 1 lỗi được gửi cho Teacher tự sửa để thu cặp **DPO** thật.
+4. **`Train Colab T4 (Qwen2.5-3B)`:** Chạy [`train_spec2rtl_qwen3b_colab.ipynb`](training/train_spec2rtl_qwen3b_colab.ipynb) (SFT LoRA `r=16`) $\to$ [`train_spec2rtl_qwen3b_dpo_colab.ipynb`](training/train_spec2rtl_qwen3b_dpo_colab.ipynb) (DPO `beta=0.1`), xuất LoRA Adapter & **GGUF** đặt vào `models/` (mũi tên **`Nạp trọng số 3B`**) để chạy offline qua `--use-distilled`.
 
 ### 2.8. Bảng tóm tắt 6 trạng thái kết thúc của một lượt chạy
 
